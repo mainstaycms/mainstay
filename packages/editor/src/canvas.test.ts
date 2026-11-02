@@ -13,6 +13,8 @@ const kinds = {
   hero: { label: 'Hero', inner: [] },
   grid: { label: 'Grid', inner: ['feature'] },
   feature: { label: 'Feature', inner: [] },
+  column: { label: 'Column', inner: ['feature'], text: true },
+  split: { label: 'Split', inner: ['column'] },
 }
 
 beforeEach(() => {
@@ -29,7 +31,7 @@ beforeEach(() => {
         <textarea name="content"></textarea>
       </div>
       <div id="content" role="tabpanel" hidden>
-        <div data-canvas data-canvas-url="/admin/page/5/canvas" data-header="canvas-header" data-blocks='${JSON.stringify(kinds)}' data-top='["callout","latest","hero","grid"]'>
+        <div data-canvas data-canvas-url="/admin/page/5/canvas" data-header="canvas-header" data-blocks='${JSON.stringify(kinds)}' data-top='["callout","latest","hero","grid","column","split"]'>
           <p data-canvas-message>The page is edited with JavaScript, which is off.</p>
           <div data-canvas-stage hidden>
             <iframe data-canvas-frame sandbox="allow-same-origin"></iframe>
@@ -62,17 +64,42 @@ beforeEach(() => {
           </div>
           <div data-canvas-menu hidden>
             <div data-menu-group>
-              <button type="button" data-insert="paragraph">Paragraph</button>
-              <button type="button" data-insert="heading">Heading</button>
+              <button type="button" data-insert="paragraph"><svg data-icon="paragraph"></svg>Paragraph</button>
+              <button type="button" data-insert="heading"><svg data-icon="heading"></svg>Heading</button>
             </div>
             <div data-menu-group>
-              <button type="button" data-insert="block:latest">Latest articles</button>
-              <button type="button" data-insert="block:grid">Grid</button>
-              <button type="button" data-insert="block:feature">Feature</button>
+              <button type="button" data-insert="block:latest"><img alt="" src="data:image/svg+xml;base64,PHN2Zy8+">Latest articles</button>
+              <button type="button" data-insert="block:grid"><svg data-icon="grid"></svg>Grid</button>
+              <button type="button" data-insert="block:feature"><svg data-icon="star"></svg>Feature</button>
+              <button type="button" data-insert="block:column"><svg data-icon="columns"></svg>Column</button>
+              <button type="button" data-insert="block:split"><svg data-icon="banner"></svg>Split</button>
             </div>
           </div>
+          <dialog data-canvas-inserter>
+            <button type="button" data-dialog-close>Close</button>
+            <section data-menu-group>
+              <ul>
+                <li data-insert="paragraph"><button type="button">Paragraph</button><p>Running text.</p></li>
+                <li data-insert="heading"><button type="button">Heading</button></li>
+              </ul>
+            </section>
+            <section data-menu-group>
+              <ul>
+                <li data-insert="block:latest"><button type="button">Latest articles</button></li>
+                <li data-insert="block:grid"><button type="button">Grid</button></li>
+                <li data-insert="block:feature"><button type="button">Feature</button></li>
+                <li data-insert="block:column"><button type="button">Column</button></li>
+                <li data-insert="block:split"><button type="button">Split</button></li>
+              </ul>
+            </section>
+          </dialog>
         </div>
       </div>
+      <aside data-publishing>Publishing</aside>
+      <aside data-canvas-tree hidden>
+        <ul data-tree-list></ul>
+        <template data-tree-item><li><button type="button" data-tree-select></button></li></template>
+      </aside>
     </form>`
 })
 
@@ -181,6 +208,9 @@ async function opened(content: Doc, blocks: Record<string, string> = {}): Promis
 }
 
 const tool = (command: string) => $<HTMLButtonElement>(`[data-command="${command}"]`)
+const inserter = () => $<HTMLDialogElement>('[data-canvas-inserter]')
+const card = (kind: string) => $(`[data-canvas-inserter] [data-insert="${kind}"]`)
+const offered = () => [...inserter().querySelectorAll<HTMLElement>('[data-insert]')].filter((item) => !item.hidden).map((item) => item.dataset.insert)
 const types = () => saved().content!.map((node) => (node.type === 'block' ? `block:${node.attrs!.type}` : node.type))
 const at = (view: EditorView, pos: number) => view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos)))
 const key = (view: EditorView, init: KeyboardEventInit) =>
@@ -432,18 +462,18 @@ test('moves, duplicates, deletes and turns the current block from the toolbar', 
   expect(saved().content![0]).toEqual(text('paragraph', 'One'))
 })
 
-test('adds a block after the current one from the menu, or in place of an empty paragraph from `/`', async () => {
+test('adds a block after the current one from the dialog, or in place of an empty paragraph from the menu `/` opens', async () => {
   const view = await opened(doc(text('paragraph', 'One'), { type: 'paragraph' }))
 
   at(view, 2)
   tool('add').click()
-  expect([$('[data-canvas-menu]').hidden, tool('add').getAttribute('aria-expanded')]).toEqual([false, 'true'])
-  expect(document.activeElement).toBe($('[data-insert="paragraph"]'))
-  expect([...document.querySelectorAll<HTMLElement>('[data-insert]')].filter((item) => !item.hidden).map((item) => item.dataset.insert)).toEqual(['paragraph', 'heading', 'block:latest', 'block:grid'])
+  expect([inserter().open, $('[data-canvas-menu]').hidden]).toEqual([true, true])
+  expect(document.activeElement).toBe(card('paragraph').querySelector('button'))
+  expect(offered()).toEqual(['paragraph', 'heading', 'block:latest', 'block:grid', 'block:column', 'block:split'])
 
-  $('[data-insert="heading"]').click()
+  card('heading').click()
   expect(types()).toEqual(['paragraph', 'heading', 'paragraph'])
-  expect($('[data-canvas-menu]').hidden).toBe(true)
+  expect(inserter().open).toBe(false)
   expect(view.state.selection.$from.parent.type.name).toBe('heading')
 
   /* `/` in a paragraph with text in it is a `/`. */
@@ -475,6 +505,13 @@ test('adds a block after the current one from the menu, or in place of an empty 
   expect(inner().querySelector('[data-mainstay-placeholder]')!.textContent).toBe('Latest articles')
   expect(posted).toHaveLength(2)
   expect(JSON.parse(posted[1]!.get('content') as string).content[2].attrs.type).toBe('latest')
+  /* Its row in the tree by its icon, a site's own an image. */
+  expect([...document.querySelectorAll('[data-tree-select]')].at(-1)!.firstElementChild!.outerHTML).toBe('<img alt="" src="data:image/svg+xml;base64,PHN2Zy8+">')
+
+  /* Anywhere on a card adds it. */
+  tool('add').click()
+  card('paragraph').querySelector('p')!.click()
+  expect([types(), inserter().open]).toEqual([['paragraph', 'heading', 'block:latest', 'paragraph'], false])
 })
 
 test('starts a paragraph after a site block on Enter, and removes an empty block on Backspace', async () => {
@@ -886,32 +923,33 @@ test('lists the blocks inside a selected one in its settings, selects one from t
   const listed = () => [...sidebar().querySelectorAll<HTMLElement>('[data-inner-select]')].map((item) => [item.dataset.innerSelect, item.textContent])
 
   expect([$('[data-sidebar-title]').textContent, $('[data-sidebar-inner]').hidden]).toEqual(['Grid', false])
-  expect(listed()).toEqual([['f1', 'Feature: One'], ['f2', 'Feature: Two']])
+  expect(listed()).toEqual([['8', 'Feature: One'], ['10', 'Feature: Two']])
+  expect(sidebar().querySelector('[data-inner-select] svg')!.getAttribute('data-icon')).toBe('star')
   expect([...sidebar().querySelectorAll('[data-inner-add]')].map((add) => add.textContent)).toEqual(['Add feature'])
 
   /* Added from there, last inside it, which stays selected; the page drawn
      again to show it. */
   serve(page(doc()))
-  sidebar().querySelector<HTMLButtonElement>('[data-inner-add="feature"]')!.click()
+  sidebar().querySelector<HTMLButtonElement>('[data-inner-add="block:feature"]')!.click()
   expect([features().length, features().slice(0, 2), view()!.state.selection.from]).toEqual([3, ['f1', 'f2'], 7])
   expect(features()[2]).toMatch(/^[0-9a-f]{26}$/)
-  expect(listed()[2]).toEqual([features()[2], 'Feature'])
+  expect(listed()[2]).toEqual(['12', 'Feature'])
   await answered()
   expect(inner().querySelector('section [data-mainstay-placeholder]')!.textContent).toBe('Feature')
 
   /* Selected from the list: on the page, the settings closed for it. */
   tool('settings').click()
   replies.push(json({ block: feature('f2', 'Two').attrs, html: featured('f2', 'Two'), form: '' }))
-  sidebar().querySelector<HTMLElement>('[data-inner-select="f2"]')!.click()
+  sidebar().querySelector<HTMLElement>('[data-inner-select="10"]')!.click()
   expect([settings().open, view()!.state.selection.from]).toEqual([false, 10])
   expect(JSON.parse(sent[1]!.get('ancestors') as string)).toEqual([grid().attrs])
 
   /* Inside it, the menu offers what the grid holds, added after it there. */
   tool('add').click()
-  expect([...document.querySelectorAll<HTMLElement>('[data-insert]')].filter((item) => !item.hidden).map((item) => item.dataset.insert)).toEqual(['block:feature'])
-  expect([...document.querySelectorAll<HTMLElement>('[data-menu-group]')].map((group) => group.hidden)).toEqual([true, false])
+  expect(offered()).toEqual(['block:feature'])
+  expect([...inserter().querySelectorAll<HTMLElement>('[data-menu-group]')].map((group) => group.hidden)).toEqual([true, false])
   serve(page(doc()))
-  $('[data-insert="block:feature"]').click()
+  card('block:feature').click()
   expect([features().length, features()[1], view()!.state.selection.from]).toEqual([4, 'f2', 12])
 
   /* Moved and removed among the blocks inside it; the last one gone, the
@@ -928,9 +966,245 @@ test('lists the blocks inside a selected one in its settings, selects one from t
   serve(page(doc()))
   at(view()!, 2)
   tool('add').click()
-  $('[data-insert="block:grid"]').click()
+  card('block:grid').click()
   expect([types(), saved().content![1]!.content!.map((node) => node.attrs!.type)]).toEqual([['paragraph', 'block:grid', 'block:grid'], ['feature']])
   await answered()
+})
+
+/* A column holding text and features inside it, beside HTML of its own. */
+const column = (...content: Doc[]): Doc => ({ type: 'block', attrs: { id: 'k1', type: 'column', data: {} }, ...(content.length ? { content } : {}) })
+const columned = '<div class="column">\n  <aside>Beside</aside>\n  <div class="inside"><template data-mainstay-inner></template></div>\n</div>'
+const inside = (index = 1) => saved().content![index]!.content!.map((node) => (node.type === 'block' ? `block:${node.attrs!.type}` : node.type))
+
+test('types text inside a block whose class holds it, Enter, Backspace, Turn into and the menu keeping to it', async () => {
+  const content = doc(text('paragraph', 'Intro'), column(text('heading', 'Title', { level: 2 }), feature('f1', 'One'), text('paragraph', 'Body')))
+
+  sidebarred()
+
+  const view = await opened(content, { k1: columned, f1: featured('f1', 'One') })
+  const drawn = inner().querySelector<HTMLElement>('.column')!
+  const holder = drawn.querySelector<HTMLElement>('.inside')!
+  const space = (element: Element) => inner().defaultView!.getComputedStyle(element).whiteSpace
+
+  /* Its text is the page's, typed in place: the elements around it stay
+     editable, the rest of its HTML beside them does not, its spacing
+     included. */
+  expect([drawn.hasAttribute('contenteditable'), drawn.hasAttribute('data-mainstay-around'), drawn.querySelector('aside')!.getAttribute('contenteditable')]).toEqual([false, true, 'false'])
+  expect([...drawn.childNodes].map((child) => [child.nodeName, (child as Element).getAttribute('contenteditable')])).toEqual([['SPAN', 'false'], ['ASIDE', 'false'], ['SPAN', 'false'], ['DIV', null], ['SPAN', 'false']])
+  expect([...holder.children].map((child) => child.tagName)).toEqual(['H2', 'LI', 'P'])
+  expect([holder.hasAttribute('data-mainstay-holds'), holder.querySelector('h2')!.closest('[contenteditable]')]).toEqual([true, view.dom])
+  expect([space(drawn), space(holder), space(holder.querySelector('li')!)]).toEqual(['normal', 'pre-wrap', 'normal'])
+
+  /* In its heading the toolbar is the text's, turning it into another kind
+     there, and typing goes in. */
+  at(view, 10)
+  expect([$<HTMLSelectElement>('[data-command="turn"]').value, tool('settings').hidden]).toEqual(['heading-2', true])
+  $<HTMLSelectElement>('[data-command="turn"]').value = 'paragraph'
+  $('[data-command="turn"]').dispatchEvent(new Event('change'))
+  expect(inside()).toEqual(['paragraph', 'block:feature', 'paragraph'])
+  expect(view.someProp('handleTextInput', (typed) => typed(view, 10, 10, 'x', () => view.state.tr))).toBeFalsy()
+
+  /* Enter at the end of its text starts a paragraph inside it, Backspace in
+     that empty one takes it away again; the last text in it stays. */
+  at(view, 22)
+  key(view, { key: 'Enter' })
+  expect([inside(), view.state.selection.from]).toEqual([['paragraph', 'block:feature', 'paragraph', 'paragraph'], 24])
+  key(view, { key: 'Backspace' })
+  expect([inside(), view.state.selection.from]).toEqual([['paragraph', 'block:feature', 'paragraph'], 22])
+
+  /* Add block there offers what the column holds, added inside it. */
+  tool('add').click()
+  expect(offered()).toEqual(['paragraph', 'heading', 'block:feature'])
+  card('heading').click()
+  expect(inside()).toEqual(['paragraph', 'block:feature', 'paragraph', 'heading'])
+
+  /* `/` opens the menu in a paragraph inside it too. */
+  const end = view.state.doc.child(1).nodeSize + 6
+
+  view.dispatch(view.state.tr.insert(end, view.state.schema.nodes.paragraph!.create()))
+  at(view, end + 1)
+  key(view, { key: '/' })
+  expect([$('[data-canvas-menu]').hidden, [...$('[data-canvas-menu]').querySelectorAll<HTMLElement>('[data-insert]')].filter((item) => !item.hidden).map((item) => item.dataset.insert)]).toEqual([false, ['paragraph', 'heading', 'block:feature']])
+  key(view, { key: 'Escape' })
+
+  /* Enter on a feature selected inside it starts a paragraph after it; a
+     click on text inside it leaves the column unselected. */
+  select(view, 15)
+  key(view, { key: 'Enter' })
+  expect([inside().slice(0, 3), view.state.selection.from]).toEqual([['paragraph', 'block:feature', 'paragraph'], 18])
+
+  const clicked = (pos: number, direct: boolean) => view.someProp('handleClickOn', (click) => click(view, pos + 1, view.state.doc.nodeAt(pos)!, pos, new MouseEvent('click'), direct))
+
+  expect(clicked(7, false)).toBeFalsy()
+  expect([clicked(7, true), view.state.selection instanceof NodeSelection, view.state.selection.from]).toEqual([true, true, 7])
+
+  /* Its settings list its text with its blocks, and add a paragraph. */
+  replies.push(json({ block: column().attrs, html: columned, form: '' }))
+  await answered()
+  expect([...sidebar().querySelectorAll<HTMLElement>('[data-inner-select]')].map((item) => item.textContent).slice(0, 3)).toEqual(['Paragraph: Title', 'Feature: One', 'Paragraph'])
+  expect([...sidebar().querySelectorAll('[data-inner-add]')].map((add) => add.textContent)).toEqual(['Add paragraph', 'Add feature'])
+  sidebar().querySelector<HTMLButtonElement>('[data-inner-add="paragraph"]')!.click()
+  expect(inside().at(-1)).toBe('paragraph')
+  sidebar().querySelector<HTMLElement>('[data-inner-select="8"]')!.click()
+  expect([view.state.selection instanceof TextSelection, view.state.selection.from]).toEqual([true, 9])
+
+  /* Added, a column starts with an empty paragraph to type in, and a block
+     holding columns with a column holding one. */
+  serve(page(doc()), page(doc()))
+  at(view, 2)
+  tool('add').click()
+  card('block:split').click()
+  expect(saved().content![1]).toEqual({ type: 'block', attrs: { id: saved().content![1]!.attrs!.id, type: 'split', data: {} }, content: [{ type: 'block', attrs: { id: saved().content![1]!.content![0]!.attrs!.id, type: 'column', data: {} }, content: [{ type: 'paragraph' }] }] })
+  await answered()
+})
+
+test('keeps the text inside a block to it: Backspace at its start, its last paragraph, and Delete, Turn into and `/` there', async () => {
+  const view = await opened(doc(text('paragraph', 'Intro'), column(text('heading', 'Title', { level: 2 }), feature('f1', 'One'), text('paragraph', 'Body'))), { k1: columned, f1: featured('f1', 'One') })
+  const turned = (to: string) => {
+    $<HTMLSelectElement>('[data-command="turn"]').value = to
+    $('[data-command="turn"]').dispatchEvent(new Event('change'))
+  }
+
+  /* Backspace at the start of its text joins nothing outside it. */
+  at(view, 9)
+  key(view, { key: 'Backspace' })
+  expect([types(), inside()]).toEqual([['paragraph', 'block:column'], ['heading', 'block:feature', 'paragraph']])
+
+  /* Its text turned into a quote or a list is wrapped where it is. */
+  at(view, 20)
+  turned('blockquote')
+  expect([types(), inside()]).toEqual([['paragraph', 'block:column'], ['heading', 'block:feature', 'blockquote']])
+  turned('bullet_list')
+  expect([types(), inside()]).toEqual([['paragraph', 'block:column'], ['heading', 'block:feature', 'bullet_list']])
+
+  /* `/` in a paragraph inside that list opens no menu: the list holds it. */
+  view.dispatch(view.state.tr.delete(20, 24))
+  at(view, 20)
+  key(view, { key: '/' })
+  expect([$('[data-canvas-menu]').hidden, inside()[2]]).toEqual([true, 'bullet_list'])
+
+  /* A block deleted inside the page's one block goes from it alone, the
+     cursor in what came after; its last one leaves it empty, and selected. */
+  view.dispatch(view.state.tr.delete(0, 7))
+  select(view, 8)
+  tool('delete').click()
+  expect([inside(0), view.state.selection.from]).toEqual([['heading', 'bullet_list'], 11])
+  view.dispatch(view.state.tr.replaceWith(1, view.state.doc.child(0).nodeSize - 1, view.state.schema.nodes.paragraph!.create()))
+  expect(inside(0)).toEqual(['paragraph'])
+
+  /* The one paragraph left inside it stays when Backspace is pressed in it. */
+  at(view, 2)
+  key(view, { key: 'Backspace' })
+  expect([types(), inside(0)]).toEqual([['block:column'], ['paragraph']])
+  select(view, 1)
+  tool('delete').click()
+  expect([saved().content![0]!.content, view.state.selection instanceof NodeSelection, view.state.selection.from]).toEqual([undefined, true, 0])
+})
+
+test("leaves a block's own HTML to the admin when it changes there, around the text inside it", async () => {
+  const content = doc(text('paragraph', 'Intro'), column(text('paragraph', 'Inside')))
+  const view = await opened(content, { k1: columned })
+  const drawn = inner().querySelector<HTMLElement>('.column')!
+  const holder = drawn.querySelector<HTMLElement>('.inside')!
+
+  drawn.querySelector('aside')!.textContent = 'Changed'
+  holder.setAttribute('class', 'inside moved')
+  await settle()
+  at(view, 2)
+  view.dispatch(view.state.tr.insertText('!', 6))
+  await settle()
+
+  expect([inner().querySelector('.column'), inner().querySelector('.inside'), holder.className, drawn.querySelector('aside')!.textContent]).toEqual([drawn, holder, 'inside moved', 'Changed'])
+  expect(saved()).toEqual(doc(text('paragraph', 'Intro!'), column(text('paragraph', 'Inside'))))
+})
+
+test('draws the text inside a block on a page drawn read-only', async () => {
+  const content = doc(column(text('paragraph', 'Inside'), feature('f1', 'One')))
+
+  textarea().value = JSON.stringify(content)
+  serve(page(content, { k1: columned, f1: featured('f1', 'One') }, (script) => `<article><h1>Title</h1>${script}</article>`))
+
+  const view = canvas($('[data-canvas]'))!
+
+  unlaid()
+  await show()
+
+  expect(view()).toBeNull()
+  expect([...inner().querySelector('.inside')!.children].map((child) => child.textContent)).toEqual(['Inside', 'OneLine'])
+})
+
+test("lists every block in a tree in the publishing rail's place, the ones inside another under it, and selects one picked there", async () => {
+  const content = doc(text('heading', 'Welcome', { level: 2 }), { type: 'paragraph' }, grid(feature('f1', 'One'), feature('f2', 'Two')))
+  const element = $('[data-canvas]')
+  const [rail, tree] = [$('[data-publishing]'), $('[data-canvas-tree]')]
+  const rows = () =>
+    [...tree.querySelectorAll<HTMLElement>('[data-tree-select]')].map((row) => [row.dataset.treeSelect, row.closest('li')!.parentElement === $('[data-tree-list]') ? 0 : 1, row.textContent, row.getAttribute('aria-current')])
+
+  textarea().value = JSON.stringify(content)
+  serve(page(content, { g1: gridded, f1: featured('f1', 'One'), f2: featured('f2', 'Two') }))
+
+  const view = canvas(element)!
+
+  unlaid()
+  expect([rail.hidden, tree.hidden]).toEqual([false, true])
+  await show()
+  expect([rail.hidden, tree.hidden]).toEqual([true, false])
+  expect(rows()).toEqual([
+    ['0', 0, 'Heading 2: Welcome', 'true'],
+    ['9', 0, 'Paragraph', null],
+    ['11', 0, 'Grid: Top', null],
+    ['12', 1, 'Feature: One', null],
+    ['14', 1, 'Feature: Two', null],
+  ])
+  /* Each by its icon, as the `/` menu draws it. */
+  expect([...tree.querySelectorAll('[data-tree-select]')].map((row) => [row.firstElementChild!.getAttribute('data-icon'), row.lastElementChild!.textContent])).toEqual([
+    ['heading', 'Heading 2: Welcome'],
+    ['paragraph', 'Paragraph'],
+    ['grid', 'Grid: Top'],
+    ['star', 'Feature: One'],
+    ['star', 'Feature: Two'],
+  ])
+
+  /* A block inside another picked: selected on the page, current in the
+     tree, the toolbar by it. A text block: the cursor at its start. */
+  Object.defineProperties(frame(), { clientHeight: { value: 600 }, clientWidth: { value: 800 } })
+  ;(view()!.nodeDOM(14) as HTMLElement).getBoundingClientRect = () => ({ top: 100, bottom: 200, left: 20, right: 300 }) as DOMRect
+  tree.querySelector<HTMLElement>('[data-tree-select="14"]')!.click()
+  expect([view()!.state.selection instanceof NodeSelection, view()!.state.selection.from, view()!.hasFocus(), $('[data-canvas-toolbar]').hidden]).toEqual([true, 14, true, false])
+  expect(rows().map((row) => row[3])).toEqual([null, null, null, null, 'true'])
+
+  tree.querySelector<HTMLElement>('[data-tree-select="9"]')!.click()
+  expect([view()!.state.selection instanceof TextSelection, view()!.state.selection.from]).toEqual([true, 10])
+
+  /* Typed in, it says its text, the blocks after it where they now are. */
+  view()!.dispatch(view()!.state.tr.insertText('Hi'))
+  expect(rows().slice(1)).toEqual([
+    ['9', 0, 'Paragraph: Hi', 'true'],
+    ['13', 0, 'Grid: Top', null],
+    ['14', 1, 'Feature: One', null],
+    ['16', 1, 'Feature: Two', null],
+  ])
+
+  /* A long text is named by its start. */
+  view()!.dispatch(view()!.state.tr.insertText('x'.repeat(100)))
+  expect(rows()[1]![2]).toBe(`Paragraph: Hi${'x'.repeat(78)}`)
+
+  /* Back on Details, the rail is back. */
+  $('#details').hidden = false
+  $('#content').hidden = true
+  document.dispatchEvent(new CustomEvent('tabchange', { detail: 'details' }))
+  expect([rail.hidden, tree.hidden]).toEqual([false, true])
+})
+
+test('shows the tree at once for a page opened on Content, whose tab was picked before it was wired', async () => {
+  textarea().value = JSON.stringify(doc(text('paragraph', 'Hi')))
+  serve(page(doc(text('paragraph', 'Hi'))))
+  $('#details').hidden = true
+  $('#content').hidden = false
+  canvas($('[data-canvas]'))
+
+  expect([$('[data-publishing]').hidden, $('[data-canvas-tree]').hidden]).toEqual([true, false])
+  await settle()
 })
 
 test('floats the toolbar above the current block, inside the frame, and keeps it out of the way while typing until the page is pointed at', async () => {

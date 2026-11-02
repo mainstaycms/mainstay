@@ -149,9 +149,10 @@ export const schema = new Schema({
 /*
  | A page's content: the same text, and at its top level the site's blocks,
  | which Content.php holds as `{type: 'block', attrs: {id, type, data},
- | content: [...]}`, the blocks inside one its content. The editor draws one
- | as the HTML the site's view drew; copied, it is an element carrying its
- | attributes around the blocks inside it, which is what pasting it reads.
+ | content: [...]}`, what is inside one its content: blocks, and text where
+ | its class names text, which the editor keeps to. The editor draws one as
+ | the HTML the site's view drew; copied, it is an element carrying its
+ | attributes around what is inside it, which is what pasting it reads.
  */
 const block = (value: unknown): Attrs | false => {
   try {
@@ -168,10 +169,12 @@ type Marks = typeof schema extends Schema<string, infer M> ? M : never
 
 export const contentSchema = new Schema<Nodes | 'block', Marks>({
   nodes: schema.spec.nodes.update('doc', { content: '(flow | block)+' }).addToEnd('block', {
-    content: 'block*',
+    content: '(flow | block)*',
     /* One unit to the cursor: the blocks inside it are selected by a
-       click. */
+       click, its text typed in. Isolating, so typing never splits it, nor
+       takes its text out of it or another's into it. */
     atom: true,
+    isolating: true,
     attrs: { id: { default: null }, type: { validate: 'string' }, data: { default: {} } },
     parseDOM: [{ tag: 'div[data-mainstay-block]', getAttrs: (dom) => block(dom.getAttribute('data-mainstay-block')) }],
     toDOM: (node) => ['div', { 'data-mainstay-block': JSON.stringify(node.attrs) }, 0],

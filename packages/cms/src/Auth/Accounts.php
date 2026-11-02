@@ -115,9 +115,10 @@ final class Accounts
     /*
      | A new role, or this one changed. Its name is held lowercased, as an
      | email is, since the unique index folds case on some drivers and not
-     | on others. A capability no registered type derives is refused, unless
-     | the role held it already: one a type no longer derives stays until
-     | someone unchecks it. `*` is every capability, so it is all it holds.
+     | on others. A capability no registered type or plugin derives is
+     | refused, unless the role held it already: one a type no longer derives
+     | stays until someone unchecks it. `*` is every capability, so it is all
+     | it holds.
      |
      | @param  list<string>  $capabilities
      */
@@ -137,7 +138,7 @@ final class Accounts
             }
 
             if (($unknown = array_diff($capabilities, ['*'], $this->mainstay->capabilities(), $role->capabilities)) !== []) {
-                throw ValidationException::withMessages(['capabilities' => 'No registered type derives '.reset($unknown).'.']);
+                throw ValidationException::withMessages(['capabilities' => 'No registered type or plugin derives '.reset($unknown).'.']);
             }
 
             $role->fill(['name' => $name, 'capabilities' => in_array('*', $capabilities, true) ? ['*'] : $capabilities])->save();

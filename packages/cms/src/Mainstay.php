@@ -41,8 +41,17 @@ class Mainstay
        naming its screens' segment, cannot be. */
     private const ADMIN = ['media', 'login', 'logout', 'users', 'roles', 'account'];
 
+    /* View namespaces a plugin's handle cannot be: Mainstay's own, and
+       Laravel's mail and error pages, which it adds only as a mail or an
+       error renders and then replaces. Any other already registered is
+       refused as it is found. */
+    private const NAMESPACES = ['mainstay', 'mail', 'errors'];
+
     /** @var array<string, class-string<ContentType>> */
     private array $types = [];
+
+    /** @var array<string, Plugin> by handle */
+    private array $plugins = [];
 
     /** @var array<class-string, array<string, Field>> */
     private array $fields = [];
@@ -135,6 +144,11 @@ class Mainstay
                 throw new InvalidArgumentException("{$type} would be called \"{$handle}\", which the admin uses for a screen of its own. Rename the class.");
             }
 
+            /* Nor a plugin's, whose screens answer at that segment first. */
+            if (isset($this->plugins[$handle])) {
+                throw new InvalidArgumentException("{$type} would be called \"{$handle}\", which the plugin ".$this->plugins[$handle]::class.' is called. Rename the class.');
+            }
+
             $this->types[$handle] = $type;
         }
     }
@@ -148,13 +162,68 @@ class Mainstay
      */
     public function capabilities(): array
     {
-        return [...array_merge(...array_map(Capabilities::of(...), array_values($this->types))), ...Capabilities::shared()];
+        return [...array_merge(...array_map(Capabilities::of(...), array_values($this->types))), ...Capabilities::shared(), ...array_values(Capabilities::plugins())];
     }
 
     /** @return array<string, class-string<ContentType>> */
     public function registered(): array
     {
         return $this->types;
+    }
+
+    /*
+     | The plugins `config('mainstay.plugins')` names, made as Mainstay boots,
+     | before the admin's routes load to route their screens, and each one's
+     | types registered as the host's are. A handle is the segment a plugin's
+     | screens answer at, the namespace its views are in and its capability's
+     | noun, so it is checked here, where the class can be named: none of the
+     | admin's screens, no view namespace already there, no type's and no other
+     | plugin's.
+     */
+    public function loadPlugins(array $plugins): void
+    {
+        foreach ($plugins as $plugin) {
+            if (! is_string($plugin) || ! is_subclass_of($plugin, Plugin::class)) {
+                throw new InvalidArgumentException(sprintf(
+                    '%s is not a Mainstay plugin. Extend Mainstay\Plugin.',
+                    is_string($plugin) ? $plugin : get_debug_type($plugin),
+                ));
+            }
+
+            if ((new ReflectionClass($plugin))->isAbstract()) {
+                throw new InvalidArgumentException("{$plugin} is abstract, so there is no plugin to load. Name the class that extends it.");
+            }
+
+            $handle = $plugin::handle();
+
+            if (preg_match('/\A[a-z][a-z0-9_]*\z/', $handle) !== 1) {
+                throw new InvalidArgumentException("{$plugin} is called \"{$handle}\", and a plugin's handle is lowercase letters, digits and underscores, starting with a letter.");
+            }
+
+            if (isset($this->plugins[$handle])) {
+                throw new InvalidArgumentException("Two plugins are called \"{$handle}\": ".$this->plugins[$handle]::class." and {$plugin}.");
+            }
+
+            if (in_array($handle, [...self::ADMIN, ...self::NAMESPACES], true) || array_key_exists($handle, app('view')->getFinder()->getHints())) {
+                throw new InvalidArgumentException("{$plugin} is called \"{$handle}\", which the admin or a view namespace uses already. Return another handle().");
+            }
+
+            if (isset($this->types[$handle])) {
+                throw new InvalidArgumentException("{$plugin} is called \"{$handle}\", which the content type {$this->types[$handle]} is called. Return another handle().");
+            }
+
+            $this->plugins[$handle] = app($plugin);
+        }
+
+        foreach ($this->plugins as $loaded) {
+            $this->types($loaded->types());
+        }
+    }
+
+    /** @return array<string, Plugin> by handle */
+    public function plugins(): array
+    {
+        return $this->plugins;
     }
 
     /*
@@ -215,14 +284,15 @@ class Mainstay
     }
 
     /*
-     | `@inner($block)`: the blocks inside a block, each drawn by its view, in
-     | their order. For the Content tab's editor an empty <template> in their
-     | place, where the editor puts them, each drawn on its own: the element
-     | it sits in holds the inner blocks and nothing else.
+     | `@inner($block)`: the blocks inside a block, each drawn by its view,
+     | and the text among them, in their order. For the Content tab's editor
+     | an empty <template> in their place, where the editor puts them, each
+     | block drawn on its own: the element it sits in holds what is inside
+     | the block and nothing else.
      */
     public function inner(Block $block): HtmlString
     {
-        return new HtmlString($this->marking ? '<template data-mainstay-inner></template>' : implode('', array_map(fn (Block $inner) => $inner->toHtml(), $block->inner())));
+        return new HtmlString($this->marking ? '<template data-mainstay-inner></template>' : $block->innerContent()->toHtml());
     }
 
     /* Whether what is drawn now is for the editor: an image marks itself. */
@@ -860,11 +930,15 @@ class Mainstay
         }
     }
 
-    /** @param list<ReflectionAttribute> $attributes a class's #[Blocks], which names blocks and nothing more */
+    /** @param list<ReflectionAttribute> $attributes a class's #[Blocks], which names blocks, and on a block text, and nothing more */
     private function listing(string $type, array $attributes): void
     {
-        if ($attributes !== [] && array_diff(array_keys($attributes[0]->getArguments()), [0, 'of']) !== []) {
-            throw new InvalidArgumentException("{$type}'s #[Blocks] names the blocks it holds and nothing more: #[Blocks([Hero::class])].");
+        $block = is_subclass_of($type, Block::class);
+
+        if ($attributes !== [] && array_diff(array_keys($attributes[0]->getArguments()), $block ? [0, 1, 'of', 'text'] : [0, 'of']) !== []) {
+            throw new InvalidArgumentException($block
+                ? "{$type}'s #[Blocks] names the blocks it holds and whether it holds text, and nothing more: #[Blocks([Button::class], text: true)]."
+                : "{$type}'s #[Blocks] names the blocks it holds and nothing more, its content holding text already: #[Blocks([Hero::class])].");
         }
     }
 

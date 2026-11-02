@@ -13,14 +13,17 @@ use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use Mainstay\Content\Document;
 use Mainstay\Content\Entry;
 use Mainstay\Facades\Mainstay;
+use Mainstay\Fields\Blocks;
 use Mainstay\Tests\Fixtures\Article;
 use Mainstay\Tests\Fixtures\Blocks\Callout;
 use Mainstay\Tests\Fixtures\Blocks\Gallery;
+use Mainstay\Tests\Fixtures\Blocks\Panel;
 use Mainstay\Tests\Fixtures\Blocks\Slide;
 use Mainstay\Tests\Fixtures\Guide;
 use Mainstay\Tests\Fixtures\Hooked;
@@ -1429,13 +1432,14 @@ class ContentTest extends DatabaseTestCase
                 $this->block(['id' => 'twice', 'type' => 'callout', 'data' => ['heading' => 'Two']]),
             ], ['content.content.0.attrs.id', 'content.content.1.attrs.id']],
             /* Inside a block, the blocks it names, each by its own rules and
-               with an id of its own there; and none inside one naming none. */
+               with an id of its own there; none inside one naming none, and
+               no text inside one naming none. */
             [[
                 $this->holding(['type' => 'gallery', 'data' => []], ['type' => 'callout', 'data' => ['heading' => 'Stray']]),
                 $this->holding(['type' => 'gallery', 'data' => []], ['id' => 'twice', 'type' => 'slide', 'data' => ['title' => 'One']], ['id' => 'twice', 'type' => 'slide', 'data' => ['title' => 'Two']]),
                 $this->holding(['type' => 'callout', 'data' => ['heading' => 'Holding']], ['type' => 'slide', 'data' => ['title' => 'Inside']]),
                 ['type' => 'block', 'attrs' => ['type' => 'gallery', 'data' => []], 'content' => [['type' => 'paragraph']]],
-            ], ['content.content.0.content.0.attrs.type', 'content.content.1.content.0.attrs.id', 'content.content.1.content.1.attrs.id', 'content.content.2.content', 'content']],
+            ], ['content.content.0.content.0.attrs.type', 'content.content.1.content.0.attrs.id', 'content.content.1.content.1.attrs.id', 'content.content.2.content', 'content.content.3.content']],
         ] as [$blocks, $keys]) {
             try {
                 Mainstay::create(Guide::class, ['title' => 'Refused', 'slug' => 'refused', 'content' => ['type' => 'doc', 'content' => $blocks]], locale: 'en', overrideAccess: true);
@@ -1448,6 +1452,60 @@ class ContentTest extends DatabaseTestCase
         /* The blocks as a list, where the content is a document of them. */
         $this->assertSame(['content'], array_keys($this->refusal(fn () => Mainstay::create(Guide::class, ['title' => 'Listed', 'slug' => 'listed', 'content' => [['type' => 'callout', 'data' => ['heading' => 'Listed']]]], locale: 'en', overrideAccess: true))));
         $this->assertSame(0, DB::table('guide')->count());
+    }
+
+    #[Test]
+    public function text_is_held_inside_a_block_whose_class_names_text(): void
+    {
+        $this->app['view']->addLocation(__DIR__.'/Fixtures/views');
+        $text = fn (string $words) => ['type' => 'text', 'text' => $words];
+        $panel = ['type' => 'block', 'attrs' => ['type' => 'panel', 'data' => []], 'content' => [
+            ['type' => 'heading', 'attrs' => ['level' => 2], 'content' => [$text('Opening hours')]],
+            $this->block(['type' => 'slide', 'data' => ['title' => 'Mornings']]),
+            ['type' => 'paragraph', 'content' => [$text('Closed on '), [...$text('Mondays'), 'marks' => [['type' => 'strong']]]]],
+        ]];
+
+        $id = Mainstay::create(Guide::class, ['title' => 'Inside', 'slug' => 'inside', 'content' => ['type' => 'doc', 'content' => [$panel]]], locale: 'en', overrideAccess: true)->id;
+        $read = Mainstay::findById(Guide::class, $id, locale: 'en');
+        [$block] = $read->content->blocks();
+
+        $this->assertSame(['Mornings'], array_map(fn (Slide $slide) => $slide->title, $block->inner()), 'Its inner blocks are the blocks among the text.');
+        $this->assertSame(['heading', 'block', 'paragraph'], array_column($block->innerContent()->toArray()['content'], 'type'));
+        $this->assertSame(['heading', 'block', 'paragraph'], array_column($read->content->toArray()['content'][0]['content'], 'type'), 'The document holds the text inside the block, in its order.');
+        $this->assertSame("<section><h2>Opening hours</h2><p>Mornings</p>\n<p>Closed on <strong>Mondays</strong></p></section>", trim($read->content->toHtml()), '@inner prints the text and the blocks in their order.');
+        $this->assertSame([], (new Panel)->inner(), 'A block given nothing holds nothing.');
+        $this->assertSame([[], true], [($alone = new Blocks(text: true))->of, $alone->text], 'A block may hold text alone.');
+
+        /* For the editor, the text inside it is the document's, and the
+           block's own HTML leaves room for it. */
+        $editing = json_decode(Str::between($read->content->editing()->toHtml(), '>', '</script>'), true);
+        $this->assertSame('Opening hours', $editing['doc']['content'][0]['content'][0]['content'][0]['text']);
+        $this->assertSame('<section><template data-mainstay-inner></template></section>', trim($editing['blocks'][$block->id]));
+
+        /* Text inside one is checked as text is, where it is. */
+        $this->assertSame(
+            ['The content field links the text at content.0.content.0.content.0 to something other than a web, mail or phone address or a path.'],
+            $this->refusal(fn () => Mainstay::create(Guide::class, ['title' => 'Linked', 'slug' => 'linked', 'content' => ['type' => 'doc', 'content' => [
+                ['type' => 'block', 'attrs' => ['type' => 'panel', 'data' => []], 'content' => [['type' => 'paragraph', 'content' => [[...$text('Here'), 'marks' => [['type' => 'link', 'attrs' => ['href' => 'javascript:alert(1)']]]]]]]],
+            ]]], locale: 'en', overrideAccess: true))['content'],
+        );
+        $this->assertSame(
+            ['Gallery holds no text inside it.'],
+            $this->refusal(fn () => Mainstay::create(Guide::class, ['title' => 'Stray', 'slug' => 'stray', 'content' => ['type' => 'doc', 'content' => [
+                ['type' => 'block', 'attrs' => ['type' => 'gallery', 'data' => []], 'content' => [['type' => 'paragraph', 'content' => [$text('Stray')]]]],
+            ]]], locale: 'en', overrideAccess: true))['content.content.0.content'],
+        );
+
+        /* A block among the text is checked as one anywhere is. */
+        $this->assertSame(['content.content.0.content.1.attrs.data.title'], array_keys($this->refusal(fn () => Mainstay::create(Guide::class, ['title' => 'Untitled', 'slug' => 'untitled', 'content' => ['type' => 'doc', 'content' => [
+            ['type' => 'block', 'attrs' => ['type' => 'panel', 'data' => []], 'content' => [['type' => 'paragraph', 'content' => [$text('Before')]], $this->block(['type' => 'slide', 'data' => []])]],
+        ]]], locale: 'en', overrideAccess: true))));
+
+        /* Text stored inside a block that holds none is not read. */
+        $stored = Mainstay::fields(Guide::class)['content']->cast(['type' => 'doc', 'content' => [
+            ['type' => 'block', 'attrs' => ['type' => 'gallery', 'data' => []], 'content' => [['type' => 'paragraph', 'content' => [$text('Stray')]], $this->block(['type' => 'slide', 'data' => ['title' => 'Kept']])]],
+        ]]);
+        $this->assertSame(['block'], array_column($stored->toArray()['content'][0]['content'], 'type'));
     }
 
     #[Test]

@@ -8,10 +8,14 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 use Mainstay\Auth\Capabilities;
 use Mainstay\Content\Block;
+use Mainstay\Content\Description;
 use Mainstay\Content\Entry;
+use Mainstay\Content\Example;
 use Mainstay\Content\GlobalSet;
+use Mainstay\Content\Icon;
 use Mainstay\Fields\Content;
 use Mainstay\Fields\Field;
 use Mainstay\Fields\Relation;
@@ -19,6 +23,7 @@ use Mainstay\Fields\Terms;
 use Mainstay\Fields\Text;
 use Mainstay\Mainstay;
 use Mainstay\Navigation;
+use ReflectionClass;
 use Throwable;
 
 /*
@@ -269,6 +274,39 @@ final class Form
     public static function label(string $block): string
     {
         return Str::ucfirst(str_replace('_', ' ', $block::handle()));
+    }
+
+    /* What a block's #[Description] says it is for, or null. */
+    public static function description(string $block): ?string
+    {
+        return ((new ReflectionClass($block))->getAttributes(Description::class)[0] ?? null)?->newInstance()->text;
+    }
+
+    /* The icon a block's #[Icon] names, or the plain block's. */
+    public static function icon(string $block): Icon
+    {
+        return ((new ReflectionClass($block))->getAttributes(Icon::class)[0] ?? null)?->newInstance() ?? new Icon('block');
+    }
+
+    /* The #[Example] a block is previewed with, or null for a block with
+       none. Each value names a field of the block, and what it puts inside
+       is what the block holds. */
+    public static function example(string $block): ?Example
+    {
+        $example = ((new ReflectionClass($block))->getAttributes(Example::class)[0] ?? null)?->newInstance();
+        $unknown = array_keys(array_diff_key($example->data ?? [], app(Mainstay::class)->fields($block)));
+        $holds = app(Mainstay::class)->innerBlocks($block);
+        $stray = array_filter($example->inner ?? [], fn (string|array $item) => is_string($item) ? ! in_array($item, $holds->of ?? [], true) : ! $holds?->text);
+
+        if ($unknown !== []) {
+            throw new InvalidArgumentException(sprintf('#[Example] on %s fills %s, which the block has no field for.', $block, implode(', ', $unknown)));
+        }
+
+        if ($stray !== []) {
+            throw new InvalidArgumentException(sprintf('#[Example] on %s puts %s inside it, which it does not hold.', $block, implode(', ', array_map(fn (string|array $item) => is_string($item) ? class_basename($item) : 'text', $stray))));
+        }
+
+        return $example;
     }
 
     /*

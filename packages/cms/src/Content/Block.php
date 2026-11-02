@@ -18,8 +18,8 @@ use Mainstay\Mainstay;
  | so a template prints a content's with `@foreach ($entry->content->blocks()
  | as $block) {{ $block }} @endforeach`. A view that is not there is an
  | error, as an entry's is. A block whose class names blocks with #[Blocks]
- | holds them inside it, its inner blocks, which its view prints with
- | `@inner($block)`.
+ | holds them inside it, its inner blocks -- and text among them where it
+ | names text -- which its view prints with `@inner($block)`.
  */
 abstract class Block implements Arrayable, Htmlable
 {
@@ -28,24 +28,33 @@ abstract class Block implements Arrayable, Htmlable
     public string $id;
 
     /* Private, so a block's own field of this name is a slot of its own. */
-    private array $inner = [];
+    private ?Document $inner = null;
 
-    /** @return list<Block> the blocks inside this one, in their order */
+    /* The view namespace its view is in, as a field type's is: a plugin's
+       block names its plugin's handle, and the host's own names none. */
+    protected ?string $viewNamespace = null;
+
+    /** @return list<Block> the blocks inside this one, in their order, without the text among them */
     public function inner(): array
     {
-        return $this->inner;
+        return $this->inner?->blocks() ?? [];
+    }
+
+    /* What is inside this one, the text among its blocks too, as @inner
+       prints it: a document of it. */
+    public function innerContent(): Document
+    {
+        return $this->inner ?? new Document(['type' => 'doc', 'content' => []]);
     }
 
     /**
-     * The content's read hands a block its inner blocks.
+     * The content's read hands a block what is inside it.
      *
      * @internal
-     *
-     * @param  list<Block>  $blocks
      */
-    public function holding(array $blocks): static
+    public function holding(Document $inner): static
     {
-        $this->inner = $blocks;
+        $this->inner = $inner;
 
         return $this;
     }
@@ -59,7 +68,9 @@ abstract class Block implements Arrayable, Htmlable
 
     public function toHtml(): string
     {
-        return view('blocks.'.static::handle(), ['block' => $this])->render();
+        $namespace = $this->viewNamespace === null ? '' : $this->viewNamespace.'::';
+
+        return view($namespace.'blocks.'.static::handle(), ['block' => $this])->render();
     }
 
     /* The block as a save is given one: its id once it has one, its type,

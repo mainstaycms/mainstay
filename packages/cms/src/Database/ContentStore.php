@@ -15,6 +15,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -31,6 +32,10 @@ use Mainstay\Content\Media;
 use Mainstay\Content\Revision;
 use Mainstay\Content\Route;
 use Mainstay\Content\Taxonomy;
+use Mainstay\Events\Deleted;
+use Mainstay\Events\Published;
+use Mainstay\Events\Restored;
+use Mainstay\Events\Saved;
 use Mainstay\Fields\Date;
 use Mainstay\Fields\Field;
 use Mainstay\Fields\Relation;
@@ -215,6 +220,7 @@ class ContentStore
         [$internal, $reads] = $this->writes($type, ['create', 'publish'], $type, $overrideAccess);
 
         $id = $this->write($type, null, $this->validate($type, $data, [], $internal, $overrideAccess), $data, $locale, false, $reads, Gate::user()?->getKey(), $this->publisher($overrideAccess));
+        Event::dispatch(new Saved($type, $id));
 
         return $this->readBack($type, $id, $locale, $internal, $reads ? null : array_keys($data), $overrideAccess);
     }
@@ -266,6 +272,8 @@ class ContentStore
             }
         }
 
+        Event::dispatch(new Saved($type, $id));
+
         return $this->readBack($type, $id, $locale, $internal, $reads ? null : array_keys($data), $overrideAccess);
     }
 
@@ -301,6 +309,8 @@ class ContentStore
                into one, which reaches the caller. */
             DB::table('uris')->where('type', $type::handle())->where('entry_id', $id)->delete();
         }, self::ATTEMPTS);
+
+        Event::dispatch(new Deleted($type, $id));
     }
 
     /*
@@ -372,6 +382,8 @@ class ContentStore
                 }
             }
         }
+
+        Event::dispatch(new Saved($type, $id));
 
         return $this->readBack($type, $id, $locale, $internal, $reads ? null : array_keys($data), $overrideAccess);
     }
@@ -596,9 +608,8 @@ class ContentStore
      | changing only shared fields is written in the first locale the entry
      | has. Refused with nothing written as a save is.
      |
-     | The one place "content changed" is known for what an editor wrote.
-     | Nothing listens yet: how pages reach the public is still deferred, and
-     | this is where it attaches.
+     | The one place "content changed" is known for what an editor wrote, so
+     | it is heard here, as Published, once the commit has made it so.
      |
      | A draft changing an internal field is the work of someone who may see
      | it, and is refused in access terms, naming no field, to a publisher
@@ -641,6 +652,8 @@ class ContentStore
 
             return $published;
         }, self::ATTEMPTS);
+
+        Event::dispatch(new Published($type, $id));
 
         return $this->readBack($type, $id, $locale, $internal, $reads ? null : $given, $overrideAccess);
     }
@@ -820,7 +833,7 @@ class ContentStore
         $this->attach($type, [$row]);
         [, $reads] = $this->writes($type, 'restore', fn () => $this->hydrate($type, $row, null, true), $overrideAccess);
 
-        return DB::transaction(function () use ($type, $handle, $id, $reads, $overrideAccess) {
+        $paths = DB::transaction(function () use ($type, $handle, $id, $reads, $overrideAccess) {
             $now = $this->stamp(CarbonImmutable::now());
 
             if (DB::table($handle)->where('id', $id)->whereNotNull('deleted_at')->update(['deleted_at' => null, 'updated_at' => $now]) === 0) {
@@ -837,6 +850,10 @@ class ContentStore
                the fields it is built from. */
             return $reads ? DB::table('uris')->where('type', $handle)->where('entry_id', $id)->pluck('uri', 'locale')->all() : [];
         }, self::ATTEMPTS);
+
+        Event::dispatch(new Restored($type, $id));
+
+        return $paths;
     }
 
     /*

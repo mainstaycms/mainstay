@@ -1,9 +1,28 @@
-@props(['url', 'block' => null, 'sidebar' => null, 'header' => null, 'blocks' => [], 'top' => [], 'invalid' => [], 'pictures' => false])
+@props(['url', 'block' => null, 'sidebar' => null, 'header' => null, 'blocks' => [], 'top' => [], 'invalid' => [], 'pictures' => false, 'previews' => null])
 
 @php
     $tool = 'grid h-8 min-w-8 place-items-center rounded-control px-1.5 text-sm text-muted hover:bg-surface hover:text-ink aria-pressed:bg-surface aria-pressed:text-ink disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent';
-    $item = 'block w-full rounded-control px-3 py-1.5 text-left text-sm text-ink hover:bg-surface focus-visible:bg-surface focus-visible:outline-none';
+    $item = 'flex w-full items-center gap-2 rounded-control px-3 py-1.5 text-left text-sm text-ink hover:bg-surface focus-visible:bg-surface focus-visible:outline-none';
     $text = ['paragraph' => 'Paragraph', 'heading' => 'Heading', 'blockquote' => 'Quote', 'code_block' => 'Code block', 'bullet_list' => 'Bulleted list', 'ordered_list' => 'Numbered list', 'horizontal_rule' => 'Separator'];
+    $glyphs = ['paragraph' => 'paragraph', 'heading' => 'heading', 'blockquote' => 'quote', 'code_block' => 'code', 'bullet_list' => 'list', 'ordered_list' => 'ordered-list', 'horizontal_rule' => 'separator'];
+    $icons = [...array_map(fn (string $glyph) => new \Mainstay\Content\Icon($glyph), $glyphs), ...collect($blocks)->mapWithKeys(fn (array $each, string $handle) => ["block:{$handle}" => $each['icon']])->all()];
+    $about = [
+        'paragraph' => 'Running text, with bold, italic, code and links inside it.',
+        'heading' => 'A title over the section under it, at level 1 to 6.',
+        'blockquote' => 'Words someone else said, set apart from the text around them.',
+        'code_block' => 'Code, kept as it was typed, in a fixed-width font.',
+        'bullet_list' => 'Items in no particular order.',
+        'ordered_list' => 'Items in order, numbered.',
+        'horizontal_rule' => 'A line between two parts of the page.',
+    ];
+    /* The Add block dialog's cards, by what each adds: a preview is a page
+       drawn at a page's width and scaled to the card, text at half that; a
+       block with none shows its icon there. */
+    $cards = [
+        'Text' => collect($text)->map(fn (string $label, string $type) => ['label' => $label, 'description' => $about[$type], 'preview' => true, 'size' => 'h-[343px] w-[600px] scale-[0.46667]'])->all(),
+        'Blocks' => collect($blocks)->mapWithKeys(fn (array $each, string $handle) => ["block:{$handle}" => ['label' => $each['label'], 'description' => $each['description'] ?? null, 'preview' => $each['example'] ?? false, 'size' => 'h-[686px] w-[1200px] scale-[0.23334]']])->all(),
+    ];
+    $preview = fn (string $kind) => $previews.(str_contains($previews, '?') ? '&' : '?').http_build_query(['insert' => $kind]);
     $rule = '<span aria-hidden="true" class="mx-0.5 h-5 w-px bg-border"></span>';
 @endphp
 
@@ -12,18 +31,20 @@
  | admin drives, posted to `$url` each time the tab opens after Details
  | changed. Every control is out here, over the frame: the toolbar floating
  | by the current block, as Gutenberg's does, which it is dragged by too;
- | Undo, Redo and Add block in `$header`, at the end of the tabs' bar; and
- | the menu of blocks to add. The frame holds the page alone, and no script
+ | Undo, Redo and Add block in `$header`, at the end of the tabs' bar; the
+ | Add block dialog, a card for each block that goes where the cursor is,
+ | saying what it is for and drawn small from `$previews`; and the menu `/`
+ | opens at the cursor, to type on. The frame holds the page alone, and no script
  | runs in it. A site block selected there is posted to `$block`, and its
  | settings are in the dialog whose form `$sidebar` names, outside the
  | entry's. `$blocks` is every block the content can hold, by handle, its
- | label and the blocks it holds inside it; `$top` the ones at its top
- | level. An image a block prints is replaced and edited on the page, in
+ | label, the blocks it holds inside it and whether text; `$top` the ones
+ | at its top level. An image a block prints is replaced and edited on the page, in
  | the library's dialogs. After a save refused for a block's field, its
  | errors are listed here, naming the block. canvas.ts in packages/editor is
  | its behaviour; without it the tab holds this message.
 --}}
-<div data-canvas data-canvas-url="{{ $url }}" data-block-url="{{ $block }}" data-sidebar="{{ $sidebar }}" data-header="{{ $header }}" data-blocks="{{ json_encode((object) $blocks) }}" data-top="{{ json_encode(array_values($top)) }}" data-invalid="{{ json_encode((object) $invalid) }}" @if ($pictures) data-picker="{{ route('mainstay.media', ['pick' => 1]) }}" data-media="{{ route('mainstay.media') }}" @endif class="relative flex min-h-0 flex-1 flex-col">
+<div data-canvas data-canvas-url="{{ $url }}" data-block-url="{{ $block }}" data-sidebar="{{ $sidebar }}" data-header="{{ $header }}" data-blocks="{{ json_encode((object) array_map(fn (array $each) => ['label' => $each['label'], 'inner' => $each['inner'], 'text' => $each['text'] ?? false], $blocks)) }}" data-top="{{ json_encode(array_values($top)) }}" data-invalid="{{ json_encode((object) $invalid) }}" @if ($pictures) data-picker="{{ route('mainstay.media', ['pick' => 1]) }}" data-media="{{ route('mainstay.media') }}" @endif class="relative flex min-h-0 flex-1 flex-col">
     @if ($invalid !== [])
         <ul data-canvas-invalid role="alert" class="mx-3 mt-3 space-y-1 rounded-control border border-danger/40 bg-surface px-3 py-2 text-sm text-danger">
             @foreach ($invalid as $id => $each)
@@ -78,11 +99,11 @@
         </div>
     </div>
 
-    <div id="canvas-menu" data-canvas-menu role="group" aria-label="Add a block" hidden class="absolute z-20 max-h-80 w-56 overflow-y-auto rounded-control border border-border bg-canvas p-1 shadow-lg">
+    <div data-canvas-menu role="group" aria-label="Add a block" hidden class="absolute z-20 max-h-80 w-56 overflow-y-auto rounded-control border border-border bg-canvas p-1 shadow-lg">
         <div data-menu-group>
             <p class="px-3 pt-1.5 pb-1 text-xs font-medium text-muted">Text</p>
             @foreach ($text as $type => $label)
-                <button type="button" data-insert="{{ $type }}" class="{{ $item }}">{{ $label }}</button>
+                <button type="button" data-insert="{{ $type }}" class="{{ $item }}">{{ $icons[$type] }}<span>{{ $label }}</span></button>
             @endforeach
         </div>
         {{-- Every block the content holds, at its top level or inside
@@ -91,11 +112,54 @@
             <div data-menu-group>
                 <p class="px-3 pt-2.5 pb-1 text-xs font-medium text-muted">Blocks</p>
                 @foreach ($blocks as $handle => $each)
-                    <button type="button" data-insert="block:{{ $handle }}" class="{{ $item }}">{{ $each['label'] }}</button>
+                    <button type="button" data-insert="block:{{ $handle }}" class="{{ $item }}">{{ $each['icon'] }}<span>{{ $each['label'] }}</span></button>
                 @endforeach
             </div>
         @endif
     </div>
+
+    {{-- Four cards wide and a scrollbar, as tall as the cards up to the
+         screen; each card's button covers it. --}}
+    <dialog id="canvas-inserter" data-canvas-inserter aria-labelledby="canvas-inserter-label" class="m-auto max-h-[calc(100dvh-3rem)] w-[calc(100%-3rem)] max-w-[77rem] rounded-control border border-border bg-canvas p-0 text-ink shadow-lg backdrop:bg-ink/30">
+        <div class="flex max-h-[calc(100dvh-3rem-2px)] flex-col">
+            <div class="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
+                <h2 id="canvas-inserter-label" class="text-sm font-medium">Add a block</h2>
+
+                <button type="button" data-dialog-close aria-label="Close" class="rounded-control p-1 text-muted hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                    <x-mainstay::icon><path d="m4 4 8 8M12 4l-8 8" /></x-mainstay::icon>
+                </button>
+            </div>
+
+            <div class="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
+                @foreach ($cards as $group => $each)
+                    @if ($each !== [])
+                        <section data-menu-group aria-labelledby="canvas-inserter-{{ $loop->index }}">
+                            <h3 id="canvas-inserter-{{ $loop->index }}" class="pb-2 text-xs font-medium text-muted">{{ $group }}</h3>
+                            <ul class="grid grid-cols-[repeat(auto-fill,280px)] justify-center gap-4">
+                                @foreach ($each as $insert => $card)
+                                    <li data-insert="{{ $insert }}" class="relative overflow-hidden rounded-control border border-border bg-surface hover:border-accent has-focus-visible:outline-2 has-focus-visible:outline-accent">
+                                        @if ($previews && $card['preview'])
+                                            <div aria-hidden="true" class="pointer-events-none relative h-40 overflow-hidden border-b border-border bg-white">
+                                                <iframe src="{{ $preview($insert) }}" loading="lazy" sandbox="allow-same-origin" tabindex="-1" title="{{ $card['label'] }}" class="absolute top-0 left-0 origin-top-left border-0 {{ $card['size'] }}"></iframe>
+                                            </div>
+                                        @else
+                                            <div aria-hidden="true" class="grid h-40 place-items-center border-b border-border bg-white text-muted [&>*]:size-10">{{ $icons[$insert] }}</div>
+                                        @endif
+                                        <div class="space-y-1 p-3">
+                                            <button type="button" @if ($card['description']) aria-describedby="canvas-inserter-{{ $loop->parent->index }}-{{ $loop->index }}" @endif class="text-sm font-medium after:absolute after:inset-0 focus-visible:outline-none">{{ $card['label'] }}</button>
+                                            @if ($card['description'])
+                                                <p id="canvas-inserter-{{ $loop->parent->index }}-{{ $loop->index }}" class="text-sm text-muted">{{ $card['description'] }}</p>
+                                            @endif
+                                        </div>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </section>
+                    @endif
+                @endforeach
+            </div>
+        </div>
+    </dialog>
 </div>
 
 <x-mainstay::link-dialog />

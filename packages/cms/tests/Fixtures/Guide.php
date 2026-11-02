@@ -11,12 +11,13 @@ use Mainstay\Fields\RichText;
 use Mainstay\Fields\Text;
 use Mainstay\Tests\Fixtures\Blocks\Callout;
 use Mainstay\Tests\Fixtures\Blocks\Gallery;
+use Mainstay\Tests\Fixtures\Blocks\Panel;
 
 /* Rich text on both tables: a body translated with the title, and an aside
    every locale shares, and notes only some callers see. Blocks in its
    content, translated with it, one of them a repeater, so it has a page. */
 #[Route('/guides/{slug}')]
-#[Blocks([Callout::class, Gallery::class])]
+#[Blocks([Callout::class, Gallery::class, Panel::class])]
 class Guide extends Entry
 {
     #[Text(required: true, localized: true)]

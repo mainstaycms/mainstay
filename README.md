@@ -66,6 +66,9 @@ Mainstay owns its tables inside your app. "Headless" describes the consumer, not
   publish replaces can be restored, and a deleted entry waits in the trash.
 - **Accounts and roles.** The admin has its own sign-in. Accounts are invited by mail, and a role's
   capabilities are a grid of the types you register.
+- **Plugins.** A package adds types, blocks, field types, admin screens and listeners on content
+  changes. Only the plugins your config names load, and their screens answer behind the admin's
+  sign-in and a capability of their own.
 
 ## Screenshots
 
@@ -160,24 +163,40 @@ With `MAINSTAY_SCHEMA_SYNC=true` in development's `.env`, `php artisan mainstay:
 ### Write a block
 
 A block is a class with fields, as a content type is, drawn by a Blade view named after it. `@field`
-prints a text field so it can be typed in place in the admin, and `@inner` prints the blocks a block
-holds inside it:
+prints a text field so it can be typed in place in the admin. `#[Blocks]` on a block names the blocks
+it holds inside it, and `text: true` lets it hold text among them, headings and paragraphs typed as the
+page's own; `@inner` prints what it holds. Give a block's headings, paragraphs, buttons and images that
+way, as text and blocks inside it rather than fields, and each use of it can differ. `#[Icon]` names one
+of Mainstay's built-in icons, or an SVG file under `resources/`, to list it by; `#[Description]` and
+`#[Example]` are what the Add block dialog says of it and previews it with:
 
 ```php
-#[Blocks([Feature::class])]
-class FeatureGrid extends Block
+#[Icon('grid')]
+#[Description('Selling points: a heading over a grid of them.')]
+#[Example(inner: [['h2' => 'What you get'], Feature::class])]
+#[Blocks([Feature::class], text: true)]
+class FeatureGrid extends Block {}
+
+#[Icon('button')]
+#[Example(['label' => 'Read the docs'])]
+class Button extends Block
 {
     #[Text(required: true)]
-    public string $heading;
+    public string $label;
+
+    #[Relation(to: Page::class)]
+    public ?Page $page;
 }
 ```
 
 ```blade
 {{-- resources/views/blocks/feature_grid.blade.php --}}
-<section class="features">
-    <h2>@field($block, 'heading')</h2>
-    <ul>@inner($block)</ul>
-</section>
+<section class="features">@inner($block)</section>
+
+{{-- resources/views/blocks/button.blade.php --}}
+@if ($block->page?->missing === false)
+    <a class="button" href="{{ $block->page->url() }}">@field($block, 'label')</a>
+@endif
 ```
 
 ### Render it
@@ -191,6 +210,83 @@ The type's template gets the entry, and printing its content draws its text and 
     <div class="prose">{{ $entry->content }}</div>
 </main>
 ```
+
+### Write a plugin
+
+A plugin is a package's types, blocks, field types, admin screens and listeners, on one class. Only
+the plugins `config/mainstay.php` names load: installing a package switches nothing on, and nothing is
+switched on from the admin.
+
+```php
+// config/mainstay.php
+'plugins' => [Acme\Seo\Seo::class],
+```
+
+```php
+namespace Acme\Seo;
+
+use Mainstay\Content\Icon;
+use Mainstay\Events\Published;
+use Mainstay\Plugin;
+
+#[Icon('star')]
+class Seo extends Plugin
+{
+    public static function handle(): string
+    {
+        return 'seo';
+    }
+
+    public function types(): array
+    {
+        return [SeoRedirect::class, SeoSettings::class];
+    }
+
+    public function views(): ?string
+    {
+        return __DIR__.'/../resources/views';
+    }
+
+    public function routes(): ?string
+    {
+        return __DIR__.'/../routes/admin.php';
+    }
+
+    public function listeners(): array
+    {
+        return [Published::class => [PurgeCache::class]];
+    }
+}
+```
+
+The handle names everything the plugin takes: its views are `seo::`, its screens are under
+`/admin/seo` and its capability is `use_seo`. A handle one of the admin's screens, a view namespace, a
+type or another plugin has already is refused as Mainstay boots.
+
+Its types register as yours do. A block or a field type draws from its plugin's views by naming the
+handle as its `$viewNamespace` -- `protected ?string $viewNamespace = 'seo';` on a block, `protected
+string` on a field type: a block is drawn by `seo::blocks.<handle>`, a field type by
+`seo::components.fields.<kebab-name>`. One handle names one block across the site, so give a
+plugin's blocks names of its own, `SeoFaq` rather than `Faq`. Any of its views can be overridden at
+`resources/views/vendor/seo`.
+
+The routes file is loaded inside the admin, behind its sign-in and CSRF check, and answered only to
+someone holding `use_seo`, which the roles grid lists under Plugins. Its route named `index` is the
+plugin's item in the sidebar. A screen's view is drawn in `<x-mainstay::admin>`, and its forms carry
+`@csrf`:
+
+```php
+// routes/admin.php
+Route::get('/', [RedirectController::class, 'index'])->name('index');
+```
+
+`Saved`, `Published`, `Deleted` and `Restored`, in `Mainstay\Events`, carry the type and id of live
+content written, heard once the write commits and never when it rolls back. Your app listens to them
+with `Event::listen` as a plugin does.
+
+A plugin runs as your application does, with its access: Mainstay keeps what it declares from taking
+another's name, not what its code does, so install one as you would any dependency. A listener running
+in the request throws after the content has committed; make one that can fail a queued listener.
 
 ### Upgrading
 

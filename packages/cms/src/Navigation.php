@@ -5,23 +5,30 @@ namespace Mainstay;
 use Doctrine\Inflector\InflectorFactory;
 use Doctrine\Inflector\Language;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use LogicException;
+use Mainstay\Auth\Capabilities;
 use Mainstay\Auth\Gate;
 use Mainstay\Auth\User;
 use Mainstay\Content\GlobalSet;
+use Mainstay\Content\Icon;
 use Mainstay\Content\Media;
 use Mainstay\Content\Taxonomy;
 use Mainstay\Policies\MediaPolicy;
+use Mainstay\Policies\PluginPolicy;
+use ReflectionClass;
 
 class Navigation
 {
     /*
      | The admin's sections, as data for <x-mainstay::sidebar>, built from the
      | registered types rather than written by hand: each entry type and then
-     | each taxonomy under Content, the media library, and each global under
-     | Globals, and the accounts and roles. A type is offered only to someone
-     | who may write to it -- its list is no use to anyone else -- the library
-     | to someone who may read it, the accounts to someone who may manage
+     | each taxonomy under Content, the media library, each global under
+     | Globals, each plugin's screens under Plugins, and the accounts and
+     | roles. A type is offered only to someone who may write to it -- its list
+     | is no use to anyone else -- the library to someone who may read it, a
+     | plugin to someone who may use it, the accounts to someone who may manage
      | them, and a section with nothing in it is left out.
      |
      | Links come from route(), so an admin mounted at another path or on a
@@ -50,6 +57,10 @@ class Navigation
             [
                 'label' => 'Globals',
                 'items' => array_map(fn (string $type) => $item($type, self::icon('<path d="M1.75 4.75h12.5M1.75 11.25h12.5" /><circle cx="6" cy="4.75" r="1.75" /><circle cx="10" cy="11.25" r="1.75" />')), array_values(array_filter($types, fn (string $type) => is_subclass_of($type, GlobalSet::class)))),
+            ],
+            [
+                'label' => 'Plugins',
+                'items' => array_map(self::plugin(...), array_values(array_filter(array_keys(Capabilities::plugins()), fn (string $plugin) => self::uses($plugin) && self::routed($plugin)))),
             ],
             [
                 'items' => self::accounts() ? [
@@ -122,6 +133,13 @@ class Navigation
         return Gate::accounts()->allows('viewAny', User::class);
     }
 
+    /* Whether the signed-in user may open a plugin's screens: the question
+       its every route asks. */
+    public static function uses(string $plugin): bool
+    {
+        return Gate::for($plugin, PluginPolicy::class)->allows('use', [$plugin, $plugin]);
+    }
+
     /* Whether the signed-in user may upload to the media library. */
     public static function uploads(): bool
     {
@@ -133,6 +151,35 @@ class Navigation
     public static function media(string $ability, Media|string $subject = Media::class): bool
     {
         return Gate::for(Media::class, MediaPolicy::class)->allows($ability, $subject);
+    }
+
+    /*
+     | Whether a plugin's screen named `index`, its item, is routed. Not yet
+     | where the routes were cached before the config named it: it waits for
+     | route:cache, and every screen of the admin with it. Otherwise one with
+     | none is its author's mistake, refused naming the class rather than as
+     | a route nobody defined.
+     */
+    private static function routed(string $plugin): bool
+    {
+        if (Route::has('mainstay.plugins.'.$plugin::handle().'.index')) {
+            return true;
+        }
+
+        if (app()->routesAreCached()) {
+            return false;
+        }
+
+        throw new LogicException("{$plugin} has screens and no route named index, which is its item in the admin's sidebar. Name its first screen's route index.");
+    }
+
+    /* A plugin's item: its screen named `index`, under its class's name and
+       its #[Icon]. */
+    private static function plugin(string $plugin): array
+    {
+        $icon = (new ReflectionClass($plugin))->getAttributes(Icon::class)[0] ?? null;
+
+        return ['href' => route('mainstay.plugins.'.$plugin::handle().'.index', absolute: false), 'label' => self::label($plugin, plural: false), 'icon' => ($icon?->newInstance() ?? new Icon('block'))->toHtml()];
     }
 
     /* Through the same component every other icon goes through, rather than a

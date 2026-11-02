@@ -896,6 +896,48 @@ Consequences:
 - The map is installation-wide. Per-site locales mean the map moves onto the site in phase 12,
   where the request's host picks the site and the locale in one step.
 
+## Plugins are named in config, and reach Mainstay only through what they declare
+
+*2026-11-02*
+
+A plugin is a package's types, blocks, field types, admin screens and listeners, declared on a class
+extending `Mainstay\Plugin` and loaded when `config('mainstay.plugins')` names that class. Nothing
+else loads one. Statamic activates an addon the moment Composer installs it, and WordPress and Craft
+switch plugins on from the admin; Payload names them in its config beside its collections, and
+Filament in a panel provider's `register()`. The config wins over the provider because the admin's
+routes load while Mainstay boots, before the host's `boot()` runs where `Mainstay::types()` is
+called, and a plugin's screens must be routed ahead of the `{type}` routes. A list read at boot has
+no ordering rule to learn; a facade call would have had to be in `register()` and refused anywhere
+else.
+
+A plugin is PHP in the host's process and nothing sandboxes it. What Mainstay does keep is every name
+a plugin takes. Its handle, which it names itself rather than deriving it from a class often called
+`Plugin`, is its views' namespace, its screens' segment and its capability's noun, so a handle the
+admin's screens, an existing view namespace, a type or another plugin has is refused as Mainstay
+boots, and a type taking a plugin's is refused when it registers. Its screens are routed inside the
+admin's own middleware, named under `mainstay.plugins.<handle>.` so no route of a plugin's can take
+one of Mainstay's names, and answered only to someone holding `use_<handle>`, asked through
+`PluginPolicy` as every other question is through a policy. The middleware asks the registry too, so
+a route cached before a plugin left the config does not keep answering.
+
+Content events -- `Saved`, `Published`, `Deleted`, `Restored` -- are dispatched by the query layer
+and heard after the commit, through `ShouldDispatchAfterCommit`. They carry the type and the id: one
+write can change every locale's page, through a shared field or a draft spanning locales, so a locale
+on the event would be wrong as often as right.
+
+Consequences:
+
+- Changing the list means `route:cache` again where routes are cached. The middleware's registry
+  check refuses a removed plugin's screens meanwhile, and a plugin added has no screens and no item
+  in the sidebar until then.
+- A capability exists only for a plugin with screens, and only a holder can hand it out, as for any
+  other.
+- A listener running in the request throws after the content has committed, so the editor sees an
+  error for a save that happened. One that can fail should be queued.
+- Drafts, the front page, owners and media fire nothing yet. Each is a dispatch where its write is,
+  when a plugin needs one.
+- Dashboard widgets wait for onboarding, which phase 15 still owns.
+
 ## Deferred
 
 Questions raised and deliberately left open. The reasoning is recorded so it does not have to be

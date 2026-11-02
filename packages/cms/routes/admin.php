@@ -3,12 +3,14 @@
 use Illuminate\Support\Facades\Route;
 use Mainstay\Http\Authenticate;
 use Mainstay\Http\AuthenticateSession;
+use Mainstay\Http\AuthorizePlugin;
 use Mainstay\Http\EntryController;
 use Mainstay\Http\LoginController;
 use Mainstay\Http\MediaController;
 use Mainstay\Http\PasswordController;
 use Mainstay\Http\RoleController;
 use Mainstay\Http\UserController;
+use Mainstay\Mainstay;
 
 Route::get('login', [LoginController::class, 'show'])->name('mainstay.login');
 Route::post('login', [LoginController::class, 'store']);
@@ -22,7 +24,7 @@ Route::post('reset-password', [PasswordController::class, 'update'])->name('main
 /*
  | Every screen under a type's handle, which registration keeps from being
  | one of the admin's own: `login`, `logout`, `media`, `users`, `roles`,
- | `account`. A path none of them answers is the admin's
+ | `account`, or a plugin's. A path none of them answers is the admin's
  | own not-found, drawn in the shell: named as the others are, so no entry
  | can be given a path anywhere under the prefix.
  */
@@ -56,6 +58,14 @@ Route::middleware([Authenticate::class, AuthenticateSession::class])->group(func
     Route::get('account', [UserController::class, 'account'])->name('mainstay.account');
     Route::post('account', [UserController::class, 'saveAccount'])->name('mainstay.account.update');
 
+    /* Before the types', which would answer a plugin's segment, and named
+       apart from Mainstay's own, which a plugin's route would otherwise take. */
+    foreach (app(Mainstay::class)->plugins() as $handle => $plugin) {
+        if ($plugin->routes() !== null) {
+            Route::prefix($handle)->name("mainstay.plugins.{$handle}.")->middleware(AuthorizePlugin::class.':'.$handle)->group($plugin->routes());
+        }
+    }
+
     Route::get('{type}', [EntryController::class, 'index'])->name('mainstay.entries');
     Route::post('{type}', [EntryController::class, 'store'])->name('mainstay.entries.store');
     Route::get('{type}/new', [EntryController::class, 'create'])->name('mainstay.entries.create');
@@ -73,6 +83,7 @@ Route::middleware([Authenticate::class, AuthenticateSession::class])->group(func
     Route::post('{type}/drafts/{draft}/discard', [EntryController::class, 'discard'])->whereNumber('draft')->name('mainstay.drafts.discard');
     Route::post('{type}/drafts/{draft}/author', [EntryController::class, 'assignDraft'])->whereNumber('draft')->name('mainstay.drafts.assign');
     Route::get('{type}/relations/{field}', [EntryController::class, 'relations'])->name('mainstay.relations');
+    Route::get('{type}/previews', [EntryController::class, 'previews'])->name('mainstay.previews');
 
     Route::get('{type}/{id}', [EntryController::class, 'edit'])->whereNumber('id')->name('mainstay.entries.edit');
     Route::post('{type}/{id}', [EntryController::class, 'update'])->whereNumber('id')->name('mainstay.entries.update');

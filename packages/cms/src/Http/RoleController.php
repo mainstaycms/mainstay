@@ -75,10 +75,10 @@ class RoleController
 
     /*
      | The grid: for each shape of type, a row covering every type of it and
-     | a row per type, a column per verb; then the library's and the
-     | accounts'. A box the user could not hand out is drawn disabled, and a
-     | name the role holds that no type derives any longer is listed beneath,
-     | so it can be unchecked.
+     | a row per type, a column per verb; then the library's, the accounts'
+     | and a row per plugin with screens. A box the user could not hand out
+     | is drawn disabled, and a name the role holds that nothing derives any
+     | longer is listed beneath, so it can be unchecked.
      */
     private function form(Role $role): View
     {
@@ -93,6 +93,7 @@ class RoleController
             ],
         ];
 
+        $plugins = Capabilities::plugins();
         $me = Gate::user();
         $editable = Gate::accounts()->allows('saveRole', [$role, $role->capabilities]);
 
@@ -104,6 +105,9 @@ class RoleController
                 $section('Globals', 'Every global', 'globals', ['edit' => 'Edit', 'publish' => 'Publish'], array_filter($types, fn (string $type) => is_subclass_of($type, GlobalSet::class))),
                 ['label' => 'Media', 'verbs' => ['Upload', "Edit others'"], 'rows' => [['label' => 'The library', 'names' => Capabilities::MEDIA]]],
                 ['label' => 'Accounts', 'verbs' => ['Manage accounts and roles'], 'rows' => [['label' => 'Every account', 'names' => [Capabilities::USERS]]]],
+                ...($plugins === [] ? [] : [
+                    ['label' => 'Plugins', 'verbs' => ['Use'], 'rows' => array_map(fn (string $plugin, string $name) => ['label' => Navigation::label($plugin, plural: false), 'names' => [$name]], array_keys($plugins), $plugins)],
+                ]),
             ],
             'stale' => array_values(array_diff($role->capabilities, $this->mainstay->capabilities(), ['*'])),
             'covered' => fn (string $name) => Capabilities::uncovered($me, [$name]) === null,

@@ -43,7 +43,7 @@ to a site, and localizable per field.
 
 ## Corrections to carry into the work
 
-Twenty-five things in `decisions.md` are stale or contradicted by a later entry. They are recorded here
+Twenty-six things in `decisions.md` are stale or contradicted by a later entry. They are recorded here
 rather than edited into the log, which is append-only by construction.
 
 - **Schema sync never has to plan child tables.** Its consequences say "repeaters and blocks become
@@ -148,6 +148,11 @@ rather than edited into the log, which is append-only by construction.
 - **A front page's path is a setting.** The routing entry has every path from its type's pattern.
   The site's front page, chosen in the admin as WordPress's static front page is, is served at `/`
   whatever its pattern builds, and goes back to that path when another is chosen.
+- **Plugins are a second list, in config.** The onboarding entry adds steps "the same way it adds a
+  field type. No new extension mechanism", and "Types are registered, not discovered" below counts one
+  mechanism for types, field types and steps. Those keep the service provider; plugins are named in
+  `config/mainstay.php`, because the admin's routes load before the host's `boot()`. The plugins entry
+  has why.
 
 ## Phase 1 — Declarations
 
