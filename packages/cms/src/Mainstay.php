@@ -10,6 +10,7 @@ use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
 use Mainstay\Auth\Accounts;
 use Mainstay\Auth\Capabilities;
+use Mainstay\Auth\Tokens;
 use Mainstay\Content\Block;
 use Mainstay\Content\ContentType;
 use Mainstay\Content\Entry;
@@ -581,6 +582,13 @@ class Mainstay
     public function accounts(): Accounts
     {
         return new Accounts($this);
+    }
+
+    /* The tokens programs sign in to the API with: `Mainstay::tokens()
+       ->issue(...)`. */
+    public function tokens(): Tokens
+    {
+        return new Tokens($this);
     }
 
     private function store(): ContentStore
