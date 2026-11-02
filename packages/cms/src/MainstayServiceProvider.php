@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Laravel\Mcp\Server\McpServiceProvider;
 use Mainstay\Auth\Gate;
 use Mainstay\Auth\User;
 use Mainstay\Console\ReprocessCommand;
@@ -41,6 +42,10 @@ class MainstayServiceProvider extends ServiceProvider
          | itself loses nothing.
          */
         $this->app->register(UiServiceProvider::class);
+
+        /* MCP's server, for the API's /mcp, likewise: a host turning discovery
+           off for laravel/mcp would otherwise fail on the facade. */
+        $this->app->register(McpServiceProvider::class);
 
         $this->app->singleton(Mainstay::class);
 

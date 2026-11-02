@@ -12,6 +12,7 @@
         "illuminate/queue": "^13.0",
         "illuminate/support": "^13.0",
         "illuminate/validation": "^13.0",
+        "laravel/mcp": "^1.1",
         "mainstay/ui": "@dev",
         "spatie/image": "^3.9"
     },
