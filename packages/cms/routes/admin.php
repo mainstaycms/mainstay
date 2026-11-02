@@ -9,6 +9,7 @@ use Mainstay\Http\LoginController;
 use Mainstay\Http\MediaController;
 use Mainstay\Http\PasswordController;
 use Mainstay\Http\RoleController;
+use Mainstay\Http\TokenController;
 use Mainstay\Http\UserController;
 use Mainstay\Mainstay;
 
@@ -57,6 +58,9 @@ Route::middleware([Authenticate::class, AuthenticateSession::class])->group(func
 
     Route::get('account', [UserController::class, 'account'])->name('mainstay.account');
     Route::post('account', [UserController::class, 'saveAccount'])->name('mainstay.account.update');
+    Route::get('account/tokens', [TokenController::class, 'index'])->name('mainstay.tokens');
+    Route::post('account/tokens', [TokenController::class, 'store'])->name('mainstay.tokens.store');
+    Route::post('account/tokens/{id}/revoke', [TokenController::class, 'destroy'])->whereNumber('id')->name('mainstay.tokens.destroy');
 
     /* Before the types', which would answer a plugin's segment, and named
        apart from Mainstay's own, which a plugin's route would otherwise take. */

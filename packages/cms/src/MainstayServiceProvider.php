@@ -19,6 +19,7 @@ use Mainstay\Auth\User;
 use Mainstay\Console\ReprocessCommand;
 use Mainstay\Console\SchemaCheckCommand;
 use Mainstay\Console\SyncCommand;
+use Mainstay\Console\TokenCommand;
 use Mainstay\Console\TypeScriptCommand;
 use Mainstay\Console\UserCommand;
 use Mainstay\Database\ContentSchema;
@@ -148,7 +149,7 @@ class MainstayServiceProvider extends ServiceProvider
         }
 
         if ($this->app->runningInConsole()) {
-            $this->commands([SyncCommand::class, SchemaCheckCommand::class, ReprocessCommand::class, UserCommand::class, TypeScriptCommand::class]);
+            $this->commands([SyncCommand::class, SchemaCheckCommand::class, ReprocessCommand::class, UserCommand::class, TokenCommand::class, TypeScriptCommand::class]);
 
             Event::listen(fn (CommandStarting $event) => $this->warnAboutSync($event));
 
