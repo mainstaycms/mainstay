@@ -69,6 +69,9 @@ Mainstay owns its tables inside your app. "Headless" describes the consumer, not
 - **Plugins.** A package adds types, blocks, field types, admin screens and listeners on content
   changes. Only the plugins your config names load, and their screens answer behind the admin's
   sign-in and a capability of their own.
+- **An API and an MCP server.** The same reads and writes over JSON and as tools a language model
+  calls, behind tokens that never hold more than the account that made them. `/schema` describes
+  every payload, and `mainstay:typescript` writes it out for a front end.
 
 ## Screenshots
 
@@ -288,6 +291,54 @@ A plugin runs as your application does, with its access: Mainstay keeps what it 
 another's name, not what its code does, so install one as you would any dependency. A listener running
 in the request throws after the content has committed; make one that can fail a queued listener.
 
+### Over HTTP and MCP
+
+The API is at `/api/mainstay` and answers JSON. A read with no token sees only the types marked
+`#[PublicRead]`, never an internal field, and writes nothing:
+
+```php
+#[PublicRead]
+#[Route('/blog/{slug}')]
+class Article extends Entry { /* ... */ }
+```
+
+Everything else needs a token. An account makes its own under **API tokens** in the account menu,
+or the server makes one with `php artisan mainstay:token ada@example.com "CI build"
+--capability=edit_articles`. A token holds the capabilities ticked for it, never one its account
+does not hold, and at use no more than the account holds then: take a capability off a role and its
+accounts' tokens lose it too. A program sends it as `Authorization: Bearer mst_...`. The secret is
+shown once and only its hash is kept.
+
+A token binds Mainstay's own policies through `User::holds()`. A policy of your own binds tokens only
+if it asks `holds()` too, rather than reading the role.
+
+| Route | |
+| --- | --- |
+| `GET /types`, `GET /types/{type}` | the types you may read, with the JSON Schema a write takes |
+| `GET /schema` | the JSON Schema of every payload you may read |
+| `GET /entries/{type}` | a page: `where`, `sort`, `page`, `perPage` (at most 100), `locale`, `depth` |
+| `GET /entries/{type}/{id}`, `GET /path?uri=/blog/hello` | one entry |
+| `POST /entries/{type}`, `PATCH`, `DELETE /entries/{type}/{id}` | live writes; a delete goes to the trash |
+| `GET`, `PUT /globals/{type}` | a global |
+| `GET /drafts?type=&entry=`, `GET /drafts/{id}` | a draft |
+| `POST /drafts`, `POST /drafts/{id}/publish`, `DELETE /drafts/{id}` | drafts |
+
+`where` is the query layer's own as JSON, `?where={"readingMinutes":{">":3}}`, and `sort` a list,
+`?sort=-publishedAt,title`. A write sends `{"data": {...}, "locale": "en"}`, a relation or an image by
+its id. A refusal is a 401 with no token, a 403 with one, and a 422 naming each field that did not
+take its value.
+
+A payload is the entry's `id`, `type`, `locale`, `uri`, `createdAt` and `updatedAt`, then its fields.
+Moments are RFC 3339 in UTC. An image is its alt text, focal point and a URL per size. A relation is
+the entry it points at, as a payload of its own, as far as `depth` reaches (1 by default, at most 3,
+and 1 without a token), and its id past that or where you may not read its type. `php artisan
+mainstay:typescript` writes `/schema` out as TypeScript declarations, to
+`resources/types/mainstay.d.ts` unless you name a path.
+
+The same operations are an MCP server at `/api/mainstay/mcp`, for a client that speaks Streamable
+HTTP: `find-entries`, `get-entry`, `save-draft`, `publish-draft` and the rest, behind the same token.
+Give an agent a token that edits and does not publish, and it writes drafts for a person to put live.
+
 ### Upgrading
 
 Re-run the asset publish with `--force` after upgrading the package. An upgrade can also add a column
@@ -297,13 +348,11 @@ migration for whatever it reports.
 
 ## Roadmap
 
-Mainstay is built in phases, each ending at something that works. Phases 1 to 12 are done: content
+Mainstay is built in phases, each ending at something that works. Phases 1 to 13 are done: content
 types and schema sync, reading and writing from PHP, public rendering, rich text and blocks, media,
-relations and taxonomies, drafts and revisions, identity, the admin, accounts, and the page builder.
-Next:
+relations and taxonomies, drafts and revisions, identity, the admin, accounts, the page builder, and
+the API with its tokens and MCP server. Next:
 
-- **The API as a product** -- public reads a type opts into, tokens Mainstay issues, and the types a
-  client reads, from one source.
 - **The second locale and the second site.**
 - **Onboarding.**
 - **Template parts** -- a site's header, menu and footer built with blocks.

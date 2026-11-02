@@ -29,7 +29,10 @@ return [
     |--------------------------------------------------------------------------
     |
     | Mainstay is headless: this API is the contract every consumer uses, from
-    | the admin panel to the static site generator that builds your front end.
+    | the static site generator that builds your front end to an MCP client at
+    | {prefix}/mcp. Every route reads the bearer token an account made under
+    | API tokens, or with none reads as nobody, who sees only the types marked
+    | #[PublicRead]. Rate limiting is the middleware's, which is yours.
     |
     */
 

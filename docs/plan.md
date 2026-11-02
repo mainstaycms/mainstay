@@ -25,7 +25,9 @@ hold, everyone has settings of their own, and an entry's author is changed in it
 is done: every entry has content, text and the blocks its type names, a block holding blocks inside
 it, and a type with a page edits it on a Content tab, the page as the site draws it from the form,
 with its text and a block's text typed in place, a toolbar floating by the block, and a block's
-fields and images edited in dialogs.
+fields and images edited in dialogs. Phase 13 is done: the content API reads and writes over JSON
+and as MCP tools, behind tokens an account makes with capabilities of its own, and without one only
+the types marked `#[PublicRead]`, with `/schema` and `mainstay:typescript` describing every payload.
 `packages/ui` is ahead of the package — Blade components, a theme, and a behaviour layer in
 `src/js` — and `packages/editor` is the rich text editor, ProseMirror without React, declaring the
 document schema the package renders.
@@ -52,8 +54,8 @@ rather than edited into the log, which is append-only by construction.
   type. So the diff stays scalar-only, permanently, and phase 2 is much smaller than that
   consequence implies. Localization is what adds a second table per type, not blocks.
 - **`config/mainstay.php` mounts the API with no guard.** The API decision names this a
-  placeholder. It stays wrong until phase 13; nothing should be built on the assumption that an API
-  route is reachable.
+  placeholder. Phase 13 fixed it: every API route passes `AuthenticateToken`, which reads a token or
+  marks the request as nobody's.
 - **`GlobalSet` is a base class, not an attribute.** The globals entry says "the attribute is
   `#[GlobalSet]`". Phase 1 builds the three shapes as base classes a type extends, so there is no
   attribute of that name to write and nothing reads one.
@@ -1751,17 +1753,61 @@ front page's features.
 
 ## Phase 13 — The API as a product
 
-The guard goes on. `#[PublicRead]` opts a type into public reads, which never touch the draft table,
-at every depth. Tokens are issued by Mainstay and stored hashed beside its own users table.
+The guard, `#[PublicRead]`, tokens, the payload and its schema, REST, and an MCP server over the same
+operations. One pull request.
 
-The JSON Schema derived in phase 1 is served from a discovery endpoint and written out as a `.d.ts`,
-from the same source rather than generated twice.
+**Tokens.** `Mainstay::tokens()` issues and revokes them, in `mainstay_tokens`: a name, the sha256 of
+a secret shown once (`mst_` and 48 characters), the capabilities it holds, and when it was last used,
+stamped at most once a minute. A token holds no capability its account could not hand out
+(`Capabilities::uncovered`), `*` only for an account holding everything, and a name no type derives
+not at all. At use its account is read `limitedTo()` the token's list, and `User::holds()` asks both,
+so a capability taken off a role leaves its accounts' tokens with it. An account makes and revokes
+only its own, under **API tokens** in the account menu, from the roles' grid cut down to content;
+`mainstay:token` makes one on the server, still under the cap.
 
-The payload has to satisfy that schema, and for a timestamp field it is the one place where it does
-not come from `Field::serialize()`. That method writes what the column takes -- `2026-09-10
-06:30:00` -- and the schema says `format: date-time`, which is RFC 3339 and wants the `T` and the
-offset. Phase 1 settled that both are UTC, so the conversion is a formatting choice here and not a
-zone question, but it is a choice this phase has to make rather than inherit.
+**The guard.** `AuthenticateToken` is on every API route. A bearer token it does not know is a 401
+with `WWW-Authenticate: Bearer`; a known one sets the request's user; none marks the request as
+nobody's. For nobody, `Gate::for()` adds a `before` answering no to `viewAny` on a type without
+`#[PublicRead]` and to `viewInternal` on any, so no host policy opens either to the internet. The
+query layer does the rest as it did: a relation into a type nobody reads is its id, a path into one
+is not there, and every write is refused. `type` joins the reserved field names, and
+`mainstay_tokens` the reserved tables.
+
+**The payload.** `Mainstay\Api\Payload` turns a read into JSON: `id` (none for a new entry's draft),
+`type`, `locale`, `uri`, `createdAt` and `updatedAt`, then each field the read set, as its
+`Field::payload()`. That is `serialize()` but for four types: a moment is RFC 3339 in UTC, which
+settles what this phase was left to choose; an image is `Media::toArray()`, its alt text, focal point
+and a URL and size for each of the field's sizes in both formats; a relation is the entry it points at
+as a payload of its own, or the id where the read did not load it; and content is its tree with each
+block's fields as payloads in its node's `attrs.data`. Depth is capped at 3 with a token and 1
+without, and a page at 100 entries, since a nested entry is copied wherever it is pointed at.
+
+**The schema.** `Mainstay\Api\Schema::document()` is a JSON Schema 2020-12 document of what the
+caller may read: one definition per type by handle, its base properties and each field's
+`payloadSchema()` -- a relation widened to the definitions of the types it may read, an image to
+`Media`, a document's nodes to `Node` -- and `Media` and `Node`, capitalised as no handle is.
+`mainstay:typescript` writes it out as declarations through a converter in PHP, an interface per
+definition, and refuses two that would share a name.
+
+**REST and MCP.** `Mainstay\Api\Operations` holds each operation once: find a type by handle,
+call the query layer as the caller, shape the answer. `ApiController` serves it at `/types`,
+`/schema`, `/entries/{type}`, `/path`, `/globals/{type}` and `/drafts`, mapping a refusal to 401 or
+403, a missing type, entry or draft to 404, and a failed write or a `BadQuery` to 422. `BadQuery` is
+what the query layer now throws for a caller's mistake -- an operator, a field to filter or sort on, a
+depth, a locale -- so any other `InvalidArgumentException` stays a 500. `Mainstay\Mcp\Server`,
+on laravel/mcp at `/api/mainstay/mcp` behind the same guard, offers the same operations as fourteen
+tools, read-only and destructive ones annotated, whose `type` argument lists the handles the caller
+may read; every refusal is an error result naming why.
+
+**Not built.** Revisions, the trash, owners, the front page, media uploads and accounts.
+
+**The check.** `ApiTest`, `McpTest` and `TokenTest` on SQLite, and the first two on every driver in
+CI: nobody reading only public types and no internal field under a policy that opens them, ids where
+nobody may follow, a token holding no more than it was given nor than its account holds then, a host
+policy asking `holds()` bound by it, revoking and a deleted account ending a token, every payload held
+to `/schema` by a validator in the test, depth and page caps, writes, drafts end to end, `where` and
+`sort` from the query string, the tools offered and refused, the token screen showing a secret once.
+`DeclarationTest` holds the converter's output to a snapshot.
 
 ## Phase 14 — The second locale and the second site
 

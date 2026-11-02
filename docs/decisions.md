@@ -938,6 +938,51 @@ Consequences:
   when a plugin needs one.
 - Dashboard widgets wait for onboarding, which phase 15 still owns.
 
+## A token carries capabilities of its own, and MCP is a third transport
+
+*2026-11-02*
+
+A token is issued by an account and holds capabilities of its own, chosen from what the account
+holds. It never holds one the account could not hand out, the rule a role already keeps
+(`Capabilities::uncovered`), from the admin and the console alike. At use the account's user is read
+with the token's list as a limit, and `User::holds()` asks both. A capability taken off a role leaves
+every token of its accounts at once, and a token cannot outlive what its account was trusted with.
+A token with no capabilities reads what its account may read and writes nothing.
+
+The table is Mainstay's own, `mainstay_tokens`, keeping the sha256 of a secret shown once. Sanctum
+stays out for the reason the authentication entry gives: it publishes its migrations into the host.
+
+Nobody, a request with no token, is ruled on in Mainstay's `Gate` and not in a policy. A `before`
+callback answers no to `viewAny` on a type without `#[PublicRead]` and to `viewInternal` on every
+type, so a host policy cannot open a private type or an internal field to the internet by answering
+yes for a null user. Everything else nobody asks is the policies', which refuse a null user's writes
+already. The site's pages and the admin never pass through the API's middleware, so they read as
+before.
+
+PHP calls the query layer directly and the API calls it over HTTP; MCP is a third transport over the
+same operations.
+`Mainstay\Api\Operations` finds the type, makes the call as the caller and shapes the answer, and
+the REST controller and the MCP tools each turn its exceptions into their own refusals. MCP is
+laravel/mcp rather than hand-written JSON-RPC: the protocol has had five versions in two years,
+2026-07-28 dropped the initialize handshake, and the package follows them.
+Its tools are resolved per request, so a tool's list of types is the caller's.
+
+A read nests what a relation points at, as a payload of its own, wherever it is pointed at: depth
+multiplies what one request makes the server write out. So depth is capped at 3 with a token and 1
+without, and a page holds at most 100 entries.
+
+Consequences:
+
+- A host policy binds a token only if it asks `holds()`. One that reads the role directly lets a
+  token do whatever its account may.
+- An agent given a token that edits and does not publish writes drafts and cannot put them live,
+  which is the safe default the MCP server's instructions describe.
+- A caller's mistake the query layer refuses is `BadQuery`, and only that is a 422; any other
+  `InvalidArgumentException` stays a 500, since it means stored data the code cannot read.
+- `type` is a field name no type may take, since the payload uses it.
+- Revisions, the trash, owners, the front page, media uploads and accounts are not in the API.
+  Each is an operation and a route when a client needs one.
+
 ## Deferred
 
 Questions raised and deliberately left open. The reasoning is recorded so it does not have to be
