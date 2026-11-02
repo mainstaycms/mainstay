@@ -160,24 +160,40 @@ With `MAINSTAY_SCHEMA_SYNC=true` in development's `.env`, `php artisan mainstay:
 ### Write a block
 
 A block is a class with fields, as a content type is, drawn by a Blade view named after it. `@field`
-prints a text field so it can be typed in place in the admin, and `@inner` prints the blocks a block
-holds inside it:
+prints a text field so it can be typed in place in the admin. `#[Blocks]` on a block names the blocks
+it holds inside it, and `text: true` lets it hold text among them, headings and paragraphs typed as the
+page's own; `@inner` prints what it holds. Give a block's headings, paragraphs, buttons and images that
+way, as text and blocks inside it rather than fields, and each use of it can differ. `#[Icon]` names one
+of Mainstay's built-in icons, or an SVG file under `resources/`, to list it by; `#[Description]` and
+`#[Example]` are what the Add block dialog says of it and previews it with:
 
 ```php
-#[Blocks([Feature::class])]
-class FeatureGrid extends Block
+#[Icon('grid')]
+#[Description('Selling points: a heading over a grid of them.')]
+#[Example(inner: [['h2' => 'What you get'], Feature::class])]
+#[Blocks([Feature::class], text: true)]
+class FeatureGrid extends Block {}
+
+#[Icon('button')]
+#[Example(['label' => 'Read the docs'])]
+class Button extends Block
 {
     #[Text(required: true)]
-    public string $heading;
+    public string $label;
+
+    #[Relation(to: Page::class)]
+    public ?Page $page;
 }
 ```
 
 ```blade
 {{-- resources/views/blocks/feature_grid.blade.php --}}
-<section class="features">
-    <h2>@field($block, 'heading')</h2>
-    <ul>@inner($block)</ul>
-</section>
+<section class="features">@inner($block)</section>
+
+{{-- resources/views/blocks/button.blade.php --}}
+@if ($block->page?->missing === false)
+    <a class="button" href="{{ $block->page->url() }}">@field($block, 'label')</a>
+@endif
 ```
 
 ### Render it
