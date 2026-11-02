@@ -66,6 +66,9 @@ Mainstay owns its tables inside your app. "Headless" describes the consumer, not
   publish replaces can be restored, and a deleted entry waits in the trash.
 - **Accounts and roles.** The admin has its own sign-in. Accounts are invited by mail, and a role's
   capabilities are a grid of the types you register.
+- **Plugins.** A package adds types, blocks, field types, admin screens and listeners on content
+  changes. Only the plugins your config names load, and their screens answer behind the admin's
+  sign-in and a capability of their own.
 
 ## Screenshots
 
@@ -207,6 +210,83 @@ The type's template gets the entry, and printing its content draws its text and 
     <div class="prose">{{ $entry->content }}</div>
 </main>
 ```
+
+### Write a plugin
+
+A plugin is a package's types, blocks, field types, admin screens and listeners, on one class. Only
+the plugins `config/mainstay.php` names load: installing a package switches nothing on, and nothing is
+switched on from the admin.
+
+```php
+// config/mainstay.php
+'plugins' => [Acme\Seo\Seo::class],
+```
+
+```php
+namespace Acme\Seo;
+
+use Mainstay\Content\Icon;
+use Mainstay\Events\Published;
+use Mainstay\Plugin;
+
+#[Icon('star')]
+class Seo extends Plugin
+{
+    public static function handle(): string
+    {
+        return 'seo';
+    }
+
+    public function types(): array
+    {
+        return [SeoRedirect::class, SeoSettings::class];
+    }
+
+    public function views(): ?string
+    {
+        return __DIR__.'/../resources/views';
+    }
+
+    public function routes(): ?string
+    {
+        return __DIR__.'/../routes/admin.php';
+    }
+
+    public function listeners(): array
+    {
+        return [Published::class => [PurgeCache::class]];
+    }
+}
+```
+
+The handle names everything the plugin takes: its views are `seo::`, its screens are under
+`/admin/seo` and its capability is `use_seo`. A handle one of the admin's screens, a view namespace, a
+type or another plugin has already is refused as Mainstay boots.
+
+Its types register as yours do. A block or a field type draws from its plugin's views by naming the
+handle as its `$viewNamespace` -- `protected ?string $viewNamespace = 'seo';` on a block, `protected
+string` on a field type: a block is drawn by `seo::blocks.<handle>`, a field type by
+`seo::components.fields.<kebab-name>`. One handle names one block across the site, so give a
+plugin's blocks names of its own, `SeoFaq` rather than `Faq`. Any of its views can be overridden at
+`resources/views/vendor/seo`.
+
+The routes file is loaded inside the admin, behind its sign-in and CSRF check, and answered only to
+someone holding `use_seo`, which the roles grid lists under Plugins. Its route named `index` is the
+plugin's item in the sidebar. A screen's view is drawn in `<x-mainstay::admin>`, and its forms carry
+`@csrf`:
+
+```php
+// routes/admin.php
+Route::get('/', [RedirectController::class, 'index'])->name('index');
+```
+
+`Saved`, `Published`, `Deleted` and `Restored`, in `Mainstay\Events`, carry the type and id of live
+content written, heard once the write commits and never when it rolls back. Your app listens to them
+with `Event::listen` as a plugin does.
+
+A plugin runs as your application does, with its access: Mainstay keeps what it declares from taking
+another's name, not what its code does, so install one as you would any dependency. A listener running
+in the request throws after the content has committed; make one that can fail a queued listener.
 
 ### Upgrading
 
