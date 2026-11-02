@@ -1,0 +1,1 @@
+<section>@inner($block)</section>

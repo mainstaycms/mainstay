@@ -4,6 +4,7 @@ namespace Mainstay\Tests\Fixtures\Blocks;
 
 use Carbon\CarbonImmutable;
 use Mainstay\Content\Block;
+use Mainstay\Content\Description;
 use Mainstay\Content\Document;
 use Mainstay\Fields\Date;
 use Mainstay\Fields\RichText;
@@ -11,7 +12,9 @@ use Mainstay\Fields\Select;
 use Mainstay\Fields\Text;
 
 /* A block of every kind of field it can hold beside another block list: a
-   required one, a document, a date, and a select with a default. */
+   required one, a document, a date, and a select with a default. Described,
+   and with no example to preview it with. */
+#[Description('A note set apart from the text.')]
 class Callout extends Block
 {
     #[Text(required: true)]

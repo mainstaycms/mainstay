@@ -161,7 +161,7 @@ class DeclarationTest extends TestCase
     public function a_list_of_blocks_refuses_what_it_cannot_hold(): void
     {
         foreach ([
-            [fn () => new Blocks, '#[Blocks] lists the blocks a content or a block holds: #[Blocks([Hero::class])].'],
+            [fn () => new Blocks, '#[Blocks] lists the blocks a content or a block holds, #[Blocks([Hero::class])], and on a block whether it holds text, #[Blocks([Button::class], text: true)].'],
             [fn () => new Blocks([Fixtures\Post::class]), 'Mainstay\Tests\Fixtures\Post is not a block. A block is a class extending Mainstay\Content\Block.'],
             [fn () => new Blocks([Slide::class, OtherSlide::class]), 'Two blocks are called "slide": Mainstay\Tests\Fixtures\Blocks\Slide and Mainstay\Tests\Fixtures\Blocks\Other\Slide.'],
             [fn () => (new Blocks([Translated::class]))->check($this->mainstay), 'Mainstay\Tests\Fixtures\Blocks\Translated::$title is localized, and a block is translated with the content that holds it.'],
@@ -216,7 +216,8 @@ class DeclarationTest extends TestCase
             Fixtures\Broken\ListedSettings::class => 'Mainstay\Tests\Fixtures\Broken\ListedSettings::$slides is marked #[Blocks], which names the blocks a class holds: put it on the class, and a block prints the blocks it holds with @inner($block).',
             Fixtures\Broken\BlockedSettings::class => 'Mainstay\Tests\Fixtures\Broken\BlockedSettings names blocks with #[Blocks], and only an entry type\'s content and a block hold them.',
             Fixtures\Broken\Pageless::class => 'Mainstay\Tests\Fixtures\Broken\Pageless names blocks with #[Blocks] and has no #[Route]: with no page there is nowhere to edit a block on, so its content holds text alone.',
-            Fixtures\Broken\Insisted::class => 'Mainstay\Tests\Fixtures\Broken\Insisted\'s #[Blocks] names the blocks it holds and nothing more: #[Blocks([Hero::class])].',
+            Fixtures\Broken\Insisted::class => 'Mainstay\Tests\Fixtures\Broken\Insisted\'s #[Blocks] names the blocks it holds and nothing more, its content holding text already: #[Blocks([Hero::class])].',
+            Fixtures\Broken\Texted::class => 'Mainstay\Tests\Fixtures\Broken\Texted\'s #[Blocks] names the blocks it holds and nothing more, its content holding text already: #[Blocks([Hero::class])].',
         ] as $type => $message) {
             try {
                 $this->mainstay->fields($type);

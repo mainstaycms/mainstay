@@ -17,8 +17,10 @@ use TypeError;
  | The blocks a content holds, named on a class: on an entry type the ones
  | its content holds at its top level, `#[Blocks([Hero::class])]`, and on a
  | block the ones it holds inside it, its inner blocks, as a feature grid
- | holds its features. A block is stored as `{type: 'block', attrs: {id,
- | type, data}, content: [...]}`, its inner blocks its content, and read
+ | holds its features -- and text with them where it says so, `text: true`,
+ | as a column holds its heading and paragraphs: a content holds text at its
+ | top level always. A block is stored as `{type: 'block', attrs: {id, type,
+ | data}, content: [...]}`, its inner blocks and text its content, and read
  | back as the block object; its fields are checked, cast and described by
  | the same contract an entry's are.
  |
@@ -43,11 +45,14 @@ final class Blocks
        @var array<class-string<Block>, array{0: ReflectionClass, 1: array<string, ReflectionProperty>}> */
     private array $reflected = [];
 
-    /** @param list<class-string<Block>> $of */
-    public function __construct(public readonly array $of = [])
+    /**
+     * @param  list<class-string<Block>>  $of
+     * @param  bool  $text  on a block, whether it holds text among them -- paragraphs, headings and the rest -- as a content does
+     */
+    public function __construct(public readonly array $of = [], public readonly bool $text = false)
     {
-        if ($of === [] || ! array_is_list($of)) {
-            throw new InvalidArgumentException('#[Blocks] lists the blocks a content or a block holds: #[Blocks([Hero::class])].');
+        if (($of === [] && ! $text) || ! array_is_list($of)) {
+            throw new InvalidArgumentException('#[Blocks] lists the blocks a content or a block holds, #[Blocks([Hero::class])], and on a block whether it holds text, #[Blocks([Button::class], text: true)].');
         }
 
         foreach ($of as $class) {

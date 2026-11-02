@@ -103,7 +103,7 @@
                         <button type="button" data-command="undo" class="{{ $tool }}">Undo</button>
                         <button type="button" data-command="redo" class="{{ $tool }}">Redo</button>
                         <span aria-hidden="true" class="mx-1 h-5 w-px bg-border"></span>
-                        <button type="button" data-command="add" aria-haspopup="true" aria-expanded="false" aria-controls="canvas-menu" class="{{ $tool }}">Add block</button>
+                        <button type="button" data-command="add" aria-haspopup="dialog" aria-controls="canvas-inserter" class="{{ $tool }}">Add block</button>
                     </div>
                 </div>
             @endif
@@ -128,12 +128,12 @@
 
             @if ($canvas)
                 <x-mainstay::tab-panel id="content" class="flex min-h-0 flex-1 flex-col">
-                    <x-mainstay::canvas :url="$canvas" :block="$block" sidebar="mainstay-block" header="canvas-header" :blocks="$blocks" :top="$top" :invalid="$invalid" :pictures="$pictures" />
+                    <x-mainstay::canvas :url="$canvas" :block="$block" sidebar="mainstay-block" header="canvas-header" :blocks="$blocks" :top="$top" :invalid="$invalid" :pictures="$pictures" :previews="$previews" />
                 </x-mainstay::tab-panel>
             @endif
         </div>
 
-        <aside aria-label="Publishing" class="min-h-0 w-72 shrink-0 overflow-y-auto border-l border-border bg-surface">
+        <aside aria-label="Publishing" data-publishing class="min-h-0 w-72 shrink-0 overflow-y-auto border-l border-border bg-surface">
             @if ($front)
                 <x-mainstay::field-section label="Front page">
                     <p class="text-sm">Served at the site's root.</p>
@@ -190,6 +190,19 @@
                 </x-mainstay::field-section>
             @endif
         </aside>
+
+        {{-- On the Content tab, in the rail's place: every block of the
+             content, the ones inside another under it, each by its icon
+             and its name, the current one marked, each selected on the
+             page from here. canvas.ts fills it
+             from the template and swaps it for the rail. --}}
+        @if ($canvas)
+            <aside aria-labelledby="canvas-tree-label" data-canvas-tree hidden class="min-h-0 w-72 shrink-0 overflow-y-auto border-l border-border bg-surface px-4 py-3">
+                <h2 id="canvas-tree-label" class="pb-1.5 text-xs font-medium text-muted">Blocks</h2>
+                <ul data-tree-list class="-mx-2 [&_ul]:ml-3 [&_ul]:border-l [&_ul]:border-border [&_ul]:pl-1"></ul>
+                <template data-tree-item><li><button type="button" data-tree-select class="flex w-full items-center gap-2 rounded-control px-2 py-1.5 text-left text-sm text-ink hover:bg-canvas aria-[current=true]:bg-accent aria-[current=true]:text-accent-ink focus-visible:outline-2 focus-visible:outline-accent [&>span]:min-w-0 [&>span]:truncate [&>:not(span)]:shrink-0"></button></li></template>
+            </aside>
+        @endif
     </form>
 
     {{-- Outside the entry's form: see block-sidebar. --}}

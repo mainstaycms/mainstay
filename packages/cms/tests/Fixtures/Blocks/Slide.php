@@ -3,10 +3,12 @@
 namespace Mainstay\Tests\Fixtures\Blocks;
 
 use Mainstay\Content\Block;
+use Mainstay\Content\Example;
 use Mainstay\Fields\Boolean;
 use Mainstay\Fields\Number;
 use Mainstay\Fields\Text;
 
+#[Example(['title' => 'First light'])]
 class Slide extends Block
 {
     #[Text(required: true)]

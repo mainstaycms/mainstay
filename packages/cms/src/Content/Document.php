@@ -25,9 +25,9 @@ use Mainstay\Mainstay;
  | unknown mark leaves its text unmarked.
  |
  | An entry's content holds one node more, `block`, a site block at the top
- | level, holding the blocks inside it, which the read hands in as its Block
- | and the renderer draws through the block's view. A rich text field holds
- | none.
+ | level, holding the blocks inside it and any text among them, which the
+ | read hands in as its Block and the renderer draws through the block's
+ | view. A rich text field holds none.
  */
 final class Document implements Arrayable, Htmlable, JsonSerializable
 {
@@ -48,7 +48,8 @@ final class Document implements Arrayable, Htmlable, JsonSerializable
         'list_item' => ['content' => 'block', 'least' => 1, 'first' => 'paragraph'],
         'horizontal_rule' => ['group' => 'block'],
         /* In no group: only a content's doc holds one, at its top level, and
-           a block the blocks inside it. */
+           a block the blocks inside it, among text -- which its field says
+           whether it holds. */
         'block' => ['content' => 'block'],
         'hard_break' => ['group' => 'inline'],
         'text' => ['group' => 'inline'],
@@ -230,11 +231,9 @@ final class Document implements Arrayable, Htmlable, JsonSerializable
             $place = $at === 'the root' ? "content.{$index}" : "{$at}.content.{$index}";
             $name = is_array($child) && is_string($child['type'] ?? null) ? $child['type'] : null;
 
-            /* A block holds blocks alone, `block` there naming the node
-               rather than the group. */
+            /* A site block is held by a doc or another one alone. */
             $held = match (true) {
                 $name === 'block' => $blocks && in_array($type, ['doc', 'block'], true),
-                $type === 'block' => $name === null || ! isset(self::NODES[$name]),
                 default => $name === null || ! isset(self::NODES[$name]) || $name === $spec['content'] || (self::NODES[$name]['group'] ?? null) === $spec['content'],
             };
 

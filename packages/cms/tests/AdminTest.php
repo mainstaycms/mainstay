@@ -16,10 +16,20 @@ use InvalidArgumentException;
 use Mainstay\Auth\Capabilities;
 use Mainstay\Auth\Role;
 use Mainstay\Auth\User;
+use Mainstay\Content\Block;
+use Mainstay\Content\Description;
+use Mainstay\Content\Example;
+use Mainstay\Content\Icon;
 use Mainstay\Content\Media;
 use Mainstay\Facades\Mainstay;
+use Mainstay\Fields\Blocks;
+use Mainstay\Fields\Text;
+use Mainstay\Http\EntryController;
 use Mainstay\Http\Form;
 use Mainstay\Tests\Fixtures\Accented\Article as Accented;
+use Mainstay\Tests\Fixtures\Blocks\Callout;
+use Mainstay\Tests\Fixtures\Blocks\Looped;
+use Mainstay\Tests\Fixtures\Blocks\Slide;
 use Mainstay\Tests\Fixtures\Broken\Account;
 use Mainstay\Tests\Fixtures\Broken\Login;
 use Mainstay\Tests\Fixtures\Guide;
@@ -561,8 +571,9 @@ class AdminTest extends DatabaseTestCase
         $form = $this->get(route('mainstay.entries.edit', ['spread', $spread->id]))->assertOk()
             ->assertSee('data-tabs="entry"', escape: false)
             ->assertSee('data-canvas-url="'.$canvas.'"', escape: false)
-            ->assertSee('data-insert="block:callout"', escape: false);
-        $this->get(route('mainstay.entries.create', 'leaflet'))->assertDontSee('data-tabs', escape: false);
+            ->assertSee('data-insert="block:callout"', escape: false)
+            ->assertSee('data-canvas-tree', escape: false);
+        $this->get(route('mainstay.entries.create', 'leaflet'))->assertDontSee('data-tabs', escape: false)->assertDontSee('data-canvas-tree', escape: false);
         $this->assertSame(1, substr_count($form->getContent(), 'id="mainstay-link"'), 'One link dialog for the aside and the content alike.');
         $this->get(route('mainstay.entries.create', 'post'))->assertSee('data-canvas', escape: false)->assertSee('id="mainstay-link"', escape: false);
 
@@ -689,6 +700,100 @@ class AdminTest extends DatabaseTestCase
     }
 
     #[Test]
+    public function the_add_block_dialog_says_what_each_block_is_for_and_previews_it_from_its_example(): void
+    {
+        Mainstay::editorStyles(['/css/site.css'], class: 'prose');
+        [$spread] = $this->galleried();
+        $previews = route('mainstay.previews', 'spread');
+
+        /* A card for each block, saying what it is for; a site block with no
+           example has no preview, text always has one. */
+        $html = $this->get(route('mainstay.entries.edit', ['spread', $spread->id]))->assertOk()->getContent();
+        $this->assertStringContainsString('class="text-sm text-muted">Pictures in a row, each one a slide.</p>', $html);
+        $this->assertStringContainsString('class="text-sm text-muted">A note set apart from the text.</p>', $html);
+        $this->assertStringContainsString('src="'.e($previews.'?insert=block%3Agallery').'"', $html);
+        $this->assertStringContainsString('src="'.e($previews.'?insert=paragraph').'"', $html);
+        $this->assertStringNotContainsString('?insert=block%3Acallout', $html);
+
+        /* Each kind in the `/` menu by its icon: a block's own, the plain
+           block's for one with none, and text's built in. A card with no
+           preview shows the icon in its place. */
+        $this->assertStringContainsString('data-insert="block:gallery" class="flex w-full items-center gap-2 rounded-control px-3 py-1.5 text-left text-sm text-ink hover:bg-surface focus-visible:bg-surface focus-visible:outline-none">'.(new Icon('gallery'))->toHtml().'<span>Gallery</span>', $html);
+        $this->assertStringContainsString('data-insert="block:callout" class="flex w-full items-center gap-2 rounded-control px-3 py-1.5 text-left text-sm text-ink hover:bg-surface focus-visible:bg-surface focus-visible:outline-none">'.(new Icon('block'))->toHtml().'<span>Callout</span>', $html);
+        $this->assertStringContainsString('data-insert="blockquote" class="flex w-full items-center gap-2 rounded-control px-3 py-1.5 text-left text-sm text-ink hover:bg-surface focus-visible:bg-surface focus-visible:outline-none">'.(new Icon('quote'))->toHtml().'<span>Quote</span>', $html);
+        $this->assertMatchesRegularExpression('/<li data-insert="block:callout"[^>]*>\s*<div aria-hidden="true" class="grid h-40 place-items-center[^"]*">'.preg_quote((new Icon('block'))->toHtml(), '/').'<\/div>/', $html);
+
+        /* Both dialogs as big as what is in them, up to the screen, what is
+           in them inside their borders: no scrollbar of the dialog's own. */
+        $this->assertMatchesRegularExpression('/<dialog id="canvas-inserter"[^>]* class="m-auto max-h-\[calc\(100dvh-3rem\)\] w-\[calc\(100%-3rem\)\] max-w-\[77rem\] [^"]*">\s*<div class="flex max-h-\[calc\(100dvh-3rem-2px\)\] flex-col">/', $html);
+        $this->assertMatchesRegularExpression('/<dialog aria-labelledby="[^"]*-label" class="m-auto max-h-\[calc\(100dvh-3rem\)\] w-\[calc\(100%-3rem\)\] max-w-3xl [^"]*">\s*<form id="[^"]*" data-canvas-sidebar aria-labelledby="[^"]*" class="flex max-h-\[calc\(100dvh-3rem-2px\)\] flex-col">/', $html);
+
+        /* A site block drawn from its example as a visitor sees it, holding
+           one of each block inside it that has one, in the site's styles. */
+        $this->get($previews.'?insert=block:gallery')->assertOk()
+            ->assertSee('<link rel="stylesheet" href="/css/site.css">', escape: false)
+            ->assertSeeInOrder(['<div class="prose" style="padding: 32px"><figure><p>First light</p>', '<figcaption>Harbour at dawn</figcaption></figure>'], escape: false)
+            ->assertDontSee('signed in');
+
+        /* One whose example says what is inside it: text, and a block from
+           its own. */
+        $this->get($previews.'?insert=block:panel')->assertOk()->assertSee("<section><h2>Opening hours</h2><p>First light</p>\n<p>Closed on Mondays.</p></section>", escape: false);
+
+        /* One holding its own kind is drawn holding none of it, which would
+           never end. */
+        $this->assertSame([], (fn () => $this->sample(Looped::class))->call(app(EntryController::class))->innerContent()->toArray()['content']);
+
+        /* Text from a sample. */
+        $this->get($previews.'?insert=bullet_list')->assertOk()->assertSee('<ul><li><p>One thing</p></li><li><p>Another thing</p></li>', escape: false);
+
+        foreach (['block:callout', 'block:nope', 'nope', ''] as $insert) {
+            $this->get($previews.'?insert='.urlencode($insert))->assertNotFound();
+        }
+
+        $this->get(route('mainstay.previews', 'leaflet').'?insert=paragraph')->assertNotFound();
+    }
+
+    #[Test]
+    public function a_description_and_an_example_are_refused_where_they_say_nothing_a_block_holds(): void
+    {
+        $this->assertThrows(fn () => new Description(' '), InvalidArgumentException::class, '#[Description] says what a block is for');
+        $this->assertThrows(fn () => new Example(['First light']), InvalidArgumentException::class, "#[Example] gives a block's values by field");
+        $this->assertThrows(fn () => new Example([]), InvalidArgumentException::class, "#[Example] gives a block's values by field");
+        $this->assertThrows(fn () => new Example(inner: [['h7' => 'Deep']]), InvalidArgumentException::class, '#[Example] puts {"h7":"Deep"} inside a block, which is neither text');
+        $this->assertThrows(fn () => new Example(inner: [['p' => 'One', 'h2' => 'Two']]), InvalidArgumentException::class, 'which is neither text');
+        $this->assertThrows(fn () => new Example(inner: ['Nowhere']), InvalidArgumentException::class, "nor a block's class");
+        $this->assertSame([['type' => 'heading', 'attrs' => ['level' => 3], 'content' => [['type' => 'text', 'text' => 'Hours']]], ['type' => 'paragraph'], Slide::class], (new Example(inner: [['h3' => 'Hours'], ['p' => ''], Slide::class]))->nodes());
+
+        $block = new #[Example(['title' => 'One', 'colour' => 'red'])] class extends Block
+        {
+            #[Text]
+            public ?string $title;
+        };
+
+        $this->assertThrows(fn () => Form::example($block::class), InvalidArgumentException::class, 'fills colour, which the block has no field for');
+
+        $stray = new #[Example(inner: [['p' => 'Loose'], Slide::class, Callout::class])] #[Blocks([Slide::class])] class extends Block {};
+
+        $this->assertThrows(fn () => Form::example($stray::class), InvalidArgumentException::class, 'puts text, Callout inside it, which it does not hold');
+    }
+
+    #[Test]
+    public function an_icon_is_one_of_mainstays_by_name_or_an_svg_file_of_the_sites(): void
+    {
+        $this->assertThrows(fn () => new Icon, InvalidArgumentException::class, "#[Icon] names one of Mainstay's icons");
+        $this->assertThrows(fn () => new Icon('grid', file: 'icons/grid.svg'), InvalidArgumentException::class, "#[Icon] names one of Mainstay's icons");
+        $this->assertThrows(fn () => new Icon('gird'), InvalidArgumentException::class, "#[Icon('gird')] is none of Mainstay's icons, which are block, paragraph, heading");
+
+        $this->assertSame('<svg aria-hidden="true" viewBox="0 0 16 16" class="size-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="2.25" width="4.5" height="4.5" rx="1" /><rect x="9.25" y="2.25" width="4.5" height="4.5" rx="1" /><rect x="2.25" y="9.25" width="4.5" height="4.5" rx="1" /><rect x="9.25" y="9.25" width="4.5" height="4.5" rx="1" /></svg>', (new Icon('grid'))->toHtml());
+
+        /* A file drawn as an image of all of it, sized as the admin's are; a
+           relative path is under resources/. */
+        $this->assertSame('<img alt="" class="size-4" src="data:image/svg+xml;base64,'.base64_encode(file_get_contents(__DIR__.'/Fixtures/icons/dot.svg')).'">', (new Icon(file: __DIR__.'/Fixtures/icons/dot.svg'))->toHtml());
+        $this->assertThrows(fn () => (new Icon(file: 'icons/none.svg'))->toHtml(), InvalidArgumentException::class, "#[Icon(file: 'icons/none.svg')] is not an SVG file: ".resource_path('icons/none.svg'));
+        $this->assertThrows(fn () => (new Icon(file: __DIR__.'/Fixtures/Blocks/Slide.php'))->toHtml(), InvalidArgumentException::class, 'is not an SVG file');
+    }
+
+    #[Test]
     public function a_site_block_is_drawn_with_its_settings_changed_there_and_refused_as_its_save_would_be(): void
     {
         [$spread, $gallery, $slide, $block] = $this->galleried();
@@ -705,8 +810,8 @@ class AdminTest extends DatabaseTestCase
         preg_match('/data-blocks="([^"]*)"/', $html, $blocks);
         preg_match('/data-top="([^"]*)"/', $html, $top);
         $blocks = json_decode(html_entity_decode($blocks[1]), true);
-        $this->assertSame([['label' => 'Gallery', 'inner' => ['slide']], ['label' => 'Slide', 'inner' => []]], [$blocks['gallery'], $blocks['slide']]);
-        $this->assertSame(['callout', 'gallery', 'figure', 'shelf'], json_decode(html_entity_decode($top[1]), true));
+        $this->assertSame([['label' => 'Gallery', 'inner' => ['slide'], 'text' => false], ['label' => 'Slide', 'inner' => [], 'text' => false], ['label' => 'Panel', 'inner' => ['slide'], 'text' => true]], [$blocks['gallery'], $blocks['slide'], $blocks['panel']]);
+        $this->assertSame(['callout', 'gallery', 'figure', 'shelf', 'panel'], json_decode(html_entity_decode($top[1]), true));
         $draft = Mainstay::drafts()->save(Spread::class, ['title' => 'Drafted', 'slug' => 'drafted', 'issuedOn' => '2026-10-07'], locale: 'en', overrideAccess: true);
         $this->get(route('mainstay.drafts.edit', ['spread', $draft->id]))->assertSee('data-block-url="'.route('mainstay.block.draft', ['spread', $draft->id]).'"', escape: false);
         $this->post(route('mainstay.block.draft', ['spread', $draft->id]), ['block' => json_encode($gallery)])->assertOk();

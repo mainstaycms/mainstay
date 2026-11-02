@@ -215,14 +215,15 @@ class Mainstay
     }
 
     /*
-     | `@inner($block)`: the blocks inside a block, each drawn by its view, in
-     | their order. For the Content tab's editor an empty <template> in their
-     | place, where the editor puts them, each drawn on its own: the element
-     | it sits in holds the inner blocks and nothing else.
+     | `@inner($block)`: the blocks inside a block, each drawn by its view,
+     | and the text among them, in their order. For the Content tab's editor
+     | an empty <template> in their place, where the editor puts them, each
+     | block drawn on its own: the element it sits in holds what is inside
+     | the block and nothing else.
      */
     public function inner(Block $block): HtmlString
     {
-        return new HtmlString($this->marking ? '<template data-mainstay-inner></template>' : implode('', array_map(fn (Block $inner) => $inner->toHtml(), $block->inner())));
+        return new HtmlString($this->marking ? '<template data-mainstay-inner></template>' : $block->innerContent()->toHtml());
     }
 
     /* Whether what is drawn now is for the editor: an image marks itself. */
@@ -860,11 +861,15 @@ class Mainstay
         }
     }
 
-    /** @param list<ReflectionAttribute> $attributes a class's #[Blocks], which names blocks and nothing more */
+    /** @param list<ReflectionAttribute> $attributes a class's #[Blocks], which names blocks, and on a block text, and nothing more */
     private function listing(string $type, array $attributes): void
     {
-        if ($attributes !== [] && array_diff(array_keys($attributes[0]->getArguments()), [0, 'of']) !== []) {
-            throw new InvalidArgumentException("{$type}'s #[Blocks] names the blocks it holds and nothing more: #[Blocks([Hero::class])].");
+        $block = is_subclass_of($type, Block::class);
+
+        if ($attributes !== [] && array_diff(array_keys($attributes[0]->getArguments()), $block ? [0, 1, 'of', 'text'] : [0, 'of']) !== []) {
+            throw new InvalidArgumentException($block
+                ? "{$type}'s #[Blocks] names the blocks it holds and whether it holds text, and nothing more: #[Blocks([Button::class], text: true)]."
+                : "{$type}'s #[Blocks] names the blocks it holds and nothing more, its content holding text already: #[Blocks([Hero::class])].");
         }
     }
 

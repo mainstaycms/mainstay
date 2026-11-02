@@ -18,6 +18,7 @@ use Illuminate\View\View;
 use InvalidArgumentException;
 use Mainstay\Auth\Gate;
 use Mainstay\Auth\User;
+use Mainstay\Content\Block;
 use Mainstay\Content\ContentType;
 use Mainstay\Content\Document;
 use Mainstay\Content\Draft;
@@ -48,6 +49,33 @@ use TypeError;
 class EntryController
 {
     private const PER_PAGE = 20;
+
+    /* Each kind of text as the Add block dialog previews it. */
+    private const SAMPLES = [
+        'paragraph' => ['type' => 'paragraph', 'content' => [
+            ['type' => 'text', 'text' => 'Text runs on in paragraphs like this one, with '],
+            ['type' => 'text', 'marks' => [['type' => 'strong']], 'text' => 'bold'],
+            ['type' => 'text', 'text' => ' and '],
+            ['type' => 'text', 'marks' => [['type' => 'em']], 'text' => 'italic'],
+            ['type' => 'text', 'text' => ' words in it, and '],
+            ['type' => 'text', 'marks' => [['type' => 'link', 'attrs' => ['href' => '#']]], 'text' => 'links'],
+            ['type' => 'text', 'text' => ' to other pages.'],
+        ]],
+        'heading' => ['type' => 'heading', 'attrs' => ['level' => 2], 'content' => [['type' => 'text', 'text' => 'A heading over a section']]],
+        'blockquote' => ['type' => 'blockquote', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Words someone else said, set apart from the text around them.']]]]],
+        'code_block' => ['type' => 'code_block', 'content' => [['type' => 'text', 'text' => "<?php\n\necho 'Shown as it was typed';"]]],
+        'bullet_list' => ['type' => 'bullet_list', 'content' => [
+            ['type' => 'list_item', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'One thing']]]]],
+            ['type' => 'list_item', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Another thing']]]]],
+            ['type' => 'list_item', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'In no order']]]]],
+        ]],
+        'ordered_list' => ['type' => 'ordered_list', 'content' => [
+            ['type' => 'list_item', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'First this']]]]],
+            ['type' => 'list_item', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Then this']]]]],
+            ['type' => 'list_item', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Last this']]]]],
+        ]],
+        'horizontal_rule' => ['type' => 'horizontal_rule'],
+    ];
 
     public function __construct(private Mainstay $mainstay) {}
 
@@ -333,6 +361,62 @@ class EntryController
             'html' => $html,
             'form' => $drawn ? view('mainstay::block', ['block' => $read, 'messages' => $errors])->render() : null,
         ]);
+    }
+
+    /*
+     | A block as the Add block dialog previews it, `insert` naming it as the
+     | dialog does -- a kind of text, `paragraph`, or `block:{handle}` -- on a
+     | page of its own in the site's editor styles, drawn as a visitor sees
+     | it: text from a sample, a site block from its #[Example]. Only one the
+     | type's content holds; a site block with no example has no preview.
+     */
+    public function previews(Request $request, string $type): Response
+    {
+        $class = $this->type($type, entries: true);
+        $insert = (string) $request->query('insert');
+        $block = str_starts_with($insert, 'block:') ? Form::blocks($class)[substr($insert, 6)] ?? null : null;
+
+        if ($this->mainstay->route($class) === null || (! isset(self::SAMPLES[$insert]) && ($block === null || Form::example($block) === null))) {
+            throw $this->missing();
+        }
+
+        $locale = $this->locale($request);
+
+        try {
+            $html = $block === null
+                ? (new Document(['type' => 'doc', 'content' => [self::SAMPLES[$insert]]]))->toHtml()
+                : $this->asVisitor($request, $locale, fn () => $this->sample($block)->toHtml());
+        } catch (Throwable $exception) {
+            report($exception);
+
+            $html = '<p>'.e($exception->getMessage() ?: 'The preview stopped drawing with '.class_basename($exception).'.').'</p>';
+        }
+
+        return response()->view('mainstay::preview', ['html' => $html, 'locale' => $locale, 'style' => $this->mainstay->editorStyle()]);
+    }
+
+    /* A block of `$class` from its #[Example], holding what it puts inside,
+       or else one of each block it holds that has one, each from its own --
+       but none of a kind it is inside, which would never end. */
+    private function sample(string $class, array $around = []): Block
+    {
+        $example = Form::example($class);
+        $inner = $example !== null && $example->inner !== [] ? $example->nodes() : ($this->mainstay->innerBlocks($class)->of ?? []);
+        $nodes = $blocks = [];
+
+        foreach ($inner as $item) {
+            if (is_array($item)) {
+                $nodes[] = $item;
+            } elseif (Form::example($item) !== null && ! in_array($item, [...$around, $class], true)) {
+                $block = $this->sample($item, [...$around, $class]);
+                $blocks[$block->id] = $block;
+                $nodes[] = ['type' => 'block', 'attrs' => ['id' => $block->id, 'type' => $item::handle()]];
+            }
+        }
+
+        return (new Blocks([$class]))
+            ->readItem(['type' => $class::handle(), 'data' => $example->data ?? []], '#[Example]')
+            ->holding(new Document(['type' => 'doc', 'content' => $nodes], $blocks));
     }
 
     /* Throws a draft away, unless someone else saved it after this form drew
@@ -887,11 +971,18 @@ class EntryController
                 $current !== null => route('mainstay.block.draft', [$class::handle(), $current->id]),
                 default => route('mainstay.block.create', $class::handle()),
             }) : null,
-            /* Every block the content holds, by handle, with the blocks it
-               holds inside it; and the ones at its top level. */
+            /* Where the Add block dialog's previews are drawn from. */
+            'previews' => $routed ? $this->localized($request, route('mainstay.previews', $class::handle())) : null,
+            /* Every block the content holds, by handle, with its icon, what
+               it is for, whether it has a preview, and the blocks it holds
+               inside it and whether text; and the ones at its top level. */
             'blocks' => collect(Form::blocks($class))->map(fn (string $block) => [
                 'label' => Form::label($block),
+                'icon' => Form::icon($block),
+                'description' => Form::description($block),
+                'example' => Form::example($block) !== null,
                 'inner' => array_map(fn (string $inner) => $inner::handle(), $this->mainstay->innerBlocks($block)->of ?? []),
+                'text' => $this->mainstay->innerBlocks($block)->text ?? false,
             ])->all(),
             'top' => array_map(fn (string $block) => $block::handle(), ($fields['content'] ?? null) instanceof Content ? $fields['content']->blocks() : []),
             /* The library's picker and image dialog, for a type whose blocks

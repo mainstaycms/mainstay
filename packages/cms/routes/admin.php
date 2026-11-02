@@ -73,6 +73,7 @@ Route::middleware([Authenticate::class, AuthenticateSession::class])->group(func
     Route::post('{type}/drafts/{draft}/discard', [EntryController::class, 'discard'])->whereNumber('draft')->name('mainstay.drafts.discard');
     Route::post('{type}/drafts/{draft}/author', [EntryController::class, 'assignDraft'])->whereNumber('draft')->name('mainstay.drafts.assign');
     Route::get('{type}/relations/{field}', [EntryController::class, 'relations'])->name('mainstay.relations');
+    Route::get('{type}/previews', [EntryController::class, 'previews'])->name('mainstay.previews');
 
     Route::get('{type}/{id}', [EntryController::class, 'edit'])->whereNumber('id')->name('mainstay.entries.edit');
     Route::post('{type}/{id}', [EntryController::class, 'update'])->whereNumber('id')->name('mainstay.entries.update');

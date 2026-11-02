@@ -14,7 +14,8 @@ use Mainstay\Mainstay;
  | An entry's content, as every WordPress post has `post_content`: a rich text
  | document with one node more, a site block at its top level, `{type:
  | 'block', attrs: {id, type, data}}`, holding the blocks inside it as its
- | content where its class names them. A block's id, type and data are
+ | content where its class names them, and text among them where it names
+ | text. A block's id, type and data are
  | checked, read and written by the #[Blocks] list that names it -- its
  | type's for one at the top, the block's around it for one inside -- each
  | where it is in the document: `content.content.3.attrs.data.headline`,
@@ -74,8 +75,8 @@ class Content extends RichText
     /*
      | Each block of `$nodes`, the content of the node at `$at`, by its list's
      | rules, and the blocks inside it by its own -- or refused, for a block
-     | that holds none. Last, as Laravel wants it: a key written after a
-     | wildcard replaces what it merged in.
+     | that holds none, and text inside one that holds none. Last, as Laravel
+     | wants it: a key written after a wildcard replaces what it merged in.
      */
     private function nodesRules(string $at, array $nodes, Blocks $list, bool $draft): array
     {
@@ -91,14 +92,18 @@ class Content extends RichText
             $class = $list->block($node['attrs'] ?? null);
             $inner = $class === null ? null : app(Mainstay::class)->innerBlocks($class);
 
-            if ($inner !== null) {
-                $rules = [...$rules, ...$this->nodesRules($place, $this->nodes($node), $inner, $draft)];
-            } elseif ($class !== null) {
-                $rules["{$place}.content"] = [function (string $attribute, mixed $value, Closure $fail) use ($class) {
-                    if ($value !== [] && $value !== null) {
+            if ($class !== null && ! $inner?->text) {
+                $rules["{$place}.content"] = [function (string $attribute, mixed $value, Closure $fail) use ($class, $inner) {
+                    if ($inner === null && $value !== [] && $value !== null) {
                         $fail(class_basename($class).' holds no blocks inside it.');
+                    } elseif (is_array($value) && ! collect($value)->every(fn (mixed $node) => $this->block($node))) {
+                        $fail(class_basename($class).' holds no text inside it.');
                     }
                 }];
+            }
+
+            if ($inner !== null) {
+                $rules = [...$rules, ...$this->nodesRules($place, $this->nodes($node), $inner, $draft)];
             }
         }
 
@@ -181,10 +186,11 @@ class Content extends RichText
 
     /*
      | The document, each site block in it read as its Block with what the
-     | read loaded, the blocks inside it as its inner blocks, and each node
+     | read loaded, what is inside it as its inner content, and each node
      | given the id its Block has: one the block was stored without, or one
      | another block was stored with anywhere in the document, is new. A
-     | block of a type its list does not name is not there.
+     | block of a type its list does not name is not there, nor text inside
+     | one that holds none.
      */
     public function cast(mixed $value, array $loaded = []): mixed
     {
@@ -197,21 +203,21 @@ class Content extends RichText
         }
 
         $blocks = [];
-        [$content] = $this->readNodes(is_array($value['content'] ?? null) ? $value['content'] : [], $this->blocks, $this->name, $loaded, $blocks, text: true);
+        $content = $this->readNodes(is_array($value['content'] ?? null) ? $value['content'] : [], $this->blocks, $this->name, $loaded, $blocks, text: true);
 
         return new Document([...$value, 'content' => $content], $blocks);
     }
 
     /**
-     * The nodes as read, and the blocks among them, every block read into
-     * `$blocks` by its id.
+     * The nodes as read, every block among them read into `$blocks` by its
+     * id, holding what is inside it.
      *
      * @param  array<string, Block>  $blocks
-     * @return array{0: list<mixed>, 1: list<Block>}
+     * @return list<mixed>
      */
     private function readNodes(array $nodes, ?Blocks $list, string $at, array $loaded, array &$blocks, bool $text = false): array
     {
-        $content = $read = [];
+        $content = [];
 
         foreach ($nodes as $node) {
             if (! $this->block($node)) {
@@ -233,14 +239,15 @@ class Content extends RichText
             }
 
             $blocks[$block->id] = $block;
-            [$inner, $held] = $this->readNodes($this->nodes($node), app(Mainstay::class)->innerBlocks($block::class), $place, $loaded, $blocks);
+            $holds = app(Mainstay::class)->innerBlocks($block::class);
+            $inner = $this->readNodes($this->nodes($node), $holds, $place, $loaded, $blocks, text: $holds?->text ?? false);
             $node = [...$node, 'attrs' => [...$node['attrs'], 'id' => $block->id]];
             unset($node['content']);
             $content[] = $inner === [] ? $node : [...$node, 'content' => $inner];
-            $read[] = $block->holding($held);
+            $block->holding(new Document(['type' => 'doc', 'content' => $inner], $blocks));
         }
 
-        return [$content, $read];
+        return $content;
     }
 
     /* The document as stored, each block's data serialized by its fields,
