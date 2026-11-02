@@ -82,7 +82,7 @@ class ContentStore
 
     /* How far a read follows relations when the call does not say: to the
        entries they point at, whose own relations it leaves unloaded. */
-    private const DEPTH = 1;
+    public const DEPTH = 1;
 
     private const DRAFTS = 'mainstay_drafts';
 
@@ -121,7 +121,7 @@ class ContentStore
         /* Nothing, on three drivers; everything, on SQL Server, whose grammar
            writes no `top` for it. Refused on all four instead. */
         if ($limit !== null && $limit < 1) {
-            throw new InvalidArgumentException("A limit reads at least one entry; {$limit} is not one.");
+            throw new BadQuery("A limit reads at least one entry; {$limit} is not one.");
         }
 
         $type = $this->entry($type);
@@ -145,7 +145,7 @@ class ContentStore
     public function paginate(string $type, array $where = [], string|array $sort = [], int $perPage = 15, ?int $page = null, ?string $locale = null, bool $overrideAccess = false, int $depth = self::DEPTH, bool $trashed = false): LengthAwarePaginator
     {
         if ($perPage < 1) {
-            throw new InvalidArgumentException("A page holds at least one entry; {$perPage} is not one.");
+            throw new BadQuery("A page holds at least one entry; {$perPage} is not one.");
         }
 
         $type = $this->entry($type);
@@ -415,11 +415,11 @@ class ContentStore
         $global = is_subclass_of($type, GlobalSet::class);
 
         if ($draft !== null && $entry !== null) {
-            throw new InvalidArgumentException('A draft is saved for an entry or by its own id, not both.');
+            throw new BadQuery('A draft is saved for an entry or by its own id, not both.');
         }
 
         if ($global && $entry !== null) {
-            throw new InvalidArgumentException("{$type} is a global, whose draft is the site's one: save it without an entry.");
+            throw new BadQuery("{$type} is a global, whose draft is the site's one: save it without an entry.");
         }
 
         $held = null;
@@ -542,7 +542,7 @@ class ContentStore
         $type = $this->drafted($type);
 
         if (is_subclass_of($type, GlobalSet::class) === ($entry !== null)) {
-            throw new InvalidArgumentException($entry === null ? "{$type} is an entry: name the one whose draft to read." : "{$type} is a global, whose draft is the site's one: read it without an entry.");
+            throw new BadQuery($entry === null ? "{$type} is an entry: name the one whose draft to read." : "{$type} is a global, whose draft is the site's one: read it without an entry.");
         }
 
         /* Gate first, draft or none, so whether one is pending is no answer
@@ -1156,7 +1156,7 @@ class ContentStore
     private function handled(string $handle): string
     {
         return $this->mainstay->registered()[$handle]
-            ?? throw new InvalidArgumentException("{$handle} is not a registered content type, so its drafts and revisions cannot be read.");
+            ?? throw new BadQuery("{$handle} is not a registered content type, so its drafts and revisions cannot be read.");
     }
 
     /*
@@ -1168,7 +1168,7 @@ class ContentStore
         $registered = $this->registered($type);
 
         if (is_subclass_of($registered, Taxonomy::class)) {
-            throw new InvalidArgumentException("{$registered} is a taxonomy, whose terms are written live, with no drafts and no revisions. Write them with update().");
+            throw new BadQuery("{$registered} is a taxonomy, whose terms are written live, with no drafts and no revisions. Write them with update().");
         }
 
         return $registered;
@@ -1531,7 +1531,7 @@ class ContentStore
     private function depth(int $depth): void
     {
         if ($depth < 0) {
-            throw new InvalidArgumentException("A read follows its relations to a depth of 0 or more; {$depth} is not one.");
+            throw new BadQuery("A read follows its relations to a depth of 0 or more; {$depth} is not one.");
         }
     }
 
@@ -1663,7 +1663,7 @@ class ContentStore
         $registered = $this->registered($type);
 
         if (! is_subclass_of($registered, Entry::class)) {
-            throw new InvalidArgumentException("{$registered} is a global. Read it with Mainstay::global() and write it with Mainstay::saveGlobal().");
+            throw new BadQuery("{$registered} is a global. Read it with Mainstay::global() and write it with Mainstay::saveGlobal().");
         }
 
         return $registered;
@@ -1674,7 +1674,7 @@ class ContentStore
         $registered = $this->registered($type);
 
         if (! is_subclass_of($registered, GlobalSet::class)) {
-            throw new InvalidArgumentException("{$registered} is not a global. Read entries with find() and write them with create() and update().");
+            throw new BadQuery("{$registered} is not a global. Read entries with find() and write them with create() and update().");
         }
 
         return $registered;
@@ -1687,7 +1687,7 @@ class ContentStore
             : null;
 
         if ($registered === null || strcasecmp(ltrim($type, '\\'), $registered) !== 0) {
-            throw new InvalidArgumentException("{$type} is not a registered content type. Register it with Mainstay::types().");
+            throw new BadQuery("{$type} is not a registered content type. Register it with Mainstay::types().");
         }
 
         return $registered;
@@ -1708,7 +1708,7 @@ class ContentStore
             return $locale ?? App::getLocale();
         }
 
-        throw new InvalidArgumentException(sprintf(
+        throw new BadQuery(sprintf(
             '%s, which is not a content locale: mainstay.locales holds %s.',
             $locale === null ? 'No locale was passed and App::getLocale() is "'.App::getLocale().'"' : "The locale is \"{$locale}\"",
             implode(', ', $locales),
@@ -1784,7 +1784,7 @@ class ContentStore
         $sorted = array_map(fn (string $key) => ltrim($key, '-'), (array) $sort);
 
         if (count($sorted) !== count(array_unique($sorted))) {
-            throw new InvalidArgumentException('The sort names '.implode(', ', array_unique(array_diff_assoc($sorted, array_unique($sorted)))).' more than once.');
+            throw new BadQuery('The sort names '.implode(', ', array_unique(array_diff_assoc($sorted, array_unique($sorted)))).' more than once.');
         }
 
         foreach ((array) $sort as $key) {
@@ -1886,7 +1886,7 @@ class ContentStore
         /* A list reads as "any of these" and could as easily mean "all of
            them"; `in` says which. */
         if (is_array($condition) && array_is_list($condition)) {
-            throw new InvalidArgumentException("The condition on {$key} is a list. For any one of several values, write ['in' => [...]].");
+            throw new BadQuery("The condition on {$key} is a list. For any one of several values, write ['in' => [...]].");
         }
 
         if ($field instanceof Terms) {
@@ -1897,7 +1897,7 @@ class ContentStore
 
         foreach (is_array($condition) ? $condition : ['=' => $condition] as $operator => $value) {
             if (! in_array($operator, self::OPERATORS, true)) {
-                throw new InvalidArgumentException("{$operator} is not an operator a where takes. It takes ".implode(', ', self::OPERATORS).'.');
+                throw new BadQuery("{$operator} is not an operator a where takes. It takes ".implode(', ', self::OPERATORS).'.');
             }
 
             if ($operator === 'in' || $operator === 'not_in') {
@@ -1911,7 +1911,7 @@ class ContentStore
                into its empty value, and `featured < null` would quietly
                compare with false. */
             if ($value === null && $operator !== '=' && $operator !== '!=') {
-                throw new InvalidArgumentException("{$key} is compared with {$operator} against nothing. Only = and != take null.");
+                throw new BadQuery("{$key} is compared with {$operator} against nothing. Only = and != take null.");
             }
 
             $value = $this->value($field, $key, $this->single($key, $operator, $value));
@@ -1922,7 +1922,7 @@ class ContentStore
                 $value !== null => $query->where($column, $operator, $value),
                 $operator === '=' => $query->whereNull($column),
                 $operator === '!=' => $query->whereNotNull($column),
-                default => throw new InvalidArgumentException("{$key} is compared with {$operator} against nothing. Only = and != take null."),
+                default => throw new BadQuery("{$key} is compared with {$operator} against nothing. Only = and != take null."),
             };
         }
     }
@@ -1941,7 +1941,7 @@ class ContentStore
 
         foreach ($condition as $operator => $value) {
             if ($operator !== '=' && $operator !== 'in') {
-                throw new InvalidArgumentException("{$key} holds terms, and a where finds the entries holding one with = or any of several with in.");
+                throw new BadQuery("{$key} holds terms, and a where finds the entries holding one with = or any of several with in.");
             }
 
             $terms = array_map(fn (mixed $term) => $this->reference($key, $field, $term), $operator === 'in' ? (array) $value : [$this->single($key, $operator, $value)]);
@@ -1971,7 +1971,7 @@ class ContentStore
             default => false,
         };
 
-        return $id === false ? throw new InvalidArgumentException("The condition on {$key} names something that is not a {$type::handle()} or a {$type::handle()}'s id.") : $id;
+        return $id === false ? throw new BadQuery("The condition on {$key} names something that is not a {$type::handle()} or a {$type::handle()}'s id.") : $id;
     }
 
     /* in and not_in, with a null among the values meaning what = and !=
@@ -1997,7 +1997,7 @@ class ContentStore
     private function single(string $key, string $operator, mixed $value): mixed
     {
         if (is_array($value)) {
-            throw new InvalidArgumentException("The condition on {$key} compares {$operator} with a list. Only in and not_in take one, and they take a list of values.");
+            throw new BadQuery("The condition on {$key} compares {$operator} with a list. Only in and not_in take one, and they take a list of values.");
         }
 
         return $value;
@@ -2010,7 +2010,7 @@ class ContentStore
         [$column, $field] = $this->column($type, $key, $internal);
 
         if ($column === null) {
-            throw new InvalidArgumentException("{$type}::\${$key} holds terms, which are not sorted on.");
+            throw new BadQuery("{$type}::\${$key} holds terms, which are not sorted on.");
         }
 
         /* Nulls last whichever way, on every driver. Left to the driver,
@@ -2046,7 +2046,7 @@ class ContentStore
         $field = $this->mainstay->fields($type)[$key] ?? null;
 
         if ($field === null || ($field->internal && ! $internal)) {
-            throw new InvalidArgumentException("{$type} has no field called {$key} to filter or sort on.");
+            throw new BadQuery("{$type} has no field called {$key} to filter or sort on.");
         }
 
         if ($field->column() === null) {
@@ -2056,7 +2056,7 @@ class ContentStore
         /* A tree is not a value to compare, and Postgres has no operator to
            compare a json column with anyway. */
         if ($field->keptAsJson()) {
-            throw new InvalidArgumentException("{$type}::\${$key} is kept as JSON, which is not filtered or sorted on.");
+            throw new BadQuery("{$type}::\${$key} is kept as JSON, which is not filtered or sorted on.");
         }
 
         return [($field->localized ? "{$handle}_locales" : $handle).'.'.Str::snake($key), $field];
@@ -2075,16 +2075,24 @@ class ContentStore
      */
     private function value(?Field $field, string $key, mixed $value): mixed
     {
-        return match (true) {
-            $field !== null && ($value === null || ($field instanceof Relation && blank($value))) => $this->unset($field),
-            $field instanceof Relation => $this->reference($key, $field, $value),
-            $field !== null => $field->serialize($value),
-            $value === null => null,
-            $key === 'id' => (int) $value,
-            /* Blank as a field reads blank: nothing, rather than a stamp. */
-            blank($value) => null,
-            default => $this->stamp($value),
-        };
+        /* A value its field cannot take is the caller's, as the condition
+           it sits in is: `publishedAt > 'soon'`. */
+        try {
+            return match (true) {
+                $field !== null && ($value === null || ($field instanceof Relation && blank($value))) => $this->unset($field),
+                $field instanceof Relation => $this->reference($key, $field, $value),
+                $field !== null => $field->serialize($value),
+                $value === null => null,
+                $key === 'id' => (int) $value,
+                /* Blank as a field reads blank: nothing, rather than a stamp. */
+                blank($value) => null,
+                default => $this->stamp($value),
+            };
+        } catch (BadQuery $exception) {
+            throw $exception;
+        } catch (InvalidArgumentException $exception) {
+            throw new BadQuery("The condition on {$key} holds a value it cannot take: {$exception->getMessage()}", previous: $exception);
+        }
     }
 
     /* What a field stores when it is written null, or null for one with no
@@ -2238,7 +2246,7 @@ class ContentStore
         $entry = is_subclass_of($type, Entry::class);
 
         if (($unknown = array_diff_key($data, $fields, $entry ? ['template' => null] : [])) !== []) {
-            throw new InvalidArgumentException("{$type} has no field called ".implode(' or ', array_keys($unknown)).' to write.');
+            throw new BadQuery("{$type} has no field called ".implode(' or ', array_keys($unknown)).' to write.');
         }
 
         /* A taxonomy that is not registered has no pivot to write to, which
