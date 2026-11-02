@@ -4,6 +4,7 @@ namespace Mainstay\Fields;
 
 use Attribute;
 use Carbon\CarbonImmutable;
+use Closure;
 use DateTimeInterface;
 use InvalidArgumentException;
 use ReflectionProperty;
@@ -153,13 +154,26 @@ class Date extends Field
     /*
      | `date-time` is RFC 3339 and wants the `T` and the offset that to() does
      | not write. They describe different things and neither is wrong: to() is
-     | the value the column takes, and this is the shape a consumer reads over
-     | the API. The payload that has to satisfy this is phase 13's, and it is
-     | the reason from() and to() agree on UTC now rather than then.
+     | the value the column takes, and this is the shape payload() hands a
+     | reader over the API, which is why from() and to() agree on UTC.
      */
     protected function json(): array
     {
         return ['type' => 'string', 'format' => $this->time ? 'date-time' : 'date'];
+    }
+
+    /* A moment as `date-time` has it, in UTC; a date as to() writes it,
+       which is `date` already. */
+    public function payload(mixed $value, Closure $nested): mixed
+    {
+        return $this->time && ! $this->blank($value) ? self::instant($this->from($value)) : $this->serialize($value);
+    }
+
+    /* RFC 3339 in UTC, `2026-09-10T06:30:00Z`: what the API hands out for
+       every moment, an entry's stamps among them. */
+    public static function instant(DateTimeInterface $moment): string
+    {
+        return CarbonImmutable::instance($moment)->utc()->format('Y-m-d\TH:i:s\Z');
     }
 
     /* Backwards on purpose: the question is not whether the declared type is a

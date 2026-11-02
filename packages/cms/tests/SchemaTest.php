@@ -24,6 +24,7 @@ use Mainstay\Tests\Fixtures\Broken\MainstayUsers;
 use Mainstay\Tests\Fixtures\Broken\Publisher;
 use Mainstay\Tests\Fixtures\Broken\Reserved;
 use Mainstay\Tests\Fixtures\Broken\Templated;
+use Mainstay\Tests\Fixtures\Broken\Typed;
 use Mainstay\Tests\Fixtures\Broken\Uris;
 use Mainstay\Tests\Fixtures\Coded\Article as CodedArticle;
 use Mainstay\Tests\Fixtures\Moody\Article as MoodyArticle;
@@ -920,6 +921,7 @@ class SchemaTest extends DatabaseTestCase
             MainstayRoles::class => 'would be stored in mainstay_roles, a table Mainstay keeps for itself',
             MainstayUsers::class => 'would be stored in mainstay_users, a table Mainstay keeps for itself',
             MainstayPasswordResetTokens::class => 'would be stored in mainstay_password_reset_tokens, a table Mainstay keeps for itself',
+            Typed::class => 'has a field stored as type, a column Mainstay keeps for itself',
         ] as $type => $message) {
             $this->declare($type);
 

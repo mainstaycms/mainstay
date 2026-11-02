@@ -2,6 +2,7 @@
 
 namespace Mainstay\Fields;
 
+use Closure;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
@@ -370,6 +371,28 @@ abstract class Field
         }
 
         return $this->nullable ? null : $this->to($this->empty());
+    }
+
+    /*
+     | What a reader of the API is handed for the value a read cast: what a
+     | write takes, unless the field points at something the read loaded,
+     | which `$nested` turns into its own payload -- an entry, or a block.
+     */
+    public function payload(mixed $value, Closure $nested): mixed
+    {
+        return $this->serialize($value);
+    }
+
+    /*
+     | The JSON Schema of payload(): schema(), unless the field points at
+     | something, which `$ref` names the definition of -- an entry type, an
+     | image, a document's node -- or null where the reader may not read it.
+     |
+     | @param  Closure(class-string): ?array  $ref
+     */
+    public function payloadSchema(Closure $ref): array
+    {
+        return $this->schema();
     }
 
     /*

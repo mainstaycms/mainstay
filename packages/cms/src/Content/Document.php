@@ -37,7 +37,7 @@ final class Document implements Arrayable, Htmlable, JsonSerializable
      | `first` the node a list item has to start with: ProseMirror's
      | `block+`, `list_item+` and `paragraph block*`.
      */
-    private const NODES = [
+    public const NODES = [
         'doc' => ['content' => 'block', 'least' => 1],
         'paragraph' => ['group' => 'block', 'content' => 'inline'],
         'heading' => ['group' => 'block', 'content' => 'inline', 'attrs' => ['level']],
@@ -113,6 +113,13 @@ final class Document implements Arrayable, Htmlable, JsonSerializable
         }
 
         return $blocks;
+    }
+
+    /* One of the content's site blocks by its id, one inside another
+       among them. */
+    public function block(string $id): ?Block
+    {
+        return $this->blocks[$id] ?? null;
     }
 
     public function toArray(): array

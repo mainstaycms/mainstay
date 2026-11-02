@@ -264,6 +264,28 @@ class Relation extends Field
         return $this->many ? ['type' => 'array', 'items' => $one] : $one;
     }
 
+    /* Each entry the read loaded as its own payload, and one it did not as
+       the reference a write takes, so a reader tells them apart by shape. */
+    public function payload(mixed $value, Closure $nested): mixed
+    {
+        $one = fn (?Entry $entry) => match (true) {
+            $entry === null => null,
+            $entry->missing => $this->stored($entry),
+            default => $nested($entry),
+        };
+
+        return $this->many ? array_map($one, $value) : $one($value);
+    }
+
+    public function payloadSchema(Closure $ref): array
+    {
+        $schema = $this->schema();
+        $loaded = array_values(array_filter(array_map($ref, $this->to)));
+        $widen = fn (array $one) => $loaded === [] ? $one : ['anyOf' => [$one, ...$loaded]];
+
+        return $this->many ? [...$schema, 'items' => $widen($schema['items'])] : $widen($schema);
+    }
+
     /* Whether this holds a list rather than one entry. */
     public function many(): bool
     {

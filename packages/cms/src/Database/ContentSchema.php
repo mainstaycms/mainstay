@@ -74,10 +74,11 @@ class ContentSchema
             }
 
             /* An entry's own view, and what marks one a relation did not load.
-               A global has neither, so the names are left to its fields. */
+               A global has neither, so the names are left to its fields.
+               `type` is the handle the API hands out beside the id. */
             $entry = is_subclass_of($type, Entry::class);
 
-            foreach (['id', 'site_id', 'parent_id', 'locale', 'owner_id', 'published_by', ...($entry ? ['template', 'missing'] : []), 'created_at', 'updated_at', 'deleted_at', 'uri'] as $reserved) {
+            foreach (['id', 'type', 'site_id', 'parent_id', 'locale', 'owner_id', 'published_by', ...($entry ? ['template', 'missing'] : []), 'created_at', 'updated_at', 'deleted_at', 'uri'] as $reserved) {
                 if ($columns->has($reserved)) {
                     throw new InvalidArgumentException("{$type} has a field stored as {$reserved}, a column Mainstay keeps for itself. Rename the property.");
                 }
