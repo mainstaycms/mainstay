@@ -18,7 +18,8 @@ import { contentSchema } from './schema'
  | into Details' raw content, the field's one input. Every control is outside
  | the frame, where canvas.blade.php draws it: the toolbar floating by the
  | current block, which drags it too; Undo, Redo and Add block in the tabs'
- | bar; the menu of blocks to add; and the dialog a selected site block's
+ | bar; the dialog of blocks Add block opens, and the menu of them `/`
+ | opens at the cursor; and the dialog a selected site block's
  | settings are in, which the server draws. A block's @field text is typed in
  | place, the blocks inside one are selected on the page, and an image it
  | prints is replaced and edited there. No script runs in the frame; this
@@ -32,23 +33,26 @@ const { tools, keys } = kit(contentSchema)
    it is inside, at `depth`. */
 type Current = { node: Node; pos: number; index: number; parent: Node; depth: number }
 
-const at = (doc: Node, index: number) => doc.resolve(0).posAtIndex(index)
-
 /* The block the block commands act on, outlined in the page, the toolbar
-   floating by it: a site block selected, at any depth, or else the
-   top-level block the selection starts in. */
+   floating by it: a site block selected, at any depth, or else the block
+   the selection starts in, in the document or in the innermost site block
+   around it. */
 function current(state: EditorState): Current {
   const { selection } = state
+  const { $from } = selection
 
   if (selection instanceof NodeSelection && selection.node.type === nodes.block) {
-    const { $from } = selection
-
     return { node: selection.node, pos: selection.from, index: $from.index(), parent: $from.parent, depth: $from.depth }
   }
 
-  const index = Math.min(selection.$from.index(0), state.doc.childCount - 1)
+  let depth = $from.depth
 
-  return { index, pos: at(state.doc, index), node: state.doc.child(index), parent: state.doc, depth: 0 }
+  while (depth > 0 && $from.node(depth).type !== nodes.block) depth--
+
+  const parent = $from.node(depth)
+  const index = Math.min($from.index(depth), parent.childCount - 1)
+
+  return { index, pos: $from.posAtIndex(index, depth), node: parent.child(index), parent, depth }
 }
 
 /* Every site block in `doc`, the ones inside another too, in its order. */
@@ -59,9 +63,14 @@ const blocks = (doc: Node, each: (node: Node, pos: number) => void): void =>
     each(node, pos)
   })
 
-/* Whether the selection is on a site block inside another, where text has
-   no place to go. */
-const nested = (state: EditorState): boolean => state.selection instanceof NodeSelection && state.selection.$from.depth > 0
+/* Whether `holder` -- the document, or a site block -- may hold a block of
+   `kind`, as the Add block menu names it: the document text and the
+   blocks its type names, a site block what its class names. */
+type Holds = (holder: Node, kind: string) => boolean
+
+/* Whether the selection is on a site block inside one holding no text,
+   where text has no place to go. */
+const stuck = (state: EditorState, holds: Holds): boolean => state.selection instanceof NodeSelection && !holds(state.selection.$from.parent, 'paragraph')
 
 /* Where the selection goes in the block at `pos`: onto it when it is a site
    block or a rule, into its first text otherwise. */
@@ -163,7 +172,7 @@ const turn =
     if (!type || type === nodes.horizontal_rule || was === '' || was === to) return false
     if (!dispatch) return true
 
-    const { node, pos } = current(state)
+    const { node, pos, depth } = current(state)
     const { tr } = state
     let end = pos + node.nodeSize
 
@@ -186,7 +195,7 @@ const turn =
       end = tr.mapping.slice(steps).map(end)
     }
 
-    const range = new NodeRange(tr.doc.resolve(pos), tr.doc.resolve(end), 0)
+    const range = new NodeRange(tr.doc.resolve(pos), tr.doc.resolve(end), depth)
 
     if (type === nodes.blockquote) tr.wrap(range, [{ type }])
     else if (wrappers.includes(type)) wrapRangeInList(tr, range, type)
@@ -197,23 +206,28 @@ const turn =
   }
 
 /* A new block of a kind the Add block menu names, or `block:{handle}`, a
-   site block of that type with no id yet -- holding one of `inner`, the
-   first kind it holds, where it holds any. */
-function made(kind: string, inner?: string): Node | null {
-  if (kind.startsWith('block:')) return nodes.block.create({ type: kind.slice(6) }, inner === undefined ? null : nodes.block.create({ type: inner }))
+   site block of that type with no id yet -- holding an empty paragraph
+   where it holds text, or else one of the first kind it holds, made so
+   too, but never one of a kind it is inside. */
+function made(kind: string, known: Record<string, Kind>, around: string[] = []): Node | null {
+  if (!kind.startsWith('block:')) return kinds.includes(kind) ? (nodes[kind]?.createAndFill() ?? null) : null
 
-  return kinds.includes(kind) ? (nodes[kind]?.createAndFill() ?? null) : null
+  const type = kind.slice(6)
+  const { text = false, inner = [] } = known[type] ?? {}
+  const first = inner[0] === undefined || [...around, type].includes(inner[0]) ? null : made(`block:${inner[0]}`, known, [...around, type])
+
+  return nodes.block.create({ type }, text ? nodes.paragraph.create() : first)
 }
 
 /* A block added after the current one, in what holds it, or in its place
    when that is an empty paragraph -- where `/` opens the menu. */
 const insert =
-  (kind: string, inner?: string): Command =>
+  (kind: string, known: Record<string, Kind>, holds: Holds): Command =>
   (state, dispatch) => {
-    const block = made(kind, inner)
-    const { node, pos, index, parent } = current(state)
+    const block = made(kind, known)
+    const { node, pos, parent } = current(state)
 
-    if (!block || !parent.canReplaceWith(index + 1, index + 1, block.type)) return false
+    if (!block || !holds(parent, kind)) return false
 
     if (dispatch) {
       const empty = node.type === nodes.paragraph && node.content.size === 0
@@ -229,12 +243,12 @@ const insert =
 /* A block of `kind` added last inside the site block at `pos`, which stays
    selected. */
 const append =
-  (pos: number, kind: string, inner?: string): Command =>
+  (pos: number, kind: string, known: Record<string, Kind>, holds: Holds): Command =>
   (state, dispatch) => {
     const holder = state.doc.nodeAt(pos)
-    const block = made(`block:${kind}`, inner)
+    const block = made(kind, known)
 
-    if (!holder || !block) return false
+    if (!holder || !block || !holds(holder, kind)) return false
 
     dispatch?.(state.tr.insert(pos + holder.nodeSize - 1, block).scrollIntoView())
 
@@ -242,20 +256,22 @@ const append =
   }
 
 /* Enter on a selected site block or rule starts a paragraph after it; on
-   one inside another, where a paragraph has no place, it does nothing --
-   ProseMirror's own would split the block around it in two. */
-const after: Command = (state, dispatch) => {
-  const { selection } = state
+   one inside a block holding no text, where a paragraph has no place, it
+   does nothing -- ProseMirror's own would put one there. */
+const after =
+  (holds: Holds): Command =>
+  (state, dispatch) => {
+    const { selection } = state
 
-  if (nested(state)) return true
-  if (!(selection instanceof NodeSelection) || selection.$from.depth !== 0) return false
+    if (!(selection instanceof NodeSelection) || ![nodes.doc, nodes.block].includes(selection.$from.parent.type)) return false
+    if (stuck(state, holds)) return true
 
-  const tr = state.tr.insert(selection.to, nodes.paragraph.create())
+    const tr = state.tr.insert(selection.to, nodes.paragraph.create())
 
-  dispatch?.(tr.setSelection(TextSelection.create(tr.doc, selection.to + 1)).scrollIntoView())
+    dispatch?.(tr.setSelection(TextSelection.create(tr.doc, selection.to + 1)).scrollIntoView())
 
-  return true
-}
+    return true
+  }
 
 /* Enter at the end of a code block that already ends in an empty line
    leaves it, for a paragraph after it. */
@@ -276,19 +292,20 @@ const leave: Command = (state, dispatch) => {
   return true
 }
 
-/* Backspace in an empty block of the page's own removes it, the cursor going
-   to the end of the one before, or to the start of the next when it was the
-   first. */
+/* Backspace in an empty block of the page's own, or of a site block's,
+   removes it, the cursor going to the end of the one before, or to the
+   start of the next when it was the first. The last one stays. */
 const emptied: Command = (state, dispatch) => {
   const { $from, empty } = state.selection
+  const holder = $from.depth > 0 ? $from.node(-1) : null
 
-  if (!empty || $from.depth !== 1 || !$from.parent.isTextblock || $from.parent.content.size > 0 || state.doc.childCount === 1) return false
+  if (!empty || !holder || ![nodes.doc, nodes.block].includes(holder.type) || !$from.parent.isTextblock || $from.parent.content.size > 0 || holder.childCount === 1) return false
 
   if (dispatch) {
-    const pos = $from.before(1)
+    const pos = $from.before()
     const tr = state.tr.delete(pos, pos + $from.parent.nodeSize)
 
-    dispatch(tr.setSelection($from.index(0) === 0 ? Selection.atStart(tr.doc) : Selection.near(tr.doc.resolve(pos), -1)).scrollIntoView())
+    dispatch(tr.setSelection(Selection.near(tr.doc.resolve(pos), $from.index(-1) === 0 ? 1 : -1)).scrollIntoView())
   }
 
   return true
@@ -352,7 +369,8 @@ const said = (span: HTMLElement): string => {
    would cover, and as on any block where it is a list item, which
    ProseMirror's own marks as one -- a refused block's mark, the placeholder of a block that
    draws nothing, a block's HTML spaced as on the site rather than with the
-   line breaks ProseMirror keeps in typed text, @field text, keeping them,
+   line breaks ProseMirror keeps in typed text, and the text inside it
+   keeping them again, @field text, keeping them,
    and showing its field's label while it is empty, and a block's image,
    which is clicked to be replaced or edited. */
 const css = `${prosemirror}
@@ -364,7 +382,8 @@ const css = `${prosemirror}
 [data-mainstay-holds] > li.ProseMirror-selectednode { outline: 2px solid rgb(37 99 235) }
 [data-mainstay-holds] > li.ProseMirror-selectednode::after { content: none }
 [data-mainstay-placeholder] { padding: 1rem; border: 1px dashed #94a3b8; border-radius: 4px; color: #475569; font: 14px/1.4 system-ui, sans-serif; text-align: center }
-[contenteditable=false] { white-space: normal }
+[contenteditable=false], [data-mainstay-around] { white-space: normal }
+[data-mainstay-holds] { white-space: pre-wrap }
 [data-mainstay-field] { outline: none; cursor: text; white-space: pre-wrap }
 [data-mainstay-field]:empty::before { content: attr(data-mainstay-label); opacity: 0.5 }
 [data-mainstay-image] { cursor: pointer }`
@@ -394,24 +413,26 @@ const parse = (html: string, page: Document): DocumentFragment => {
 
 /* The content as the site draws it, for a page the editor cannot mount on:
    the text by the schema, which draws the tags Document.php renders, and
-   each site block as its view drew it, the blocks inside it in its place
-   for them. */
+   each site block as its view drew it, what is inside it in its place for
+   it. */
 export function render(doc: Node, html: Map<string, string>, page: Document): DocumentFragment {
   const serializer = DOMSerializer.fromSchema(contentSchema)
-  const fragment = page.createDocumentFragment()
+  const each = (parent: Node): DocumentFragment => {
+    const fragment = page.createDocumentFragment()
+
+    parent.forEach((node) => fragment.append(node.type === nodes.block ? drawn(node) : serializer.serializeNode(node, { document: page })))
+
+    return fragment
+  }
   const drawn = (node: Node): DocumentFragment => {
     const markup = parse(html.get(node.attrs.id) ?? '', page)
-    const inner = page.createDocumentFragment()
 
-    node.forEach((child) => inner.append(drawn(child)))
-    markup.querySelector('template[data-mainstay-inner]')?.replaceWith(inner)
+    markup.querySelector('template[data-mainstay-inner]')?.replaceWith(each(node))
 
     return markup
   }
 
-  doc.forEach((node) => fragment.append(node.type === nodes.block ? drawn(node) : serializer.serializeNode(node, { document: page })))
-
-  return fragment
+  return each(doc)
 }
 
 type Line = { top: number; left: number; width: number; height: number }
@@ -447,8 +468,9 @@ const wired = new WeakMap<HTMLElement, () => EditorView | null>()
 /* What the block route answers: as much of it as it could draw. */
 type Answer = { block?: { id: string; type: string; data: Data }; html?: string; form?: string | null; messages?: string[] }
 
-/* A block the content holds: its name, and the blocks it holds inside it. */
-type Kind = { label: string; inner: string[] }
+/* A block the content holds: its name, the blocks it holds inside it, and
+   whether text. */
+type Kind = { label: string; inner: string[]; text?: boolean }
 
 /*
  | Wires one `[data-canvas]`, once, handing back what gives the editor on its
@@ -467,7 +489,7 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
   const grip = element.querySelector<HTMLElement>('[data-canvas-grip]')
   const line = element.querySelector<HTMLElement>('[data-canvas-line]')
   const menu = element.querySelector<HTMLElement>('[data-canvas-menu]')
-  const add = header?.querySelector<HTMLButtonElement>('button[data-command="add"]')
+  const inserter = element.querySelector<HTMLDialogElement>('[data-canvas-inserter]')
   const turner = toolbar?.querySelector<HTMLSelectElement>('select[data-command="turn"]')
   const texts = toolbar?.querySelector<HTMLElement>('[data-canvas-text]')
   const images = toolbar?.querySelector<HTMLElement>('[data-canvas-image]')
@@ -482,13 +504,24 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
   const inside = sidebar?.querySelector<HTMLElement>('[data-sidebar-inner]')
   const photo = element.dataset.media ? (document.getElementById('mainstay-image') as HTMLDialogElement | null) : null
   const photoBody = photo?.querySelector<HTMLElement>('[data-image-body]')
+  const rail = form?.querySelector<HTMLElement>('[data-publishing]')
+  const tree = form?.querySelector<HTMLElement>('[data-canvas-tree]')
+  const treeList = tree?.querySelector<HTMLElement>('[data-tree-list]')
+  const treeRow = tree?.querySelector<HTMLTemplateElement>('template[data-tree-item]')
 
   if (wired.has(element)) return wired.get(element)
-  if (!form || !textarea || !header || !toolbar || !message || !stage || !frame || !grip || !line || !menu || !add || !turner || !texts || !images || !url) return undefined
+  if (!form || !textarea || !header || !toolbar || !message || !stage || !frame || !grip || !line || !menu || !inserter || !turner || !texts || !images || !url) return undefined
 
   const known = JSON.parse(element.dataset.blocks ?? '{}') as Record<string, Kind>
   const outermost = JSON.parse(element.dataset.top ?? '[]') as string[]
   const label = (type: string) => known[type]?.label ?? type
+  const holds: Holds = (holder, kind) => {
+    const site = kind.startsWith('block:')
+
+    if (holder.type !== nodes.block) return site ? outermost.includes(kind.slice(6)) : true
+
+    return site ? (known[holder.attrs.type]?.inner ?? []).includes(kind.slice(6)) : known[holder.attrs.type]?.text === true
+  }
   /* A refused save's errors, by the block they are in: marked until it changes. */
   const invalid = JSON.parse(element.dataset.invalid ?? '{}') as Record<string, { label: string; messages: Record<string, string[]> }>
   const panel = element.closest<HTMLElement>('[role="tabpanel"]')
@@ -510,7 +543,6 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
   let posted: string | null = null
   let asked = 0
   let dragging: Current | null = null
-  let slashed = false
   /* The toolbar keeps out of the way until the page is pointed at, and
      while it is typed in, as Gutenberg's does. */
   let quiet = true
@@ -593,8 +625,78 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
     place()
   }
 
+  /* What a block is: a site block its type, a text block its kind, as Turn
+     into or the Add block menu calls it. */
+  const called = (node: Node): string => {
+    if (node.type === nodes.block) return label(node.attrs.type)
+
+    const named = node.type === nodes.heading ? turner.querySelector(`option[value="heading-${node.attrs.level}"]`) : menu.querySelector(`[data-insert="${node.type.name}"]`)
+
+    return named?.textContent ?? node.type.name
+  }
+
+  /* A block as a list of blocks names it: what it is, and the first text in
+     it -- a site block's in its data, or else inside it. */
+  const name = (node: Node): string => {
+    const data = node.type === nodes.block ? Object.values(node.attrs.data as Data).find((value) => typeof value === 'string' && value.trim() !== '') : undefined
+    const text = data ?? node.textBetween(0, node.content.size, ' ')
+
+    return typeof text === 'string' && text.trim() !== '' ? `${called(node)}: ${text.slice(0, 80)}` : called(node)
+  }
+
+  /* A list of blocks' button for `node`: its icon, as the `/` menu draws
+     it, a site's own an image, and its name. */
+  const caption = (button: HTMLElement, node: Node) => {
+    const kind = node.type === nodes.block ? `block:${node.attrs.type}` : node.type.name
+    const icon = menu.querySelector(`[data-insert="${kind}"] > :is(svg, img)`)?.cloneNode(true)
+
+    button.replaceChildren(...(icon ? [icon] : []), Object.assign(document.createElement('span'), { textContent: name(node) }))
+  }
+
+  /* The tree's rows for the blocks in `parent`, whose content starts at
+     `start`: the blocks inside a site block under its own, the one at `here`
+     marked current. */
+  const grow = (parent: Node, start: number, here: number): HTMLElement[] => {
+    const rows: HTMLElement[] = []
+
+    parent.forEach((node, offset) => {
+      const pos = start + offset
+      const item = (treeRow!.content.cloneNode(true) as DocumentFragment).firstElementChild as HTMLElement
+      const select = item.querySelector<HTMLElement>('[data-tree-select]')!
+
+      select.dataset.treeSelect = String(pos)
+      caption(select, node)
+      if (pos === here) select.setAttribute('aria-current', 'true')
+
+      if (node.type === nodes.block && node.childCount > 0) {
+        const inner = document.createElement('ul')
+
+        inner.append(...grow(node, pos + 1, here))
+        item.append(inner)
+      }
+
+      rows.push(item)
+    })
+
+    return rows
+  }
+
+  /* On the Content tab the tree takes the publishing rail's place. */
+  const swap = (here: boolean) => {
+    if (!tree || !rail) return
+
+    tree.hidden = !here
+    rail.hidden = here
+  }
+
   const sync = () => {
     header.hidden = view === null || panel?.hidden === true
+
+    if (treeList && treeRow) {
+      treeList.replaceChildren(...(view ? grow(view.state.doc, 0, current(view.state).pos) : []))
+      /* jsdom has no scrollIntoView. */
+      treeList.querySelector('[aria-current]')?.scrollIntoView?.({ block: 'nearest' })
+    }
 
     if (!view) {
       toolbar.hidden = true
@@ -625,51 +727,42 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
 
   const items = () => [...menu.querySelectorAll<HTMLButtonElement>('[data-insert]')].filter((item) => !item.hidden)
 
-  /* The menu's items for where the current block is: inside a site block,
-     the blocks that one holds; at the top, text and the blocks the content
-     holds there. */
-  const offer = () => {
-    const block = view ? current(view.state) : null
-    const holder: string | null = block && block.depth > 0 ? block.parent.attrs.type : null
-    const allowed = holder === null ? outermost : (known[holder]?.inner ?? [])
+  /* The items in the menu or the dialog, `root`, for where the current
+     block is: inside a site block, what that one holds; at the top, text
+     and the blocks the content holds there. */
+  const offer = (root: HTMLElement) => {
+    const holder = view ? current(view.state).parent : contentSchema.topNodeType.create()
 
-    for (const item of menu.querySelectorAll<HTMLButtonElement>('[data-insert]')) {
-      const kind = item.dataset.insert ?? ''
+    for (const item of root.querySelectorAll<HTMLElement>('[data-insert]')) item.hidden = !holds(holder, item.dataset.insert ?? '')
 
-      item.hidden = kind.startsWith('block:') ? !allowed.includes(kind.slice(6)) : holder !== null
-    }
-
-    for (const group of menu.querySelectorAll<HTMLElement>('[data-menu-group]')) group.hidden = group.querySelector('[data-insert]:not([hidden])') === null
+    for (const group of root.querySelectorAll<HTMLElement>('[data-menu-group]')) group.hidden = group.querySelector('[data-insert]:not([hidden])') === null
   }
 
-  /* The Add block menu at a point on the admin's page, kept inside the tab. */
-  const open = (top: number, left: number, slash: boolean) => {
+  /* The menu at a point on the admin's page, kept inside the tab. */
+  const open = (top: number, left: number) => {
     const box = element.getBoundingClientRect()
 
-    offer()
-    slashed = slash
+    offer(menu)
     menu.hidden = false
     menu.style.top = `${top - box.top}px`
     menu.style.left = `${Math.max(0, Math.min(left - box.left, box.width - menu.offsetWidth))}px`
-    add.setAttribute('aria-expanded', 'true')
     items()[0]?.focus()
   }
 
   const close = () => {
     menu.hidden = true
-    add.setAttribute('aria-expanded', 'false')
   }
 
   /* `/` at the start of an empty paragraph: the menu, at the cursor. */
   const slash: Command = (state) => {
     const { $from, empty } = state.selection
 
-    if (!view || !empty || $from.depth !== 1 || $from.parent.type !== nodes.paragraph || $from.parent.content.size > 0) return false
+    if (!view || !empty || $from.depth === 0 || ![nodes.doc, nodes.block].includes($from.node(-1).type) || $from.parent.type !== nodes.paragraph || $from.parent.content.size > 0) return false
 
     const caret = view.coordsAtPos($from.pos)
     const box = frame.getBoundingClientRect()
 
-    open(box.top + caret.bottom + 4, box.left + caret.left, true)
+    open(box.top + caret.bottom + 4, box.left + caret.left)
 
     return true
   }
@@ -696,19 +789,19 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
         return DecorationSet.create(state.doc, found)
       },
       /* A click selects the innermost site block under it, as the one
-         around it would be selected otherwise. */
-      handleClickOn(view, _, node, pos) {
-        if (node.type !== nodes.block) return false
+         around it would be selected otherwise; one on text inside it puts
+         the cursor there. */
+      handleClickOn(view, _, node, pos, _event, direct) {
+        if (node.type !== nodes.block || !direct) return false
 
         view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos)))
 
         return true
       },
-      /* Text typed or pasted over a site block inside another has no place
-         there: ProseMirror's own would split the block around it in two. A
-         copied block goes in. */
-      handleTextInput: (view) => nested(view.state),
-      handlePaste: (view, _, slice) => nested(view.state) && !slice.content.content.every((node) => node.type === nodes.block),
+      /* Text typed or pasted over a site block inside one holding none has
+         no place there. A copied block goes in. */
+      handleTextInput: (view) => stuck(view.state, holds),
+      handlePaste: (view, _, slice) => stuck(view.state, holds) && !slice.content.content.every((node) => node.type === nodes.block),
     },
   })
 
@@ -717,10 +810,14 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
    | element itself where the HTML is one, so the page's own CSS spaces it, and
    | wrapped where it is more. Drawing nothing -- or nothing yet, added since
    | the page was drawn -- it is a placeholder naming it. The element its
-   | @inner() marked holds the blocks inside it, each drawn as its own island,
-   | and nothing else. None of it is editable but its @field text, which is
-   | typed in place, the events in it the admin's alone, and says what the
-   | block's data does, whoever changed it.
+   | @inner() marked holds what is inside it, each block drawn as its own
+   | island and its text as text, and nothing else. None of it is editable but
+   | that text, and its @field text, which is typed in place, the events in it
+   | the admin's alone, and says what the block's data does, whoever changed
+   | it. The elements around what is inside it stay editable, as the text
+   | inside a block is ProseMirror's only while the page's is: the rest of its
+   | HTML beside them is not, their own text and spacing included, and @field
+   | text there is edited in its settings.
    */
   const island: NodeViewConstructor = (node, view) => {
     const page = view.dom.ownerDocument
@@ -751,8 +848,29 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
 
     contentDOM?.replaceChildren()
     contentDOM?.setAttribute('data-mainstay-holds', '')
-    dom!.setAttribute('contenteditable', 'false')
-    for (const span of spans) span.setAttribute('contenteditable', 'plaintext-only')
+    if (!contentDOM) dom!.setAttribute('contenteditable', 'false')
+
+    for (let inner = contentDOM; inner && inner !== dom; inner = inner.parentElement!) {
+      const around = inner.parentElement!
+
+      around.setAttribute('data-mainstay-around', '')
+
+      for (const child of [...around.childNodes]) {
+        if (child === inner) continue
+        if (child.nodeType === 1) {
+          ;(child as Element).setAttribute('contenteditable', 'false')
+          continue
+        }
+
+        const kept = page.createElement('span')
+
+        kept.setAttribute('contenteditable', 'false')
+        child.replaceWith(kept)
+        kept.append(child)
+      }
+    }
+
+    for (const span of spans) if (span.parentElement?.closest('[contenteditable]')?.getAttribute('contenteditable') === 'false') span.setAttribute('contenteditable', 'plaintext-only')
     fill(node.attrs.data)
 
     return {
@@ -766,7 +884,9 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
         return true
       },
       stopEvent: (event) => (event.target as Element | null)?.closest?.('[data-mainstay-field]') != null,
-      ignoreMutation: () => true,
+      /* Its own HTML is the admin's; what is inside it ProseMirror's, which
+         a change to the element holding it is too. */
+      ignoreMutation: (mutation) => mutation.type === 'attributes' || mutation.target !== contentDOM,
       /* Not made draggable, as ProseMirror makes a selected node: a drag in
          its text selects the text. The toolbar's grip moves it. */
       selectNode: () => dom!.classList.add('ProseMirror-selectednode'),
@@ -774,7 +894,7 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
     }
   }
 
-  const plugins = [history(), keymap({ Enter: chainCommands(after, leave), Backspace: emptied, '/': slash }), keymap(keys), keymap(baseKeymap), ids(html), marks]
+  const plugins = [history(), keymap({ Enter: chainCommands(after(holds), leave), Backspace: emptied, '/': slash }), keymap(keys), keymap(baseKeymap), ids(html), marks]
 
   /* A block's data as given, in one step of its own: the settings', or
      `group`'s, a stretch of typing in place. */
@@ -855,12 +975,13 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
     wire(body!)
   }
 
-  /* The settings' name, and their list of the blocks inside the selected
-     one, each selected on the page from there; with `kinds`, a button
-     adding each kind it holds. */
+  /* The settings' name, and their list of what is inside the selected
+     block, each selected on the page from there; with `kinds`, a button
+     adding each kind it holds, a paragraph for its text. */
   const listed = (kinds = false) => {
     const at = selected === null ? null : find(selected)
-    const holds = at ? (known[at.node.attrs.type]?.inner ?? []) : []
+    const spec = at ? known[at.node.attrs.type] : undefined
+    const adds = [...(spec?.text ? ['paragraph'] : []), ...(spec?.inner ?? []).map((handle) => `block:${handle}`)]
     const list = inside?.querySelector<HTMLElement>('[data-sidebar-list]')
     const adder = inside?.querySelector<HTMLElement>('[data-sidebar-add]')
     const row = inside?.querySelector<HTMLTemplateElement>('template[data-sidebar-item]')
@@ -869,26 +990,27 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
     if (title) title.textContent = at ? label(at.node.attrs.type) : 'Block'
     if (!inside || !list || !adder || !row || !button) return
 
-    inside.hidden = holds.length === 0
+    inside.hidden = adds.length === 0
     list.replaceChildren()
-    at?.node.forEach((child) => {
-      const item = row.content.cloneNode(true) as DocumentFragment
-      const select = item.querySelector<HTMLElement>('[data-inner-select]')!
-      const named = Object.values(child.attrs.data as Data).find((value) => typeof value === 'string' && value.trim() !== '')
+    if (at) {
+      at.node.forEach((child, offset) => {
+        const item = row.content.cloneNode(true) as DocumentFragment
+        const select = item.querySelector<HTMLElement>('[data-inner-select]')!
 
-      select.dataset.innerSelect = child.attrs.id
-      select.textContent = named === undefined ? label(child.attrs.type) : `${label(child.attrs.type)}: ${String(named)}`
-      list.append(item)
-    })
+        select.dataset.innerSelect = String(at.pos + 1 + offset)
+        caption(select, child)
+        list.append(item)
+      })
+    }
 
     if (!kinds) return
 
     adder.replaceChildren(
-      ...holds.map((kind) => {
+      ...adds.map((kind) => {
         const each = (button.content.cloneNode(true) as DocumentFragment).firstElementChild as HTMLElement
 
         each.dataset.innerAdd = kind
-        each.textContent = `Add ${label(kind).toLowerCase()}`
+        each.textContent = `Add ${(kind.startsWith('block:') ? label(kind.slice(6)) : (menu.querySelector(`[data-insert="${kind}"]`)?.textContent ?? kind)).toLowerCase()}`
 
         return each
       }),
@@ -1343,9 +1465,10 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
     if (!view || !button) return
 
     if (name === 'add') {
-      const box = add.getBoundingClientRect()
+      offer(inserter)
+      inserter.showModal()
 
-      return menu.hidden ? open(box.bottom + 4, box.left, false) : close()
+      return inserter.querySelector<HTMLElement>('[data-insert]:not([hidden]) button')?.focus()
     }
 
     if (name === 'settings') return settings?.showModal()
@@ -1370,19 +1493,25 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
      there for the click: Safari does not focus a button it clicks. */
   menu.addEventListener('pointerdown', (event) => event.preventDefault())
 
-  menu.addEventListener('click', (event) => {
-    const item = (event.target as Element | null)?.closest<HTMLButtonElement>('[data-insert]')
+  /* An item picked in the menu or the dialog: added after the current
+     block, the menu and the dialog closed. */
+  const picked = (event: Event) => {
+    const item = (event.target as Element | null)?.closest<HTMLElement>('[data-insert]')
     const kind = item?.dataset.insert ?? ''
 
     if (!item || !view) return
 
     close()
-    insert(kind, kind.startsWith('block:') ? known[kind.slice(6)]?.inner[0] : undefined)(view.state, view.dispatch, view)
+    inserter.close()
+    insert(kind, known, holds)(view.state, view.dispatch, view)
     view.focus()
-  })
+  }
 
-  /* Arrows between the items; Escape back to where it opened, typing the
-     `/` that opened it. */
+  menu.addEventListener('click', picked)
+  inserter.addEventListener('click', picked)
+
+  /* Arrows between the items; Escape back to the cursor, typing the `/`
+     that opened it. */
   menu.addEventListener('keydown', (event) => {
     const all = items()
     const from = all.indexOf(document.activeElement as HTMLButtonElement)
@@ -1391,9 +1520,6 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
     if (event.key === 'Escape') {
       event.preventDefault()
       close()
-
-      if (!slashed) return add.focus()
-
       view?.dispatch(view.state.tr.insertText('/'))
       view?.focus()
     } else if (to !== undefined) {
@@ -1405,7 +1531,7 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
   menu.addEventListener('focusout', (event) => {
     const to = event.relatedTarget as globalThis.Node | null
 
-    if (!menu.contains(to) && to !== add) close()
+    if (!menu.contains(to)) close()
   })
 
   grip.addEventListener('dragstart', (event) => {
@@ -1426,6 +1552,7 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
     const here = (event as CustomEvent<string>).detail === panel?.id
 
     header.hidden = !here || view === null
+    swap(here)
     if (!here) settings?.close()
     if (here && snapshot() !== posted) void draw()
   })
@@ -1444,20 +1571,33 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
   })
   sidebar?.addEventListener('click', (event) => {
     const target = event.target as Element | null
-    const inner = find(target?.closest<HTMLElement>('[data-inner-select]')?.dataset.innerSelect ?? '')
+    const inner = target?.closest<HTMLElement>('[data-inner-select]')?.dataset.innerSelect
     const kind = target?.closest<HTMLElement>('[data-inner-add]')?.dataset.innerAdd
     const at = selected === null ? null : find(selected)
 
     if (!view || !at) return
 
-    if (inner) {
+    if (inner !== undefined) {
       settings?.close()
       quiet = false
-      view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, inner.pos)).scrollIntoView())
       view.focus()
+      view.dispatch(view.state.tr.setSelection(into(view.state.doc, Number(inner))).scrollIntoView())
     } else if (kind !== undefined) {
-      append(at.pos, kind, known[kind]?.inner[0])(view.state, view.dispatch, view)
+      append(at.pos, kind, known, holds)(view.state, view.dispatch, view)
     }
+  })
+
+  /* A block picked in the tree: selected on the page, scrolled to, the
+     toolbar by it. Focused first: ProseMirror scrolls to a selection only
+     while it has the focus. */
+  tree?.addEventListener('click', (event) => {
+    const pos = (event.target as Element | null)?.closest<HTMLElement>('[data-tree-select]')?.dataset.treeSelect
+
+    if (!view || pos === undefined) return
+
+    quiet = false
+    view.focus()
+    view.dispatch(view.state.tr.setSelection(into(view.state.doc, Number(pos))).scrollIntoView())
   })
 
   /* The image dialog's form, posted for JSON: once it is saved, the block
@@ -1489,6 +1629,7 @@ export function canvas(element: HTMLElement, wire: (root: HTMLElement) => void =
   })
 
   wired.set(element, () => view)
+  swap(panel?.hidden === false)
   if (!panel?.hidden) void draw()
 
   return wired.get(element)
