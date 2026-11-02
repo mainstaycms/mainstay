@@ -122,4 +122,18 @@ return [
         'sync' => env('MAINSTAY_SCHEMA_SYNC', false),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Plugins
+    |--------------------------------------------------------------------------
+    |
+    | The plugins Mainstay loads, by class, and the only ones: installing a
+    | package switches nothing on. A plugin is code that runs as the
+    | application does, so list only what you would install as a dependency.
+    | With routes cached, run route:cache again after changing this.
+    |
+    */
+
+    'plugins' => [],
+
 ];

@@ -8,6 +8,7 @@ use Illuminate\Auth\Access\Response;
 use Mainstay\Content\GlobalSet;
 use Mainstay\Content\Taxonomy;
 use Mainstay\Mainstay;
+use Mainstay\Plugin;
 
 /*
  | What a user may be allowed to do, WordPress's way: strings, never stored,
@@ -60,6 +61,28 @@ final class Capabilities
     }
 
     /*
+     | Each plugin with admin screens and the capability they answer to,
+     | `use_<handle>`: the one list its routes, the sidebar, the roles grid and
+     | the names a role may hold all read, so none of them can disagree. A
+     | plugin without screens has nothing for one to open. No type's name
+     | starts `use_`, so none collides.
+     |
+     | @return array<class-string<Plugin>, string>
+     */
+    public static function plugins(): array
+    {
+        $names = [];
+
+        foreach (app(Mainstay::class)->plugins() as $handle => $plugin) {
+            if ($plugin->routes() !== null) {
+                $names[$plugin::class] = "use_{$handle}";
+            }
+        }
+
+        return $names;
+    }
+
+    /*
      | A policy's answer: allowed where the user holds one name of every list
      | given, refused naming the first they lack -- or `$nobody` where there
      | is no user, which names the override.
@@ -85,13 +108,15 @@ final class Capabilities
      | either form, as the policies ask it; an all-types name only where no
      | type's own form of it is denied, since a role holding `edit_entries`
      | edits every type; `*` only through a role of `*` with no denials, `*`
-     | being a role's and never a grant's. A name no type derives any longer
-     | gives nothing, so it is not counted.
+     | being a role's and never a grant's; a plugin's only where it is held. A
+     | name no type or plugin derives any longer gives nothing, so it is not
+     | counted.
      */
     public static function uncovered(User $user, array $names): ?string
     {
+        $alone = [...self::shared(), ...array_values(self::plugins())];
         /** @var array<string, list<list<string>>> $needs */
-        $needs = array_map(fn (string $name) => [[$name]], array_combine(self::shared(), self::shared()));
+        $needs = array_map(fn (string $name) => [[$name]], array_combine($alone, $alone));
 
         foreach (app(Mainstay::class)->registered() as $type) {
             foreach (self::verbs($type) as $verb) {

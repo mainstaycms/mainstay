@@ -75,6 +75,22 @@ class MainstayServiceProvider extends ServiceProvider
         Blade::directive('inner', fn (string $expression) => "<?php echo app(\\Mainstay\\Mainstay::class)->inner({$expression}); ?>");
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
+        /* Before the admin's routes, which route each plugin's screens. */
+        $mainstay = $this->app->make(Mainstay::class);
+        $mainstay->loadPlugins(config('mainstay.plugins', []));
+
+        foreach ($mainstay->plugins() as $handle => $plugin) {
+            if ($plugin->views() !== null) {
+                $this->loadViewsFrom($plugin->views(), $handle);
+            }
+
+            foreach ($plugin->listeners() as $event => $listeners) {
+                foreach ($listeners as $listener) {
+                    Event::listen($event, $listener);
+                }
+            }
+        }
+
         /*
          | The admin's own stack rather than the host's `web` group, whose
          | session is a visitor's on a site with members: cookies, a session

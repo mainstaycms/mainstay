@@ -1,0 +1,1 @@
+<dl>{{ $block->question }}</dl>

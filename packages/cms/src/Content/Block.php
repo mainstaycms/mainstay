@@ -30,6 +30,10 @@ abstract class Block implements Arrayable, Htmlable
     /* Private, so a block's own field of this name is a slot of its own. */
     private ?Document $inner = null;
 
+    /* The view namespace its view is in, as a field type's is: a plugin's
+       block names its plugin's handle, and the host's own names none. */
+    protected ?string $viewNamespace = null;
+
     /** @return list<Block> the blocks inside this one, in their order, without the text among them */
     public function inner(): array
     {
@@ -64,7 +68,9 @@ abstract class Block implements Arrayable, Htmlable
 
     public function toHtml(): string
     {
-        return view('blocks.'.static::handle(), ['block' => $this])->render();
+        $namespace = $this->viewNamespace === null ? '' : $this->viewNamespace.'::';
+
+        return view($namespace.'blocks.'.static::handle(), ['block' => $this])->render();
     }
 
     /* The block as a save is given one: its id once it has one, its type,
