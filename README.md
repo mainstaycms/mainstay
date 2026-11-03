@@ -72,6 +72,10 @@ Mainstay owns its tables inside your app. "Headless" describes the consumer, not
 - **An API and an MCP server.** The same reads and writes over JSON and as tools a language model
   calls, behind tokens that never hold more than the account that made them. `/schema` describes
   every payload, and `mainstay:typescript` writes it out for a front end.
+- **AI connectors.** Every provider laravel/ai speaks -- OpenAI, Anthropic, Gemini, Mistral, Ollama
+  and more -- on one admin screen: a key from the environment or saved there encrypted, a test, and
+  the provider each kind of work goes to. Code prompts with laravel/ai and reaches what the site
+  connected, and a plugin adds a provider of its own.
 
 ## Screenshots
 
@@ -216,7 +220,8 @@ The type's template gets the entry, and printing its content draws its text and 
 
 ### Write a plugin
 
-A plugin is a package's types, blocks, field types, admin screens and listeners, on one class. Only
+A plugin is a package's types, blocks, field types, admin screens, listeners and AI providers, on
+one class. Only
 the plugins `config/mainstay.php` names load: installing a package switches nothing on, and nothing is
 switched on from the admin.
 
@@ -339,6 +344,57 @@ The same operations are an MCP server at `/api/mainstay/mcp`, for a client that 
 HTTP: `find-entries`, `get-entry`, `save-draft`, `publish-draft` and the rest, behind the same token.
 Give an agent a token that edits and does not publish, and it writes drafts for a person to put live.
 
+### Connect an AI provider
+
+Mainstay talks to AI providers through [laravel/ai](https://github.com/laravel/ai), so every provider
+it speaks is one a site can connect: OpenAI, Anthropic, Gemini, Mistral, Groq, xAI, DeepSeek,
+OpenRouter, Ollama and the rest. The admin's **Connectors** screen, open to whoever holds
+`manage_connectors`, has a card per provider -- what it does, where its key comes from, Test -- and
+chooses the provider each kind of work goes to: text, images, speech, transcription, embeddings,
+reranking and classification.
+
+A key in the environment, under the name laravel/ai's config reads (`ANTHROPIC_API_KEY`,
+`OPENAI_API_KEY`), wins. Without one, the screen saves a key encrypted with `APP_KEY` and never shows
+it again. Test asks the provider's cheapest model for one word, so it costs a fraction of a cent.
+
+Code prompts with laravel/ai itself and reaches the provider the screen chose for that kind of work:
+
+```php
+use Laravel\Ai\Image;
+
+use function Laravel\Ai\agent;
+
+$alt = agent('You write alt text of at most 120 characters.')->prompt('A harbour at dusk, two boats.')->text;
+$poster = Image::of('A harbour at dusk, as a linocut')->generate();
+```
+
+A provider's other settings, such as a URL or a region, are laravel/ai's config: publish it with
+`php artisan vendor:publish --tag=ai-config`. A queue worker reads the screen's keys when it first
+prompts, so restart workers after changing one.
+
+A plugin adds providers with `providers()`, as entries of laravel/ai's `ai.providers` with a label for
+the screen. One on a driver laravel/ai has is config alone -- an `openai-compatible` one names its
+models, since laravel/ai cannot guess them -- and one on a driver of its own hands over a closure that
+returns a laravel/ai provider:
+
+```php
+public function providers(): array
+{
+    return [
+        'together' => [
+            'label' => 'Together AI',
+            'driver' => 'openai-compatible',
+            'url' => 'https://api.together.xyz/v1',
+            'models' => ['text' => ['default' => 'meta-llama/Llama-3.3-70B-Instruct-Turbo']],
+        ],
+        'acme' => ['label' => 'Acme', 'driver' => fn ($app, array $config) => new AcmeProvider($config, $app['events'])],
+    ];
+}
+```
+
+Your own `ai.providers` entry of the name wins key by key, so `'together' => ['key' =>
+env('TOGETHER_API_KEY')]` in `config/ai.php` gives it a key from the environment.
+
 ### Upgrading
 
 Re-run the asset publish with `--force` after upgrading the package. An upgrade can also add a column
@@ -351,7 +407,7 @@ migration for whatever it reports.
 Mainstay is built in phases, each ending at something that works. Phases 1 to 13 are done: content
 types and schema sync, reading and writing from PHP, public rendering, rich text and blocks, media,
 relations and taxonomies, drafts and revisions, identity, the admin, accounts, the page builder, and
-the API with its tokens and MCP server. Next:
+the API with its tokens and MCP server. AI connectors came after them. Next:
 
 - **The second locale and the second site.**
 - **Onboarding.**

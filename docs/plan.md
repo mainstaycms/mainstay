@@ -28,6 +28,9 @@ with its text and a block's text typed in place, a toolbar floating by the block
 fields and images edited in dialogs. Phase 13 is done: the content API reads and writes over JSON
 and as MCP tools, behind tokens an account makes with capabilities of its own, and without one only
 the types marked `#[PublicRead]`, with `/schema` and `mainstay:typescript` describing every payload.
+After it came AI connectors: every provider laravel/ai speaks, connected from an admin screen with a
+key from the environment or saved there encrypted, and laravel/ai's default for each kind of work
+chosen there.
 `packages/ui` is ahead of the package — Blade components, a theme, and a behaviour layer in
 `src/js` — and `packages/editor` is the rich text editor, ProseMirror without React, declaring the
 document schema the package renders.
@@ -1808,6 +1811,37 @@ policy asking `holds()` bound by it, revoking and a deleted account ending a tok
 to `/schema` by a validator in the test, depth and page caps, writes, drafts end to end, `where` and
 `sort` from the query string, the tools offered and refused, the token screen showing a secret once.
 `DeclarationTest` holds the converter's output to a snapshot.
+
+## Between phases 13 and 14 — AI connectors
+
+Asked for before phase 14: a WordPress-style Connectors screen, so a site connects the AI provider
+it prefers and a developer prompts it without writing the client.
+
+**Built.** It is built on laravel/ai. `Mainstay\Ai\Connectors` lists every provider in
+`ai.providers`, and every one a plugin's `providers()` declares. When laravel/ai's manager is first
+made, it writes into that config the plugins' providers and drivers, each key saved from the screen
+where the host's config has none, and the provider chosen for each default. The admin's **Connectors**
+screen, behind `manage_connectors`:
+
+- has a card per provider: what it does, read from the laravel/ai contracts it implements, and where
+  its key comes from;
+- has a password field that saves a key encrypted in `mainstay_connectors`;
+- has Test, which asks the cheapest model for one word or embeds one, with the key taken out of any
+  error;
+- chooses the provider for text, images, speech, transcription, embeddings, reranking and
+  classification.
+
+**Not built.** An AI feature in the admin.
+
+**The check.** `ConnectorTest` on SQLite and every driver in CI, with laravel/ai's HTTP faked:
+
+- a saved key encrypted at rest and sent in the request's header;
+- a config key winning;
+- a default reaching `ai.default`;
+- a plugin's provider, driver and the host's override of it;
+- the refusals for a plugin's provider;
+- the screen hidden from anyone without the capability, never showing a key;
+- a test's answer and a refusal without the key.
 
 ## Phase 14 — The second locale and the second site
 

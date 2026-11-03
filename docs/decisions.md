@@ -983,6 +983,43 @@ Consequences:
 - Revisions, the trash, owners, the front page, media uploads and accounts are not in the API.
   Each is an operation and a route when a client needs one.
 
+## AI providers are laravel/ai's, and the admin connects them
+
+*2026-11-02*
+
+WordPress 7.0 has Settings > Connectors: a card per AI provider, its key read from an environment
+variable, a constant or the database, and its AI client picking a provider for each prompt. Mainstay
+does the same over laravel/ai, Laravel's own SDK, rather than prism-php/prism (pre-1.0),
+wordpress/php-ai-client (not Laravel-aware, two providers documented) or HTTP calls of its own (every
+provider's format ours to keep current). laravel/ai has seventeen providers, a default per kind of
+work, failover, fakes for tests, and `Ai::extend()` for a driver of one's own.
+
+So Mainstay builds no client. `Mainstay\Ai\Connectors` writes into laravel/ai's config, and code
+prompts with laravel/ai. What it writes:
+
+- the providers plugins declare, beneath the host's own entries of their names;
+- a key saved from the screen, where the host's config sets none;
+- the provider the screen chose for each of laravel/ai's defaults.
+
+It writes them when laravel/ai's manager is first made, not as Mainstay boots, so a request that
+prompts nothing reads no table and `config:cache` stores none of it.
+
+A key from the environment wins, as in WordPress. One saved from the screen is in
+`mainstay_connectors`, encrypted with `APP_KEY` where WordPress keeps it in plain text: it is sent on
+every request, so it cannot be a hash as a password or a token is. A key set in the config cannot be
+saved beneath it, since it would never be sent.
+
+`manage_connectors` opens the screen. The editor role the migrations ship does not hold it, as it
+does not hold `manage_users`: a key is the site's account, and a test spends its money.
+
+Consequences:
+
+- A queue worker or an Octane process made before a key changed reads it once restarted.
+- A provider's settings beyond its key -- a URL, a region, a deployment -- are laravel/ai's config,
+  not the screen's.
+- A plugin's driver closure runs inside laravel/ai's manager, wrapped so it keeps the plugin's
+  `$this`.
+
 ## Deferred
 
 Questions raised and deliberately left open. The reasoning is recorded so it does not have to be
