@@ -13,7 +13,10 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Laravel\Ai\AiManager;
+use Laravel\Ai\AiServiceProvider;
 use Laravel\Mcp\Server\McpServiceProvider;
+use Mainstay\Ai\Connectors;
 use Mainstay\Auth\Gate;
 use Mainstay\Auth\User;
 use Mainstay\Console\ReprocessCommand;
@@ -47,6 +50,12 @@ class MainstayServiceProvider extends ServiceProvider
         /* MCP's server, for the API's /mcp, likewise: a host turning discovery
            off for laravel/mcp would otherwise fail on the facade. */
         $this->app->register(McpServiceProvider::class);
+
+        /* laravel/ai, likewise, with what the Connectors screen saved written
+           into its config as it is first made: see Connectors::apply(). */
+        $this->app->register(AiServiceProvider::class);
+        $this->app->singleton(Connectors::class);
+        $this->app->afterResolving(AiManager::class, fn (AiManager $ai) => $this->app->make(Connectors::class)->apply($ai));
 
         $this->app->singleton(Mainstay::class);
 
