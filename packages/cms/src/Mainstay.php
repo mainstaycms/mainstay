@@ -42,7 +42,7 @@ class Mainstay
 
     /* The first segments of the admin's own screens, which a type's handle,
        naming its screens' segment, cannot be. */
-    private const ADMIN = ['media', 'login', 'logout', 'users', 'roles', 'account'];
+    private const ADMIN = ['media', 'login', 'logout', 'users', 'roles', 'account', 'connectors'];
 
     /* View namespaces a plugin's handle cannot be: Mainstay's own, and
        Laravel's mail and error pages, which it adds only as a mail or an

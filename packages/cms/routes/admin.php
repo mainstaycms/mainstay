@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Mainstay\Http\Authenticate;
 use Mainstay\Http\AuthenticateSession;
 use Mainstay\Http\AuthorizePlugin;
+use Mainstay\Http\ConnectorController;
 use Mainstay\Http\EntryController;
 use Mainstay\Http\LoginController;
 use Mainstay\Http\MediaController;
@@ -25,7 +26,7 @@ Route::post('reset-password', [PasswordController::class, 'update'])->name('main
 /*
  | Every screen under a type's handle, which registration keeps from being
  | one of the admin's own: `login`, `logout`, `media`, `users`, `roles`,
- | `account`, or a plugin's. A path none of them answers is the admin's
+ | `account`, `connectors`, or a plugin's. A path none of them answers is the admin's
  | own not-found, drawn in the shell: named as the others are, so no entry
  | can be given a path anywhere under the prefix.
  */
@@ -61,6 +62,12 @@ Route::middleware([Authenticate::class, AuthenticateSession::class])->group(func
     Route::get('account/tokens', [TokenController::class, 'index'])->name('mainstay.tokens');
     Route::post('account/tokens', [TokenController::class, 'store'])->name('mainstay.tokens.store');
     Route::post('account/tokens/{id}/revoke', [TokenController::class, 'destroy'])->whereNumber('id')->name('mainstay.tokens.destroy');
+
+    Route::get('connectors', [ConnectorController::class, 'index'])->name('mainstay.connectors');
+    Route::post('connectors', [ConnectorController::class, 'defaults'])->name('mainstay.connectors.defaults');
+    Route::post('connectors/{provider}', [ConnectorController::class, 'save'])->name('mainstay.connectors.save');
+    Route::post('connectors/{provider}/forget', [ConnectorController::class, 'forget'])->name('mainstay.connectors.forget');
+    Route::post('connectors/{provider}/test', [ConnectorController::class, 'test'])->name('mainstay.connectors.test');
 
     /* Before the types', which would answer a plugin's segment, and named
        apart from Mainstay's own, which a plugin's route would otherwise take. */
