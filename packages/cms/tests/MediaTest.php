@@ -25,7 +25,7 @@ use RuntimeException;
 
 /*
  | The phase 6 check: images uploaded through the library, every declared size
- | written as plain files in both formats under the original's hash, and read
+ | written as plain files in each format GD writes under the original's hash, and read
  | back through entries -- a field of their own and two blocks down -- in one
  | query per read, with what a trashed image leaves behind kept rather than
  | lost.
@@ -507,6 +507,59 @@ class MediaTest extends DatabaseTestCase
         $this->assertSame([24, 36], $this->dimensions("media/{$live->hash}-24x36-50-50.webp"));
         $this->assertTrue(Storage::disk('public')->exists("media/{$live->hash}-24x36-50-50.avif"));
         $this->assertFalse(Storage::disk('public')->exists("media/{$trashed->hash}-24x36-50-50.webp"));
+    }
+
+    #[Test]
+    public function a_gd_without_avif_or_webp_writes_what_it_can_and_a_picture_offers_only_that(): void
+    {
+        config()->set('mainstay.media.formats', ['webp']);
+        $webpOnly = $this->upload($this->png(120, 80, 48));
+        $cover = Mainstay::findById(Pictured::class, $this->create(['cover' => $webpOnly])->id, locale: 'en')->cover;
+
+        $this->assertSame([], array_filter(Storage::disk('public')->files('media'), fn (string $path) => str_ends_with($path, '.avif')), 'Nothing is written in a format left out.');
+        $this->assertNull($cover->url('card', 'avif'));
+        $this->assertSame('<picture><img src="'.e($cover->url('card')).'" alt="Red beside blue" width="40" height="20" loading="lazy" decoding="async"></picture>', (string) $cover->picture('card'));
+        $this->assertStringEndsWith('-40x20-50-50.webp', $cover->url('card'));
+        $this->assertSame(['src' => $cover->url('card'), 'avif' => null, 'webp' => $cover->url('card'), 'width' => 40, 'height' => 20], $cover->toArray()['sizes']->card);
+
+        /* Neither: a PNG's copies as PNG, which keeps transparency, and a
+           JPEG's as JPEG. */
+        config()->set('mainstay.media.formats', []);
+        $png = $this->upload($this->png(120, 80, 30));
+        $jpeg = $this->upload($this->rotatedJpeg(40, 20));
+        $read = Mainstay::findById(Pictured::class, $this->create(['cover' => $png, 'content' => $this->figures($jpeg)])->id, locale: 'en');
+
+        $this->assertSame([40, 20], $this->dimensions("media/{$png->hash}-40x20-50-50.png"));
+        $this->assertSame([20, 40], $this->dimensions("media/{$jpeg->hash}-60.jpg"));
+        $this->assertFalse(Storage::disk('public')->exists("media/{$png->hash}-40x20-50-50.webp"));
+        $this->assertNull($read->cover->url('card', 'webp'));
+        $this->assertStringEndsWith('.jpg', $read->content->blocks()[0]->inner()[0]->image->url('thumb'));
+        $this->assertSame('<picture><img src="'.e($read->cover->url('card')).'" alt="Red beside blue" width="40" height="20" loading="lazy" decoding="async"></picture>', (string) $read->cover->picture('card'));
+    }
+
+    #[Test]
+    public function reprocess_writes_a_format_gained_since_and_only_then_offers_it(): void
+    {
+        config()->set('mainstay.media.formats', ['webp']);
+        $media = $this->upload($this->png(120, 80, 48));
+        $id = $this->create(['cover' => $media])->id;
+
+        config()->set('mainstay.media.formats', ['avif', 'webp']);
+        $this->assertNull(Mainstay::findById(Pictured::class, $id, locale: 'en')->cover->url('card', 'avif'), 'Not offered before it is written.');
+
+        (new Reprocess($media->id))->handle($this->app->make(Registry::class));
+        $cover = Mainstay::findById(Pictured::class, $id, locale: 'en')->cover;
+
+        $this->assertSame([40, 20], $this->dimensions("media/{$media->hash}-40x20-50-50.avif"));
+        $this->assertStringContainsString('<source type="image/avif" srcset="'.e($cover->url('card', 'avif')).'">', (string) $cover->picture('card'));
+
+        /* Moving the point writes the crops in what GD writes now, and says so. */
+        config()->set('mainstay.media.formats', []);
+        Mainstay::media()->update($media->id, focal: [10, 50], overrideAccess: true);
+        $moved = Mainstay::findById(Pictured::class, $id, locale: 'en')->cover;
+
+        $this->assertStringEndsWith('-40x20-10-50.png', $moved->url('card'));
+        $this->assertNull($moved->url('card', 'avif'));
     }
 
     #[Test]

@@ -31,7 +31,9 @@ use Throwable;
 /*
  | The media library: images uploaded from code, held once each by the hash of
  | their bytes, with every size an image field declares written beside them as
- | plain files in AVIF and WebP at the moment they arrive.
+ | plain files at the moment they arrive: in AVIF and WebP where this PHP's
+ | GD writes them, and in the original's own kind where it writes no WebP, so
+ | a host without either still serves every image.
  |
  | The original is kept on a private disk and never served -- a camera's
  | carries the EXIF the copies are re-encoded without, GPS included. The copies
@@ -46,7 +48,9 @@ class Library
 {
     private const TABLE = 'mainstay_media';
 
-    private const FORMATS = ['avif', 'webp'];
+    /* The formats a copy is offered in where GD writes them, by what
+       gd_info() calls them, best first: the last is what an <img> shows. */
+    private const OPTIONAL = ['avif' => 'AVIF Support', 'webp' => 'WebP Support'];
 
     /* What the library holds, by what the bytes say they are rather than the
        name, and the extension its original is kept under. */
@@ -103,8 +107,10 @@ class Library
         $image = $this->decode($path);
         $focal = array_map('intval', $focal);
 
+        $formats = $this->formats($type);
+
         $this->put($this->originals(), "media/{$hash}.".self::TYPES[$type], $path);
-        $this->generate($image, $hash, $focal);
+        $this->generate($image, $hash, $focal, $formats);
 
         $now = $this->now();
 
@@ -125,6 +131,7 @@ class Library
                 'focal_x' => $focal[0],
                 'focal_y' => $focal[1],
                 'alt' => json_encode($alt, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+                'formats' => implode(',', $formats),
                 'owner_id' => Gate::user()?->getKey(),
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -197,8 +204,9 @@ class Library
         if ($focal !== null) {
             $focal = array_map('intval', $focal);
             $this->engine();
-            $this->generate($this->source($row), $row->hash, $focal);
-            $changes = [...$changes, 'focal_x' => $focal[0], 'focal_y' => $focal[1]];
+            $formats = $this->formats($row->type);
+            $this->generate($this->source($row), $row->hash, $focal, $formats);
+            $changes = [...$changes, 'focal_x' => $focal[0], 'focal_y' => $focal[1], 'formats' => implode(',', $formats)];
         }
 
         DB::table(self::TABLE)->where('id', $id)->update($changes);
@@ -239,16 +247,30 @@ class Library
         DB::table(self::TABLE)->where('id', $id)->whereNotNull('deleted_at')->delete();
     }
 
-    /* The copies the declarations name that are not written yet, for an
-       image out of the trash. How a size added to a field reaches images
-       uploaded before it; mainstay:media:reprocess queues one per image. */
+    /*
+     | The copies the declarations name that are not written yet, for an
+     | image out of the trash, in the formats this PHP's GD writes now. How a
+     | size added to a field, or a format GD has gained, reaches images
+     | uploaded before it; mainstay:media:reprocess queues one per image.
+     */
     public function reprocess(int $id): void
     {
         $row = DB::table(self::TABLE)->where('id', $id)->whereNull('deleted_at')->first();
 
-        if ($row !== null && $this->missing($row->hash, [(int) $row->focal_x, (int) $row->focal_y])) {
-            $this->engine();
-            $this->generate($this->source($row), $row->hash, [(int) $row->focal_x, (int) $row->focal_y]);
+        if ($row === null) {
+            return;
+        }
+
+        $this->engine();
+        $focal = [(int) $row->focal_x, (int) $row->focal_y];
+        $formats = $this->formats($row->type);
+
+        if ($this->missing($row->hash, $focal, $formats)) {
+            $this->generate($this->source($row), $row->hash, $focal, $formats);
+        }
+
+        if (implode(',', $formats) !== $row->formats) {
+            DB::table(self::TABLE)->where('id', $id)->update(['formats' => implode(',', $formats)]);
         }
     }
 
@@ -370,20 +392,28 @@ class Library
         return $type;
     }
 
-    /* A GD that cannot write both formats is refused before anything is
-       written, rather than leaving a <picture> pointing at files that never
-       were. */
     private function engine(): void
     {
         if (! extension_loaded('gd')) {
             throw new RuntimeException('The media library writes its copies with PHP\'s GD extension, which is not loaded.');
         }
+    }
 
-        foreach (['AVIF', 'WebP'] as $format) {
-            if (empty(gd_info()["{$format} Support"])) {
-                throw new RuntimeException("This PHP's GD cannot write {$format}, and every copy is written as AVIF and WebP. Build GD with {$format} support.");
-            }
-        }
+    /*
+     | The formats an image of `$type` is written in, the one an <img> shows
+     | last: those of mainstay.media.formats this GD writes, and where that
+     | leaves out WebP, the original's own kind -- a JPEG's as JPEG, any other
+     | as PNG, which keeps transparency. A missing format costs bytes, never
+     | an image.
+     |
+     | @return list<string>
+     */
+    private function formats(string $type): array
+    {
+        $wanted = config('mainstay.media.formats', array_keys(self::OPTIONAL));
+        $formats = array_keys(array_filter(self::OPTIONAL, fn (string $support, string $format) => in_array($format, $wanted, true) && ! empty(gd_info()[$support]), ARRAY_FILTER_USE_BOTH));
+
+        return in_array('webp', $formats, true) ? $formats : [...$formats, $type === 'image/jpeg' ? 'jpg' : 'png'];
     }
 
     /* Decoded and turned upright: loadFile() reads the EXIF orientation and
@@ -416,10 +446,10 @@ class Library
 
     /* Whether any declared copy of this image at this focal point is not
        written yet. */
-    private function missing(string $hash, array $focal): bool
+    private function missing(string $hash, array $focal, array $formats): bool
     {
         foreach ($this->sizes() as $size) {
-            foreach (self::FORMATS as $format) {
+            foreach ($formats as $format) {
                 if (! $this->disk()->exists($size->path($hash, $focal, $format))) {
                     return true;
                 }
@@ -436,15 +466,15 @@ class Library
      | and focalCropAndResize() enlarges. Size works out the region and what
      | is written, so the file and what a template is told agree.
      */
-    private function generate(GdDriver $image, string $hash, array $focal): void
+    private function generate(GdDriver $image, string $hash, array $focal, array $formats): void
     {
         $disk = $this->disk();
         [$width, $height] = [$image->getWidth(), $image->getHeight()];
 
         foreach ($this->sizes() as $size) {
-            $formats = array_filter(self::FORMATS, fn (string $format) => ! $disk->exists($size->path($hash, $focal, $format)));
+            $unwritten = array_filter($formats, fn (string $format) => ! $disk->exists($size->path($hash, $focal, $format)));
 
-            if ($formats === []) {
+            if ($unwritten === []) {
                 continue;
             }
 
@@ -463,7 +493,7 @@ class Library
                 $copy->resize($outWidth, $outHeight);
             }
 
-            foreach ($formats as $format) {
+            foreach ($unwritten as $format) {
                 $local = tempnam(sys_get_temp_dir(), 'mainstay');
 
                 try {
@@ -551,6 +581,7 @@ class Library
             focal: [(int) $row->focal_x, (int) $row->focal_y],
             originalWidth: (int) $row->width,
             originalHeight: (int) $row->height,
+            formats: explode(',', $row->formats),
             ownerId: $row->owner_id === null ? null : (int) $row->owner_id,
         );
     }

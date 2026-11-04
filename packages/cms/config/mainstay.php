@@ -89,12 +89,19 @@ return [
     | to a private one and is never served, since it still carries the
     | camera's EXIF, GPS included.
     |
+    | Copies are written in each of `formats` this PHP's GD can write, and,
+    | where that leaves out WebP, in the original's own kind as well, so a
+    | host without them serves larger files rather than none. A format gained
+    | later reaches older images through mainstay:media:reprocess.
+    |
     */
 
     'media' => [
         'disk' => env('MAINSTAY_MEDIA_DISK', 'public'),
 
         'originals' => env('MAINSTAY_MEDIA_ORIGINALS', 'local'),
+
+        'formats' => ['avif', 'webp'],
     ],
 
     /*

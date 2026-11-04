@@ -72,8 +72,8 @@ final class Schema
     {
         $size = [
             'type' => 'object',
-            'properties' => ['webp' => ['type' => 'string'], 'avif' => ['type' => 'string'], 'width' => ['type' => 'integer'], 'height' => ['type' => 'integer']],
-            'required' => ['webp', 'avif', 'width', 'height'],
+            'properties' => ['src' => ['type' => 'string'], 'avif' => ['type' => ['string', 'null']], 'webp' => ['type' => ['string', 'null']], 'width' => ['type' => 'integer'], 'height' => ['type' => 'integer']],
+            'required' => ['src', 'avif', 'webp', 'width', 'height'],
             'additionalProperties' => false,
         ];
 

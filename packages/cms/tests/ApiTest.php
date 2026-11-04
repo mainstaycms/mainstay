@@ -254,6 +254,7 @@ class ApiTest extends DatabaseTestCase
         $this->assertSame('A cover', $read->json('cover.alt'));
         $this->assertSame(32, $read->json('cover.sizes.card.width'));
         $this->assertStringEndsWith('.webp', $read->json('cover.sizes.card.webp'));
+        $this->assertSame($read->json('cover.sizes.card.webp'), $read->json('cover.sizes.card.src'));
         $this->assertStringEndsWith('.avif', $read->json('cover.sizes.card.avif'));
         $this->assertSame('Hello', $read->json('body.content.0.content.0.text'));
     }
