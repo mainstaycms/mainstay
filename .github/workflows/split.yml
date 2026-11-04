@@ -1,0 +1,31 @@
+name: Split
+
+# Composer installs a package only from a repository whose root holds its
+# composer.json, so each package is pushed on a tag to a read-only repository
+# of its own, which Packagist serves. The monorepo stays where work happens.
+on:
+  push:
+    tags: ['*']
+
+jobs:
+  split:
+    name: Split ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [cms, ui]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: danharrin/monorepo-split-github-action@v2.4.5
+        env:
+          GITHUB_TOKEN: ${{ secrets.MONOREPO_SPLIT_TOKEN }}
+        with:
+          package_directory: packages/${{ matrix.package }}
+          repository_organization: mainstaycms
+          repository_name: ${{ matrix.package }}
+          branch: main
+          tag: ${{ github.ref_name }}
+          user_name: github-actions[bot]
+          user_email: 41898282+github-actions[bot]@users.noreply.github.com
