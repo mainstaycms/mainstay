@@ -1,6 +1,6 @@
 {
     "name": "mainstay/cms",
-    "description": "A headless CMS for Laravel: content modelled in PHP, edited in a Blade admin, served to static sites over HTTP.",
+    "description": "A CMS for Laravel: content modelled in PHP, edited in a Blade admin, rendered by the host app's Blade views or served headless over a REST and MCP API.",
     "keywords": ["laravel", "cms", "headless", "content"],
     "license": "MIT",
     "require": {
@@ -14,15 +14,9 @@
         "illuminate/validation": "^13.0",
         "laravel/ai": "^1.3",
         "laravel/mcp": "^1.1",
-        "mainstay/ui": "@dev",
+        "mainstay/ui": "self.version",
         "spatie/image": "^3.9"
     },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../ui"
-        }
-    ],
     "autoload": {
         "psr-4": {
             "Mainstay\\": "src/"

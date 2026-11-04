@@ -564,7 +564,7 @@ of the component workflow. The fallback is Storybook's official HTML renderer wi
 markup from a local route — more wiring, no exotic dependency. Storybook is dev-only either way, so
 none of this reaches a host.
 
-## Authorization is WordPress's model, built rather than installed
+## Authorization is built from capabilities, rather than installed
 
 *2026-09-10*
 
@@ -647,7 +647,7 @@ Consequences:
   Mainstay's guard.
 - Rate limiting stays the host's, through the middleware already named in config.
 
-## Localization is per field, following Payload
+## Localization is per field
 
 *2026-09-10*
 

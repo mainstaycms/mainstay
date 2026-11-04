@@ -171,7 +171,10 @@ jobs:
           coverage: none
 
       # mainstay/cms claims php ^8.3, matching Laravel 13. Nothing else proves
-      # that claim, since the dev toolchain cannot install there.
+      # that claim, since the dev toolchain cannot install there. Released, it
+      # finds mainstay/ui on Packagist; here it is pointed at the sibling.
+      - run: composer config repositories.ui path ../ui --working-dir=packages/cms
+
       - run: composer update --no-dev --working-dir=packages/cms
 
   js:
