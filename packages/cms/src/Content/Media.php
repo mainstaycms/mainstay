@@ -118,6 +118,19 @@ final class Media
         ));
     }
 
+    /* The image as the API hands it out: what picture() prints, for every
+       size its field declares, so a reader draws it with no id to look up. */
+    public function toArray(): array
+    {
+        $sizes = [];
+
+        foreach (array_keys($this->sizes) as $size) {
+            $sizes[$size] = ['webp' => $this->url($size), 'avif' => $this->url($size, 'avif'), 'width' => $this->width($size), 'height' => $this->height($size)];
+        }
+
+        return ['id' => $this->id, 'alt' => $this->alt, 'focal' => $this->focal, 'sizes' => (object) $sizes];
+    }
+
     /* A size the field declares. An image read through no field -- from
        find() or upload() -- has none to name. */
     private function size(string $size): Size

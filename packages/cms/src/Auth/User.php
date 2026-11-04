@@ -45,15 +45,33 @@ class User extends Model implements AuthenticatableContract, CanResetPasswordCon
         return $this->belongsTo(Role::class);
     }
 
+    /* The capabilities of the token this account came in with over the API,
+       none for the admin's session. On this instance alone, never saved. */
+    private ?array $limit = null;
+
+    public function limitedTo(array $capabilities): static
+    {
+        $this->limit = $capabilities;
+
+        return $this;
+    }
+
     /*
      | Whether any of these names is held: denied none of them, and granted
      | one, or holding it or `*` through the role -- `*` is a role's, not a
      | grant's. A check names a type's own capability and its all-types form
      | together, so a denial of either wins over both.
+     |
+     | Through a token, the token holds one of them too, or `*`: what the two
+     | share, so an account losing a capability takes it off its tokens.
      */
     public function holds(string ...$names): bool
     {
         if (array_intersect($names, $this->denials) !== []) {
+            return false;
+        }
+
+        if ($this->limit !== null && ! in_array('*', $this->limit, true) && array_intersect($names, $this->limit) === []) {
             return false;
         }
 

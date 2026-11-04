@@ -3,6 +3,7 @@
 namespace Mainstay\Fields;
 
 use Attribute;
+use Closure;
 use InvalidArgumentException;
 use Mainstay\Content\Media;
 use Mainstay\Media\Size;
@@ -114,10 +115,22 @@ class Image extends Field
         return $value instanceof Media ? $value->id : (int) $value;
     }
 
-    /* The id, as it is stored. What a reader of the API is handed in its
-       place is phase 13's to decide. */
+    /* The id, as it is stored and as a write takes it. */
     protected function json(): array
     {
         return ['type' => 'integer'];
+    }
+
+    /* The image with its alt text, focal point and a URL for each size the
+       field declares, which a reader cannot build from an id; the id alone
+       for one that is missing. */
+    public function payload(mixed $value, Closure $nested): mixed
+    {
+        return $value instanceof Media && ! $value->missing ? $value->toArray() : $this->serialize($value);
+    }
+
+    public function payloadSchema(Closure $ref): array
+    {
+        return ['anyOf' => [$this->schema(), $ref(Media::class)]];
     }
 }

@@ -45,7 +45,7 @@ class RoleController
     public function store(Request $request): RedirectResponse
     {
         $this->sees();
-        $role = $this->mainstay->accounts()->saveRole(null, (string) $request->input('name'), $this->posted($request));
+        $role = $this->mainstay->accounts()->saveRole(null, (string) $request->input('name'), self::posted($request));
 
         return redirect()->route('mainstay.roles.edit', $role->id)->with('status', 'Role made.');
     }
@@ -60,7 +60,7 @@ class RoleController
     public function update(Request $request, int $id): RedirectResponse
     {
         $this->sees();
-        $this->found(fn () => $this->mainstay->accounts()->saveRole($id, (string) $request->input('name'), $this->posted($request)));
+        $this->found(fn () => $this->mainstay->accounts()->saveRole($id, (string) $request->input('name'), self::posted($request)));
 
         return redirect()->route('mainstay.roles.edit', $id)->with('status', 'Saved.');
     }
@@ -82,17 +82,6 @@ class RoleController
      */
     private function form(Role $role): View
     {
-        $types = $this->mainstay->registered();
-        $entries = array_filter($types, fn (string $type) => ! is_subclass_of($type, GlobalSet::class) && ! is_subclass_of($type, Taxonomy::class));
-        $section = fn (string $label, string $every, string $noun, array $verbs, array $types) => [
-            'label' => $label,
-            'verbs' => array_values($verbs),
-            'rows' => [
-                ['label' => $every, 'names' => array_map(fn (string $verb) => "{$verb}_{$noun}", array_keys($verbs))],
-                ...array_map(fn (string $type) => ['label' => Navigation::label($type), 'names' => array_map(fn (string $verb) => Capabilities::names($type, $verb)[0], array_keys($verbs))], array_values($types)),
-            ],
-        ];
-
         $plugins = Capabilities::plugins();
         $me = Gate::user();
         $editable = Gate::accounts()->allows('saveRole', [$role, $role->capabilities]);
@@ -100,11 +89,10 @@ class RoleController
         return view('mainstay::roles.form', [
             'role' => $role,
             'sections' => [
-                $section('Content', 'Every entry type', 'entries', ['edit' => 'Edit', 'edit_published' => 'Edit published', 'edit_others' => "Edit others'", 'publish' => 'Publish', 'delete' => 'Delete', 'delete_others' => "Delete others'"], $entries),
-                $section('Taxonomies', 'Every taxonomy', 'terms', ['manage' => 'Manage'], array_filter($types, fn (string $type) => is_subclass_of($type, Taxonomy::class))),
-                $section('Globals', 'Every global', 'globals', ['edit' => 'Edit', 'publish' => 'Publish'], array_filter($types, fn (string $type) => is_subclass_of($type, GlobalSet::class))),
+                ...self::contentSections($this->mainstay->registered()),
                 ['label' => 'Media', 'verbs' => ['Upload', "Edit others'"], 'rows' => [['label' => 'The library', 'names' => Capabilities::MEDIA]]],
                 ['label' => 'Accounts', 'verbs' => ['Manage accounts and roles'], 'rows' => [['label' => 'Every account', 'names' => [Capabilities::USERS]]]],
+                ['label' => 'AI', 'verbs' => ['Manage connectors'], 'rows' => [['label' => 'Every provider', 'names' => [Capabilities::CONNECTORS]]]],
                 ...($plugins === [] ? [] : [
                     ['label' => 'Plugins', 'verbs' => ['Use'], 'rows' => array_map(fn (string $plugin, string $name) => ['label' => Navigation::label($plugin, plural: false), 'names' => [$name]], array_keys($plugins), $plugins)],
                 ]),
@@ -116,8 +104,29 @@ class RoleController
         ]);
     }
 
+    /* The grid's sections for content -- entries, taxonomies, globals --
+       which a token's grid is made of alone, the API writing nothing else. */
+    public static function contentSections(array $types): array
+    {
+        $entries = array_filter($types, fn (string $type) => ! is_subclass_of($type, GlobalSet::class) && ! is_subclass_of($type, Taxonomy::class));
+        $section = fn (string $label, string $every, string $noun, array $verbs, array $types) => [
+            'label' => $label,
+            'verbs' => array_values($verbs),
+            'rows' => [
+                ['label' => $every, 'names' => array_map(fn (string $verb) => "{$verb}_{$noun}", array_keys($verbs))],
+                ...array_map(fn (string $type) => ['label' => Navigation::label($type), 'names' => array_map(fn (string $verb) => Capabilities::names($type, $verb)[0], array_keys($verbs))], array_values($types)),
+            ],
+        ];
+
+        return [
+            $section('Content', 'Every entry type', 'entries', ['edit' => 'Edit', 'edit_published' => 'Edit published', 'edit_others' => "Edit others'", 'publish' => 'Publish', 'delete' => 'Delete', 'delete_others' => "Delete others'"], $entries),
+            $section('Taxonomies', 'Every taxonomy', 'terms', ['manage' => 'Manage'], array_filter($types, fn (string $type) => is_subclass_of($type, Taxonomy::class))),
+            $section('Globals', 'Every global', 'globals', ['edit' => 'Edit', 'publish' => 'Publish'], array_filter($types, fn (string $type) => is_subclass_of($type, GlobalSet::class))),
+        ];
+    }
+
     /** @return list<string> */
-    private function posted(Request $request): array
+    public static function posted(Request $request): array
     {
         $posted = $request->input('capabilities', []);
 

@@ -74,16 +74,17 @@ class ContentSchema
             }
 
             /* An entry's own view, and what marks one a relation did not load.
-               A global has neither, so the names are left to its fields. */
+               A global has neither, so the names are left to its fields.
+               `type` is the handle the API hands out beside the id. */
             $entry = is_subclass_of($type, Entry::class);
 
-            foreach (['id', 'site_id', 'parent_id', 'locale', 'owner_id', 'published_by', ...($entry ? ['template', 'missing'] : []), 'created_at', 'updated_at', 'deleted_at', 'uri'] as $reserved) {
+            foreach (['id', 'type', 'site_id', 'parent_id', 'locale', 'owner_id', 'published_by', ...($entry ? ['template', 'missing'] : []), 'created_at', 'updated_at', 'deleted_at', 'uri'] as $reserved) {
                 if ($columns->has($reserved)) {
                     throw new InvalidArgumentException("{$type} has a field stored as {$reserved}, a column Mainstay keeps for itself. Rename the property.");
                 }
             }
 
-            if (in_array($handle, ['sites', 'uris', 'migrations', 'mainstay_media', 'mainstay_drafts', 'mainstay_revisions', 'mainstay_roles', 'mainstay_users', 'mainstay_password_reset_tokens'], true) || str_ends_with($handle, '_locales') || str_ends_with($handle, '_entries')) {
+            if (in_array($handle, ['sites', 'uris', 'migrations', 'mainstay_media', 'mainstay_drafts', 'mainstay_revisions', 'mainstay_roles', 'mainstay_users', 'mainstay_password_reset_tokens', 'mainstay_tokens', 'mainstay_connectors'], true) || str_ends_with($handle, '_locales') || str_ends_with($handle, '_entries')) {
                 throw new InvalidArgumentException("{$type} would be stored in {$handle}, a table Mainstay keeps for itself. Rename the class.");
             }
 

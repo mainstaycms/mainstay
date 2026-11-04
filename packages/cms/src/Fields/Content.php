@@ -250,6 +250,34 @@ class Content extends RichText
         return $content;
     }
 
+    /* The document as read, each block's data its fields' payloads, the
+       blocks inside it too: an image inside a block comes with its URLs, as
+       one on the entry does. */
+    public function payload(mixed $value, Closure $nested): mixed
+    {
+        if (! $value instanceof Document) {
+            return parent::payload($value, $nested);
+        }
+
+        $tree = $value->toArray();
+
+        return [...$tree, 'content' => $this->payloadNodes($tree['content'] ?? [], $value, $nested)];
+    }
+
+    private function payloadNodes(array $nodes, Document $document, Closure $nested): array
+    {
+        return array_map(function (mixed $node) use ($document, $nested) {
+            if (! $this->block($node) || ($block = $document->block((string) ($node['attrs']['id'] ?? ''))) === null) {
+                return $node;
+            }
+
+            /* An object even for a block with no fields, as JSON has it. */
+            $node['attrs']['data'] = (object) $nested($block);
+
+            return is_array($node['content'] ?? null) ? [...$node, 'content' => $this->payloadNodes($node['content'], $document, $nested)] : $node;
+        }, $nodes);
+    }
+
     /* The document as stored, each block's data serialized by its fields,
        the blocks inside it too, and a block with no id given one. */
     protected function to(mixed $value): mixed

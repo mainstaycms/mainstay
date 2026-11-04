@@ -28,6 +28,7 @@
                 :email="$user->email"
             >
                 <x-mainstay::dropdown-item as="a" :href="route('mainstay.account')">Account settings</x-mainstay::dropdown-item>
+                <x-mainstay::dropdown-item as="a" :href="route('mainstay.tokens')">API tokens</x-mainstay::dropdown-item>
                 <form method="POST" action="{{ route('mainstay.logout') }}" data-sign-out>
                     @csrf
                     <x-mainstay::dropdown-item type="submit">Sign out</x-mainstay::dropdown-item>

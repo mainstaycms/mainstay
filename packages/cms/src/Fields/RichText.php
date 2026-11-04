@@ -73,8 +73,8 @@ class RichText extends Field
         return $value instanceof Document ? $value->toArray() : $value;
     }
 
-    /* The root only. The recursive node schema is served with the rest in
-       phase 13, from the discovery endpoint, rather than inlined per field. */
+    /* The root only. The recursive node schema is the API's discovery
+       document's, once, rather than inlined per field. */
     protected function json(): array
     {
         return [
@@ -82,5 +82,13 @@ class RichText extends Field
             'properties' => ['type' => ['const' => 'doc'], 'content' => ['type' => 'array']],
             'required' => ['type', 'content'],
         ];
+    }
+
+    public function payloadSchema(Closure $ref): array
+    {
+        $schema = $this->schema();
+        $schema['properties']['content']['items'] = $ref(Document::class);
+
+        return $schema;
     }
 }

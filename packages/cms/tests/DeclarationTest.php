@@ -8,6 +8,7 @@ use Illuminate\Translation\ArrayLoader;
 use Illuminate\Translation\Translator;
 use Illuminate\Validation\Factory;
 use InvalidArgumentException;
+use Mainstay\Api\TypeScript;
 use Mainstay\Content\Entry;
 use Mainstay\Content\Route;
 use Mainstay\Fields\Blocks;
@@ -1111,5 +1112,63 @@ class DeclarationTest extends TestCase
             CarbonImmutable::setTestNow();
             date_default_timezone_set($zone);
         }
+    }
+
+    /* Every part of JSON Schema the API's document is written in, as
+       TypeScript: a handle's interface named for its class and Mainstay's
+       own as they are, a union of a list in brackets, a map, and a keyword
+       the converter does not know read as anything at all. */
+    #[Test]
+    public function the_schema_is_written_out_as_typescript(): void
+    {
+        $declared = TypeScript::from(['$defs' => [
+            'blog_post' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'integer'],
+                    'type' => ['const' => 'blog_post'],
+                    'uri' => ['type' => ['string', 'null']],
+                    'status' => ['type' => 'string', 'enum' => ['draft', 'live']],
+                    'cover' => ['anyOf' => [['type' => ['integer', 'null']], ['$ref' => '#/$defs/Media']]],
+                    'picks' => ['type' => 'array', 'items' => ['anyOf' => [['type' => 'integer'], ['$ref' => '#/$defs/blog_post']]]],
+                    'tags' => ['type' => 'array', 'items' => ['type' => 'string']],
+                    'meta-data' => ['type' => 'object', 'properties' => ['score' => ['type' => 'number']], 'required' => []],
+                    'other' => ['not' => ['type' => 'string']],
+                ],
+                'required' => ['id', 'type', 'uri', 'status', 'cover', 'picks', 'tags', 'meta-data', 'other'],
+            ],
+            'Media' => ['type' => 'object', 'properties' => ['sizes' => ['type' => 'object', 'additionalProperties' => ['type' => 'string']]], 'required' => []],
+        ]]);
+
+        $this->assertSame(<<<'TS'
+            // Written by `php artisan mainstay:typescript` from the API's /schema. Do not edit.
+
+            export interface BlogPost {
+                id: number;
+                type: "blog_post";
+                uri: string | null;
+                status: "draft" | "live";
+                cover: number | null | Media;
+                picks: (number | BlogPost)[];
+                tags: string[];
+                "meta-data": {
+                    score?: number;
+                };
+                other: unknown;
+            }
+
+            export interface Media {
+                sizes?: Record<string, string>;
+            }
+
+            TS, $declared);
+    }
+
+    #[Test]
+    public function two_types_declared_by_one_name_are_refused(): void
+    {
+        $this->expectExceptionMessage('The definitions blog_post and blogPost would both be declared as BlogPost.');
+
+        TypeScript::from(['$defs' => ['blog_post' => ['type' => 'object'], 'blogPost' => ['type' => 'object']]]);
     }
 }

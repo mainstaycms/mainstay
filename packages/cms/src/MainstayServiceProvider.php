@@ -13,11 +13,17 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Laravel\Ai\AiManager;
+use Laravel\Ai\AiServiceProvider;
+use Laravel\Mcp\Server\McpServiceProvider;
+use Mainstay\Ai\Connectors;
 use Mainstay\Auth\Gate;
 use Mainstay\Auth\User;
 use Mainstay\Console\ReprocessCommand;
 use Mainstay\Console\SchemaCheckCommand;
 use Mainstay\Console\SyncCommand;
+use Mainstay\Console\TokenCommand;
+use Mainstay\Console\TypeScriptCommand;
 use Mainstay\Console\UserCommand;
 use Mainstay\Database\ContentSchema;
 use Mainstay\Http\PreventRequestForgery;
@@ -40,6 +46,16 @@ class MainstayServiceProvider extends ServiceProvider
          | itself loses nothing.
          */
         $this->app->register(UiServiceProvider::class);
+
+        /* MCP's server, for the API's /mcp, likewise: a host turning discovery
+           off for laravel/mcp would otherwise fail on the facade. */
+        $this->app->register(McpServiceProvider::class);
+
+        /* laravel/ai, likewise, with what the Connectors screen saved written
+           into its config as it is first made: see Connectors::apply(). */
+        $this->app->register(AiServiceProvider::class);
+        $this->app->singleton(Connectors::class);
+        $this->app->afterResolving(AiManager::class, fn (AiManager $ai) => $this->app->make(Connectors::class)->apply($ai));
 
         $this->app->singleton(Mainstay::class);
 
@@ -142,7 +158,7 @@ class MainstayServiceProvider extends ServiceProvider
         }
 
         if ($this->app->runningInConsole()) {
-            $this->commands([SyncCommand::class, SchemaCheckCommand::class, ReprocessCommand::class, UserCommand::class]);
+            $this->commands([SyncCommand::class, SchemaCheckCommand::class, ReprocessCommand::class, UserCommand::class, TokenCommand::class, TypeScriptCommand::class]);
 
             Event::listen(fn (CommandStarting $event) => $this->warnAboutSync($event));
 
