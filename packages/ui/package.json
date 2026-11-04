@@ -23,7 +23,7 @@
     "@storybook/addon-a11y": "^10.6.0",
     "@storybook/addon-docs": "^10.6.0",
     "@tailwindcss/vite": "^4.3.3",
-    "storybook": "^10.6.0",
+    "storybook": "^10.6.2",
     "storybook-php": "^0.3.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
