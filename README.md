@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/schotman-development/mainstay/actions/workflows/ci.yml"><img src="https://github.com/schotman-development/mainstay/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/mainstaycms/mainstay/actions/workflows/ci.yml"><img src="https://github.com/mainstaycms/mainstay/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/PHP-8.3%2B-777bb4" alt="PHP 8.3+">
   <img src="https://img.shields.io/badge/Laravel-13-ff2d20" alt="Laravel 13">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-346fa9" alt="MIT licence"></a>
