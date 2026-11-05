@@ -34,6 +34,30 @@ jobs:
 
       - run: vendor/bin/phpunit
 
+  # Larastan checks the types; Psalm traces request input into SQL, HTML,
+  # headers, paths and shell calls. Both fail only on what their baseline
+  # does not already hold.
+  analysis:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - uses: ramsey/composer-install@a8d0d959dab41457692a5e2041bd9b757a119e3f # 3.2.1
+
+      - run: composer audit
+
+      - run: vendor/bin/phpstan analyse --no-progress --memory-limit=2G
+
+      - run: vendor/bin/psalm --taint-analysis --no-progress --no-cache
+
   # SchemaTest, ContentTest and RenderTest are the suites a driver changes the
   # answer to: the scratch comparison reads back whatever the driver calls a
   # type, Postgres casts and restates an enum its own way, MySQL refuses foreign

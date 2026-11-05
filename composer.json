@@ -7,10 +7,13 @@
         "php": "^8.3"
     },
     "require-dev": {
+        "larastan/larastan": "^3.14",
+        "laravel/pint": "^1.18",
         "mainstay/cms": "@dev",
         "mainstay/ui": "@dev",
         "orchestra/testbench": "^11.0",
-        "laravel/pint": "^1.18"
+        "psalm/plugin-laravel": "^4.18",
+        "vimeo/psalm": "^7.0"
     },
     "repositories": [
         {
@@ -51,6 +54,8 @@
             "@php vendor/bin/testbench serve --ansi"
         ],
         "lint": "@php vendor/bin/pint",
+        "analyse": "@php vendor/bin/phpstan analyse --memory-limit=2G",
+        "taint": "@php vendor/bin/psalm --taint-analysis --no-cache",
         "test": "@php vendor/bin/phpunit"
     },
     "minimum-stability": "dev",

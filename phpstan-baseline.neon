@@ -1,0 +1,457 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Dead catch \- Illuminate\\Contracts\\Encryption\\DecryptException is never thrown in the try block\.$#'
+			identifier: catch.neverThrown
+			count: 1
+			path: packages/cms/src/Ai/Connector.php
+
+		-
+			message: '#^Only iterables can be unpacked, string given\.$#'
+			identifier: arrayUnpacking.nonIterable
+			count: 1
+			path: packages/cms/src/Ai/Connectors.php
+
+		-
+			message: '#^Parameter \#1 \$array of function array_diff expects array, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: packages/cms/src/Ai/Connectors.php
+
+		-
+			message: '#^Parameter \#2 \$callback of method Illuminate\\Support\\MultipleInstanceManager\:\:extend\(\) expects bindable closure, static closure given\.$#'
+			identifier: argument.staticClosure
+			count: 1
+			path: packages/cms/src/Ai/Connectors.php
+
+		-
+			message: '#^Parameter \#2 \$haystack of function in_array expects array, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: packages/cms/src/Ai/Connectors.php
+
+		-
+			message: '#^Property Mainstay\\Ai\\Connector\:\:\$defaults \(string\) does not accept list\<mixed\>\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: packages/cms/src/Ai/Connectors.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between list\<mixed\> and string will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: packages/cms/src/Ai/Connectors.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and array\{\} will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: packages/cms/src/Ai/Connectors.php
+
+		-
+			message: '#^Access to an undefined property Mainstay\\Auth\\User\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/cms/src/Auth/Accounts.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Contracts\\Auth\\PasswordBroker\:\:createToken\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: packages/cms/src/Auth/Accounts.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$capabilities\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/cms/src/Auth/Capabilities.php
+
+		-
+			message: '#^Result of && is always false\.$#'
+			identifier: booleanAnd.alwaysFalse
+			count: 1
+			path: packages/cms/src/Auth/Capabilities.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and array\{\} will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: packages/cms/src/Auth/Capabilities.php
+
+		-
+			message: '#^Access to an undefined property Mainstay\\Auth\\User\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/cms/src/Auth/Invitation.php
+
+		-
+			message: '#^Access to an undefined property Mainstay\\Auth\\User\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/cms/src/Auth/ResetPassword.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$capabilities\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/cms/src/Auth/User.php
+
+		-
+			message: '#^Only iterables can be unpacked, string given\.$#'
+			identifier: arrayUnpacking.nonIterable
+			count: 1
+			path: packages/cms/src/Auth/User.php
+
+		-
+			message: '#^Parameter \#2 \.\.\.\$arrays of function array_intersect expects array, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: packages/cms/src/Auth/User.php
+
+		-
+			message: '#^Call to function method_exists\(\) with ReflectionProperty and ''hasHooks'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: packages/cms/src/Content/Entry.php
+
+		-
+			message: '#^Property Mainstay\\Content\\Entry\:\:\$template \(string\|null\) is never assigned string so it can be removed from the property type\.$#'
+			identifier: property.unusedType
+			count: 1
+			path: packages/cms/src/Content/Entry.php
+
+		-
+			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: packages/cms/src/Content/Example.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Schema\\ColumnDefinition\:\:\$allowed\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/cms/src/Database/ContentSchema.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Schema\\ColumnDefinition\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/cms/src/Database/ContentSchema.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Schema\\ColumnDefinition\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/cms/src/Database/ContentSchema.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Support\\Fluent\:\:\$columns\.$#'
+			identifier: property.notFound
+			count: 2
+			path: packages/cms/src/Database/ContentSchema.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Support\\Fluent\:\:\$index\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/cms/src/Database/ContentSchema.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Support\\Fluent\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/cms/src/Database/ContentSchema.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Support\\Fluent\:\:\$on\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/cms/src/Database/ContentSchema.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Support\\Fluent\:\:\$references\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/cms/src/Database/ContentSchema.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<\(int\|string\),Illuminate\\Support\\Fluent\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: packages/cms/src/Database/ContentSchema.php
+
+		-
+			message: '#^Call to function method_exists\(\) with ReflectionProperty and ''hasHooks'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: packages/cms/src/Database/ContentStore.php
+
+		-
+			message: '#^Cannot call static method handle\(\) on \(int\|string\)\.$#'
+			identifier: staticMethod.nonObject
+			count: 1
+			path: packages/cms/src/Database/ContentStore.php
+
+		-
+			message: '#^Method Mainstay\\Database\\ContentStore\:\:create\(\) should return T of Mainstay\\Content\\Entry but returns Mainstay\\Content\\ContentType\.$#'
+			identifier: return.type
+			count: 1
+			path: packages/cms/src/Database/ContentStore.php
+
+		-
+			message: '#^Method Mainstay\\Database\\ContentStore\:\:find\(\) should return Illuminate\\Support\\Collection\<int, T of Mainstay\\Content\\Entry\> but returns Illuminate\\Support\\Collection\<int, Mainstay\\Content\\ContentType\>\.$#'
+			identifier: return.type
+			count: 1
+			path: packages/cms/src/Database/ContentStore.php
+
+		-
+			message: '#^Method Mainstay\\Database\\ContentStore\:\:global\(\) should return Mainstay\\Content\\GlobalSet\|null but returns Mainstay\\Content\\ContentType\.$#'
+			identifier: return.type
+			count: 1
+			path: packages/cms/src/Database/ContentStore.php
+
+		-
+			message: '#^Method Mainstay\\Database\\ContentStore\:\:paginate\(\) should return Illuminate\\Pagination\\LengthAwarePaginator\<int, T of Mainstay\\Content\\Entry\> but returns Illuminate\\Pagination\\LengthAwarePaginator\<\(int\|string\), Mainstay\\Content\\ContentType\>\.$#'
+			identifier: return.type
+			count: 1
+			path: packages/cms/src/Database/ContentStore.php
+
+		-
+			message: '#^Method Mainstay\\Database\\ContentStore\:\:preview\(\) should return Mainstay\\Content\\Entry but returns Mainstay\\Content\\ContentType\.$#'
+			identifier: return.type
+			count: 1
+			path: packages/cms/src/Database/ContentStore.php
+
+		-
+			message: '#^Method Mainstay\\Database\\ContentStore\:\:saveGlobal\(\) should return Mainstay\\Content\\GlobalSet but returns Mainstay\\Content\\ContentType\.$#'
+			identifier: return.type
+			count: 1
+			path: packages/cms/src/Database/ContentStore.php
+
+		-
+			message: '#^Method Mainstay\\Database\\ContentStore\:\:unpublished\(\) should return Mainstay\\Content\\Entry but returns Mainstay\\Content\\ContentType\.$#'
+			identifier: return.type
+			count: 1
+			path: packages/cms/src/Database/ContentStore.php
+
+		-
+			message: '#^Method Mainstay\\Database\\ContentStore\:\:update\(\) should return T of Mainstay\\Content\\Entry but returns Mainstay\\Content\\ContentType\.$#'
+			identifier: return.type
+			count: 1
+			path: packages/cms/src/Database/ContentStore.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>nullable" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: packages/cms/src/Database/ContentStore.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>owner_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: packages/cms/src/Database/ContentStore.php
+
+		-
+			message: '#^Call to function array_is_list\(\) with list\<class\-string\<Mainstay\\Content\\Block\>\> will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: packages/cms/src/Fields/Blocks.php
+
+		-
+			message: '#^Call to function is_string\(\) with class\-string\<Mainstay\\Content\\Block\> will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 2
+			path: packages/cms/src/Fields/Blocks.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>text" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: packages/cms/src/Fields/Content.php
+
+		-
+			message: '#^Class Mainstay\\Fields\\Field has an uninitialized readonly property \$default\. Assign it in the constructor\.$#'
+			identifier: property.uninitializedReadonly
+			count: 1
+			path: packages/cms/src/Fields/Field.php
+
+		-
+			message: '#^Class Mainstay\\Fields\\Field has an uninitialized readonly property \$hasDefault\. Assign it in the constructor\.$#'
+			identifier: property.uninitializedReadonly
+			count: 1
+			path: packages/cms/src/Fields/Field.php
+
+		-
+			message: '#^Class Mainstay\\Fields\\Field has an uninitialized readonly property \$internal\. Assign it in the constructor\.$#'
+			identifier: property.uninitializedReadonly
+			count: 1
+			path: packages/cms/src/Fields/Field.php
+
+		-
+			message: '#^Class Mainstay\\Fields\\Field has an uninitialized readonly property \$name\. Assign it in the constructor\.$#'
+			identifier: property.uninitializedReadonly
+			count: 1
+			path: packages/cms/src/Fields/Field.php
+
+		-
+			message: '#^Class Mainstay\\Fields\\Field has an uninitialized readonly property \$nullable\. Assign it in the constructor\.$#'
+			identifier: property.uninitializedReadonly
+			count: 1
+			path: packages/cms/src/Fields/Field.php
+
+		-
+			message: '#^Class Mainstay\\Fields\\Field has an uninitialized readonly property \$phpType\. Assign it in the constructor\.$#'
+			identifier: property.uninitializedReadonly
+			count: 1
+			path: packages/cms/src/Fields/Field.php
+
+		-
+			message: '#^Readonly property Mainstay\\Fields\\Field\:\:\$default is assigned outside of the constructor\.$#'
+			identifier: property.readOnlyAssignNotInConstructor
+			count: 1
+			path: packages/cms/src/Fields/Field.php
+
+		-
+			message: '#^Readonly property Mainstay\\Fields\\Field\:\:\$hasDefault is assigned outside of the constructor\.$#'
+			identifier: property.readOnlyAssignNotInConstructor
+			count: 1
+			path: packages/cms/src/Fields/Field.php
+
+		-
+			message: '#^Readonly property Mainstay\\Fields\\Field\:\:\$internal is assigned outside of the constructor\.$#'
+			identifier: property.readOnlyAssignNotInConstructor
+			count: 1
+			path: packages/cms/src/Fields/Field.php
+
+		-
+			message: '#^Readonly property Mainstay\\Fields\\Field\:\:\$name is assigned outside of the constructor\.$#'
+			identifier: property.readOnlyAssignNotInConstructor
+			count: 1
+			path: packages/cms/src/Fields/Field.php
+
+		-
+			message: '#^Readonly property Mainstay\\Fields\\Field\:\:\$nullable is assigned outside of the constructor\.$#'
+			identifier: property.readOnlyAssignNotInConstructor
+			count: 1
+			path: packages/cms/src/Fields/Field.php
+
+		-
+			message: '#^Readonly property Mainstay\\Fields\\Field\:\:\$phpType is assigned outside of the constructor\.$#'
+			identifier: property.readOnlyAssignNotInConstructor
+			count: 1
+			path: packages/cms/src/Fields/Field.php
+
+		-
+			message: '#^Call to function array_is_list\(\) with non\-empty\-list\<class\-string\<Mainstay\\Content\\Entry\>\> will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: packages/cms/src/Fields/Relation.php
+
+		-
+			message: '#^Call to function is_string\(\) with class\-string\<Mainstay\\Content\\Entry\> will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 2
+			path: packages/cms/src/Fields/Relation.php
+
+		-
+			message: '#^Default value of the parameter \#4 \$of \(string\) of method Mainstay\\Fields\\Terms\:\:__construct\(\) is incompatible with type class\-string\<Mainstay\\Content\\Taxonomy\>\.$#'
+			identifier: parameter.defaultValue
+			count: 1
+			path: packages/cms/src/Fields/Terms.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between class\-string\<Mainstay\\Content\\Taxonomy\> and '''' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: packages/cms/src/Fields/Terms.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:limitedTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: packages/cms/src/Http/AuthenticateToken.php
+
+		-
+			message: '#^Cannot call method diffInSeconds\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: packages/cms/src/Http/AuthenticateToken.php
+
+		-
+			message: '#^Access to an undefined property Mainstay\\Content\\ContentType\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/cms/src/Http/EntryController.php
+
+		-
+			message: '#^Offset decimal\-int\-string on array\<string, array\{title\: mixed, owner\: int\|null, category\: '''', status\: ''Draft'', modified\: string, path\: non\-falsy\-string, edit\: string, view\: null, \.\.\.\}\|array\{title\: mixed, owner\: mixed, category\: '''', status\: ''Published''\|''Trashed'', modified\: mixed, path\: string, edit\: string, view\: mixed, \.\.\.\}\> in isset\(\) does not exist\.$#'
+			identifier: isset.offset
+			count: 1
+			path: packages/cms/src/Http/EntryController.php
+
+		-
+			message: '#^Result of && is always false\.$#'
+			identifier: booleanAnd.alwaysFalse
+			count: 1
+			path: packages/cms/src/Http/EntryController.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between Mainstay\\Content\\Entry\|Mainstay\\Content\\GlobalSet and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: packages/cms/src/Http/EntryController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>createdAt" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: packages/cms/src/Http/EntryController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>entry" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: packages/cms/src/Http/EntryController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: packages/cms/src/Http/EntryController.php
+
+		-
+			message: '#^Parameter \#1 \$array of function array_diff expects array, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: packages/cms/src/Http/RoleController.php
+
+		-
+			message: '#^Parameter \#2 \$names of static method Mainstay\\Auth\\Capabilities\:\:uncovered\(\) expects array, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: packages/cms/src/Http/UserController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\View\\ViewFinderInterface\:\:getHints\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: packages/cms/src/Mainstay.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$capabilities\.$#'
+			identifier: property.notFound
+			count: 1
+			path: packages/cms/src/Policies/AccountPolicy.php
+
+		-
+			message: '#^Only iterables can be unpacked, string given\.$#'
+			identifier: arrayUnpacking.nonIterable
+			count: 1
+			path: packages/cms/src/Policies/AccountPolicy.php
+
+		-
+			message: '#^Parameter \#2 \.\.\.\$sets of method Mainstay\\Policies\\AccountPolicy\:\:manages\(\) expects array, string given\.$#'
+			identifier: argument.type
+			count: 2
+			path: packages/cms/src/Policies/AccountPolicy.php
