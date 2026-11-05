@@ -20,6 +20,9 @@ use Mainstay\Media\Size;
  */
 final class Media
 {
+    /* What a copy can be written in, by MIME type. */
+    private const TYPES = ['avif' => 'image/avif', 'webp' => 'image/webp', 'jpg' => 'image/jpeg', 'png' => 'image/png'];
+
     public readonly bool $missing;
 
     /* The block and the field it was read from, which the Content tab's
@@ -29,6 +32,7 @@ final class Media
     /**
      * @param  array{0: int, 1: int}|null  $focal  percentages across and down
      * @param  array<string, Size>  $sizes  by name, the field's
+     * @param  list<string>  $formats  every copy's, the one an <img> shows last
      */
     public function __construct(
         public readonly int $id,
@@ -43,6 +47,7 @@ final class Media
         /* Who uploaded it, none for code on its own authority: what
            MediaPolicy asks. */
         public readonly ?int $ownerId = null,
+        private readonly array $formats = [],
     ) {
         $this->missing = $hash === null;
     }
@@ -50,7 +55,7 @@ final class Media
     /* This image with the sizes of the field it is read through. */
     public function sized(array $sizes): self
     {
-        return new self($this->id, $this->alt, $this->hash, $this->type, $this->name, $this->focal, $this->originalWidth, $this->originalHeight, $sizes, $this->ownerId);
+        return new self($this->id, $this->alt, $this->hash, $this->type, $this->name, $this->focal, $this->originalWidth, $this->originalHeight, $sizes, $this->ownerId, $this->formats);
     }
 
     /* This image as a block's field holds it. */
@@ -62,17 +67,19 @@ final class Media
         return $copy;
     }
 
-    /* The copy's address, WebP unless AVIF is asked for. Null for an image
-       that is missing. */
-    public function url(string $size, string $format = 'webp'): ?string
+    /* The copy's address, in the format an <img> shows unless another is
+       asked for. Null for an image that is missing, or a format this one
+       was not written in: the host's GD could not write it. */
+    public function url(string $size, ?string $format = null): ?string
     {
-        if (! in_array($format, ['webp', 'avif'], true)) {
-            throw new InvalidArgumentException("Copies are written as webp and avif, not {$format}.");
+        if ($format !== null && ! isset(self::TYPES[$format])) {
+            throw new InvalidArgumentException('Copies are written as '.implode(', ', array_keys(self::TYPES)).", not {$format}.");
         }
 
         $declared = $this->size($size);
+        $format ??= $this->formats === [] ? null : $this->formats[array_key_last($this->formats)];
 
-        return $this->missing ? null : Storage::disk(config('mainstay.media.disk', 'public'))->url($declared->path($this->hash, $this->focal, $format));
+        return $this->missing || ! in_array($format, $this->formats, true) ? null : Storage::disk(config('mainstay.media.disk', 'public'))->url($declared->path($this->hash, $this->focal, $format));
     }
 
     public function width(string $size): ?int
@@ -86,8 +93,9 @@ final class Media
     }
 
     /*
-     | The copy as a `<picture>`: the AVIF as a source, the WebP as the
-     | `<img>`, with alt and real dimensions on it. Lazy unless the attributes
+     | The copy as a `<picture>`: a source for each better format it was
+     | written in, AVIF before WebP, and the last as the `<img>`, with alt and
+     | real dimensions on it. Lazy unless the attributes
      | say otherwise, and nothing at all for an image that is missing. A
      | block's, drawn for the Content tab's editor, is marked with the block's
      | id and the field's name, so it is picked and edited on the page.
@@ -110,22 +118,26 @@ final class Media
             ...$attributes,
         ];
 
+        $sources = array_map(fn (string $format) => sprintf('<source type="%s" srcset="%s">', self::TYPES[$format], e($this->url($size, $format))), array_slice($this->formats, 0, -1));
+
         return new HtmlString(sprintf(
-            '<picture%s><source type="image/avif" srcset="%s"><img %s></picture>',
+            '<picture%s>%s<img %s></picture>',
             $this->at !== null && app(Mainstay::class)->marking() ? sprintf(' data-mainstay-image="%s" data-mainstay-item="%s"', e($this->at[1]), e($this->at[0])) : '',
-            e($this->url($size, 'avif')),
+            implode('', $sources),
             implode(' ', array_map(fn (string $name, mixed $value) => $name.'="'.e((string) $value).'"', array_keys($attributes), $attributes)),
         ));
     }
 
     /* The image as the API hands it out: what picture() prints, for every
-       size its field declares, so a reader draws it with no id to look up. */
+       size its field declares, so a reader draws it with no id to look up.
+       `src` is the <img>'s; AVIF and WebP are null where they were not
+       written. */
     public function toArray(): array
     {
         $sizes = [];
 
         foreach (array_keys($this->sizes) as $size) {
-            $sizes[$size] = ['webp' => $this->url($size), 'avif' => $this->url($size, 'avif'), 'width' => $this->width($size), 'height' => $this->height($size)];
+            $sizes[$size] = ['src' => $this->url($size), 'avif' => $this->url($size, 'avif'), 'webp' => $this->url($size, 'webp'), 'width' => $this->width($size), 'height' => $this->height($size)];
         }
 
         return ['id' => $this->id, 'alt' => $this->alt, 'focal' => $this->focal, 'sizes' => (object) $sizes];

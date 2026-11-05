@@ -387,7 +387,7 @@ one is set.
 **Files.** The original is kept permanently on `mainstay.media.originals`, Laravel's private `local`,
 as `media/{hash}.{ext}`, and never served: it carries the camera's EXIF, GPS included, which the
 re-encoded copies do not. The copies go to `mainstay.media.disk`, `public`, as
-`media/{hash}-{w}x{h}-{x}-{y}.{avif|webp}` for a size that crops and `media/{hash}-{w}.{avif|webp}` for
+`media/{hash}-{w}x{h}-{x}-{y}.{format}` for a size that crops and `media/{hash}-{w}.{format}` for
 one that only scales, so moving the point leaves the scaled files alone. Every file is written under a
 temporary name and moved into place, each step checked whatever the disk's `throw` says, so a name
 that exists is a whole file: generating skips it, and nothing needs invalidating. Files are written
@@ -401,7 +401,10 @@ then `resize()` -- spatie's `focalCrop()` takes a centre in pixels and does not 
 `focalCropAndResize()` enlarges. `Mainstay\Media\Size` gives the region, the size written and what a
 template is told, so they cannot disagree. GD decodes into PHP's memory, so an image over what
 `memory_limit` leaves room for, at ten bytes a pixel and read from its header, is refused before it is
-decoded. A GD that cannot write AVIF or WebP refuses the upload naming which.
+decoded. A GD that cannot write AVIF or WebP writes what it can: each image records its formats in
+`mainstay_media.formats`, a `<picture>` offers only those, and an image with no WebP falls back to
+its original's kind, JPEG for a JPEG and PNG otherwise. `mainstay:media:reprocess` writes a format
+GD gains later.
 
 **Sizes** are declared on the field:
 `#[Image(sizes: ['cover' => [1600, 900], 'card' => [640]])] public ?Media $cover`. A width and a
@@ -430,9 +433,9 @@ long as the process, so what one read loaded travels with the cast. A cast hande
 a write shows Gate -- reads every image as missing. Every read resolves its images; whether depth 0
 hands back the id instead is phase 7's question.
 
-**In a template** `$entry->cover` has `alt` in the locale it was read in, `url('card')` for the WebP
-and `url('card', 'avif')`, and `width('card')` and `height('card')` as written. `picture('card')`
-prints a `<picture>` with the AVIF as its source and the WebP as the `<img>`, alt and dimensions on it,
+**In a template** `$entry->cover` has `alt` in the locale it was read in, `url('card')` for the `<img>`'s
+copy and `url('card', 'avif')`, null where it was not written, and `width('card')` and `height('card')` as written. `picture('card')`
+prints a `<picture>` with a source for each better format written and the last as the `<img>`, alt and dimensions on it,
 lazy unless the attributes passed say otherwise. A Media from `find()` or `upload()`, read through no
 field, has no sizes and says so. A `srcset` across sizes waits until a site's templates repeat one;
 an image inside rich text waits too, since a node for one changes the closed schema in both places.

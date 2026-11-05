@@ -59,7 +59,8 @@ Mainstay owns its tables inside your app. "Headless" describes the consumer, not
 - **Translated per field.** A field says whether it is translated. A title gets one value per
   language, a date or a price stays one, and each language is served on its own host or path prefix.
 - **Images written once.** An installation-wide media library with alt text in every language and a
-  focal point. Every size a field declares is written as AVIF and WebP the moment a file arrives.
+  focal point. Every size a field declares is written as AVIF and WebP the moment a file arrives,
+  or in the original's own format where PHP's GD writes neither.
 - **Relations, tags and globals.** Entries point at each other through relations a read follows to a
   depth, tags are the entries of a taxonomy, and a global holds a site's menu and footer.
 - **Drafts, history and the trash.** A change waits as a draft until it is published, every version a
