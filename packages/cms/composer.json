@@ -3,6 +3,7 @@
     "description": "A CMS for Laravel: content modelled in PHP, edited in a Blade admin, rendered by the host app's Blade views or served headless over a REST and MCP API.",
     "keywords": ["laravel", "cms", "headless", "content"],
     "license": "MIT",
+    "homepage": "https://mainstaycms.org",
     "require": {
         "php": "^8.3",
         "illuminate/auth": "^13.0",

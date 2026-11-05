@@ -13,9 +13,11 @@ use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use Mainstay\Content\Media;
 use Mainstay\Facades\Mainstay;
+use Mainstay\Fields\Image;
 use Mainstay\Mainstay as Registry;
 use Mainstay\Media\Reprocess;
 use Mainstay\Media\Size;
+use Mainstay\Tests\Fixtures\Banner;
 use Mainstay\Tests\Fixtures\Broken\Framed;
 use Mainstay\Tests\Fixtures\Broken\Unsized;
 use Mainstay\Tests\Fixtures\Pictured;
@@ -191,6 +193,61 @@ class MediaTest extends DatabaseTestCase
         $this->assertSame(['file' => ["This image is already in the library, as image {$media->id}."]], $this->refusal(fn () => $this->upload($file)));
         $this->assertSame(1, DB::table('mainstay_media')->count());
         $this->assertCount(8, Storage::disk('public')->files('media'));
+    }
+
+    #[Test]
+    public function every_size_is_written_at_a_half_and_a_quarter_too_and_a_picture_offers_them_in_a_srcset(): void
+    {
+        $this->declare(Pictured::class, Banner::class);
+        $this->artisan('mainstay:sync')->assertSuccessful();
+        $media = $this->upload($this->png(1200, 600, 600));
+        $hash = $media->hash;
+
+        /* The crop's half and quarter, the scale's half and not its quarter
+           at 80 pixels, and nothing for sizes too narrow to halve. */
+        $this->assertSame([300, 150], $this->dimensions("media/{$hash}-300x150-50-50.webp"));
+        $this->assertSame([150, 75], $this->dimensions("media/{$hash}-150x75-50-50.avif"));
+        $this->assertSame([160, 80], $this->dimensions("media/{$hash}-160.webp"));
+        $this->assertFalse(Storage::disk('public')->exists("media/{$hash}-80.webp"));
+        $this->assertFalse(Storage::disk('public')->exists("media/{$hash}-20x10-50-50.webp"));
+        $this->assertSame(['0.5'], array_keys((new Size(560))->fractions()), 'A quarter of 140 pixels is too narrow.');
+
+        $image = Mainstay::create(Banner::class, ['title' => 'Banner', 'image' => $media], locale: 'en', overrideAccess: true)->image;
+        $copies = fn (string $format) => implode(', ', array_map(
+            fn (string $copy, int $width) => Storage::disk('public')->url("media/{$hash}-{$copy}.{$format}")." {$width}w",
+            ['150x75-50-50', '300x150-50-50', '600x300-50-50'],
+            [150, 300, 600],
+        ));
+
+        $this->assertSame(
+            '<picture><source type="image/avif" srcset="'.e($copies('avif')).'" sizes="auto, 100vw"><img src="'.e($image->url('hero')).'" srcset="'.e($copies('webp')).'" alt="Red beside blue" width="600" height="300" loading="lazy" decoding="async" sizes="auto, 100vw"></picture>',
+            (string) $image->picture('hero'),
+        );
+        $this->assertStringContainsString('loading="eager" decoding="async" sizes="100vw">', (string) $image->picture('hero', ['loading' => 'eager']), 'Only a lazy image is sized by its layout.');
+        $this->assertSame(2, substr_count((string) $image->picture('hero', ['sizes' => '50vw']), ' sizes="50vw"'), 'The sources are sized as the <img> is.');
+
+        /* The API lists each fraction after its size, named by it. */
+        $sizes = (array) $image->toArray()['sizes'];
+        $this->assertSame(['hero', 'hero@0.5', 'hero@0.25', 'strip', 'strip@0.5'], array_keys($sizes));
+        $this->assertSame([
+            'src' => Storage::disk('public')->url("media/{$hash}-300x150-50-50.webp"),
+            'avif' => Storage::disk('public')->url("media/{$hash}-300x150-50-50.avif"),
+            'webp' => Storage::disk('public')->url("media/{$hash}-300x150-50-50.webp"),
+            'width' => 300,
+            'height' => 150,
+        ], $sizes['hero@0.5']);
+        $this->assertThrows(fn () => new Image(sizes: ['card@2x' => [40]]), InvalidArgumentException::class, 'named without an @');
+
+        /* An original narrower than a size is written at its own width, once. */
+        $narrow = $this->upload($this->png(400, 200, 200));
+        $image = Mainstay::create(Banner::class, ['title' => 'Narrow', 'image' => $narrow], locale: 'en', overrideAccess: true)->image;
+
+        $this->assertStringContainsString(' 300w, '.Storage::disk('public')->url("media/{$narrow->hash}-600x300-50-50.webp").' 400w"', (string) $image->picture('hero'));
+
+        $tiny = $this->upload($this->png(140, 70, 70));
+        $image = Mainstay::create(Banner::class, ['title' => 'Tiny', 'image' => $tiny], locale: 'en', overrideAccess: true)->image;
+
+        $this->assertStringNotContainsString('140w', (string) $image->picture('strip'), 'Copies all one width are one src.');
     }
 
     #[Test]

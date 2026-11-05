@@ -17,6 +17,7 @@
 </p>
 
 <p align="center">
+  <a href="https://mainstaycms.org">Website</a> ·
   <a href="#features">Features</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="#getting-started">Getting started</a> ·

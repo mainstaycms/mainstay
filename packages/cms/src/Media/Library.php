@@ -307,9 +307,9 @@ class Library
     }
 
     /*
-     | Every size any registered type or block declares, once each, and the
-     | admin's preview: an upload does not know which field it is for. Two
-     | fields declaring one alike share its files.
+     | Every size any registered type or block declares with its fractions,
+     | once each, and the admin's preview: an upload does not know which
+     | field it is for. Two fields declaring one alike share its files.
      |
      | @return list<Size>
      */
@@ -332,8 +332,10 @@ class Library
 
             foreach ($this->mainstay->fields($class) as $field) {
                 if ($field instanceof Image) {
-                    foreach ($field->sizes as $size) {
-                        $sizes["{$size->width}x{$size->height}"] = $size;
+                    foreach ($field->sizes as $declared) {
+                        foreach ([$declared, ...$declared->fractions()] as $size) {
+                            $sizes["{$size->width}x{$size->height}"] = $size;
+                        }
                     }
                 } elseif ($field instanceof Content) {
                     array_push($classes, ...$field->blocks());

@@ -16,6 +16,12 @@ use InvalidArgumentException;
  */
 final class Size
 {
+    /* What a size is divided by for its smaller copies, largest first, by
+       the fraction the API names each with. */
+    private const FRACTIONS = ['0.5' => 2, '0.25' => 4];
+
+    private const NARROWEST_FRACTION = 150;
+
     public function __construct(public readonly int $width, public readonly ?int $height = null)
     {
         if ($width < 1 || ($height !== null && $height < 1)) {
@@ -30,12 +36,42 @@ final class Size
             throw new InvalidArgumentException("The size {$name} is a width, or a width and a height, in pixels: [640] or [640, 360].");
         }
 
+        /* The API names a size's fractions after it, `card@0.5`, so no
+           declared name may look like one. */
+        if (str_contains($name, '@')) {
+            throw new InvalidArgumentException("The size {$name} is named without an @, which the API keeps for a size's fractions: card@0.5.");
+        }
+
         return new self(...$size);
     }
 
     public function crops(): bool
     {
         return $this->height !== null;
+    }
+
+    /*
+     | This size at a half and a quarter, in its shape, for a `srcset` to
+     | pick from on smaller screens: none narrower than 150 pixels, less
+     | than any screen asks an image to be.
+     |
+     | @return array<string, self>  by fraction, '0.5' and '0.25'
+     */
+    public function fractions(): array
+    {
+        $fractions = [];
+
+        foreach (self::FRACTIONS as $fraction => $divisor) {
+            $width = intdiv($this->width, $divisor);
+
+            if ($width < self::NARROWEST_FRACTION) {
+                break;
+            }
+
+            $fractions[$fraction] = new self($width, $this->crops() ? max(1, intdiv($this->height, $divisor)) : null);
+        }
+
+        return $fractions;
     }
 
     /*

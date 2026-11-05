@@ -77,9 +77,9 @@ final class Media
         }
 
         $declared = $this->size($size);
-        $format ??= $this->formats === [] ? null : $this->formats[array_key_last($this->formats)];
+        $format ??= $this->shown();
 
-        return $this->missing || ! in_array($format, $this->formats, true) ? null : Storage::disk(config('mainstay.media.disk', 'public'))->url($declared->path($this->hash, $this->focal, $format));
+        return $this->missing || ! in_array($format, $this->formats, true) ? null : $this->address($declared, $format);
     }
 
     public function width(string $size): ?int
@@ -95,10 +95,13 @@ final class Media
     /*
      | The copy as a `<picture>`: a source for each better format it was
      | written in, AVIF before WebP, and the last as the `<img>`, with alt and
-     | real dimensions on it. Lazy unless the attributes
-     | say otherwise, and nothing at all for an image that is missing. A
-     | block's, drawn for the Content tab's editor, is marked with the block's
-     | id and the field's name, so it is picked and edited on the page.
+     | real dimensions on it. Each offers the size's fractions beside it in a
+     | `srcset`; a lazy image is sized by the width it is laid out at, any
+     | other as wide as the screen unless the attributes give `sizes`. Lazy
+     | unless the attributes say otherwise, and nothing at all for an image
+     | that is missing. A block's, drawn for the Content tab's editor, is
+     | marked with the block's id and the field's name, so it is picked and
+     | edited on the page.
      */
     public function picture(string $size, array $attributes = []): HtmlString
     {
@@ -108,8 +111,10 @@ final class Media
             return new HtmlString('');
         }
 
+        $srcset = $this->shown() === null ? null : $this->srcset($size, $this->shown());
         $attributes = [
             'src' => $this->url($size),
+            ...($srcset === null ? [] : ['srcset' => $srcset]),
             'alt' => $this->alt ?? '',
             'width' => $this->width($size),
             'height' => $this->height($size),
@@ -118,7 +123,16 @@ final class Media
             ...$attributes,
         ];
 
-        $sources = array_map(fn (string $format) => sprintf('<source type="%s" srcset="%s">', self::TYPES[$format], e($this->url($size, $format))), array_slice($this->formats, 0, -1));
+        if (isset($attributes['srcset'])) {
+            $attributes['sizes'] ??= $attributes['loading'] === 'lazy' ? 'auto, 100vw' : '100vw';
+        }
+
+        $sources = array_map(fn (string $format) => sprintf(
+            '<source type="%s" srcset="%s"%s>',
+            self::TYPES[$format],
+            e($this->srcset($size, $format) ?? $this->url($size, $format)),
+            isset($attributes['sizes']) ? ' sizes="'.e($attributes['sizes']).'"' : '',
+        ), array_slice($this->formats, 0, -1));
 
         return new HtmlString(sprintf(
             '<picture%s>%s<img %s></picture>',
@@ -129,18 +143,60 @@ final class Media
     }
 
     /* The image as the API hands it out: what picture() prints, for every
-       size its field declares, so a reader draws it with no id to look up.
-       `src` is the <img>'s; AVIF and WebP are null where they were not
+       size its field declares and each size's fractions after it, named
+       `card@0.5` and `card@0.25`, so a reader draws it with no id to look
+       up. `src` is the <img>'s; AVIF and WebP are null where they were not
        written. */
     public function toArray(): array
     {
         $sizes = [];
 
-        foreach (array_keys($this->sizes) as $size) {
-            $sizes[$size] = ['src' => $this->url($size), 'avif' => $this->url($size, 'avif'), 'webp' => $this->url($size, 'webp'), 'width' => $this->width($size), 'height' => $this->height($size)];
+        foreach ($this->sizes as $name => $declared) {
+            $sizes[$name] = $this->copy($declared);
+
+            foreach ($declared->fractions() as $fraction => $size) {
+                $sizes["{$name}@{$fraction}"] = $this->copy($size);
+            }
         }
 
         return ['id' => $this->id, 'alt' => $this->alt, 'focal' => $this->focal, 'sizes' => (object) $sizes];
+    }
+
+    /* The format an `<img>` shows: the last written, the most widely read. */
+    private function shown(): ?string
+    {
+        return $this->formats === [] ? null : $this->formats[array_key_last($this->formats)];
+    }
+
+    /* One copy as the API hands it out, every value null for an image
+       that is missing. */
+    private function copy(Size $size): array
+    {
+        $url = fn (?string $format) => ! $this->missing && in_array($format, $this->formats, true) ? $this->address($size, $format) : null;
+        [$width, $height] = $this->missing ? [null, null] : $size->output($this->originalWidth, $this->originalHeight, $this->focal);
+
+        return ['src' => $url($this->shown()), 'avif' => $url('avif'), 'webp' => $url('webp'), 'width' => $width, 'height' => $height];
+    }
+
+    private function address(Size $size, string $format): string
+    {
+        return Storage::disk(config('mainstay.media.disk', 'public'))->url($size->path($this->hash, $this->focal, $format));
+    }
+
+    /* A size and its fractions in one format, each named by the width it
+       was written at. Null when they were all written at one width -- an
+       original no wider than the smallest -- which a plain `src` says. */
+    private function srcset(string $size, string $format): ?string
+    {
+        $declared = $this->size($size);
+        $candidates = [];
+
+        foreach ([...array_reverse($declared->fractions()), $declared] as $copy) {
+            $width = $copy->output($this->originalWidth, $this->originalHeight, $this->focal)[0];
+            $candidates[$width] ??= $this->address($copy, $format)." {$width}w";
+        }
+
+        return count($candidates) > 1 ? implode(', ', $candidates) : null;
     }
 
     /* A size the field declares. An image read through no field -- from
