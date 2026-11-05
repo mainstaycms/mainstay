@@ -1,0 +1,37 @@
+version: 2
+
+# A hijacked release is usually caught and pulled within days, so nothing is
+# proposed before it has been out for a week. Security fixes skip the wait.
+# Minor and patch updates arrive as one PR per ecosystem and merge themselves
+# once CI passes (dependabot-auto-merge.yml); majors come one by one, for a
+# person to read.
+updates:
+  - package-ecosystem: composer
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      composer:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      npm:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        update-types: [minor, patch]
