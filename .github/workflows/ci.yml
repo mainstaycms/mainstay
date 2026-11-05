@@ -28,7 +28,7 @@ jobs:
           php-version: ${{ matrix.php }}
           coverage: none
 
-      - uses: ramsey/composer-install@a8d0d959dab41457692a5e2041bd9b757a119e3f # 3.2.1
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
 
       - run: vendor/bin/pint --test
 
@@ -50,7 +50,7 @@ jobs:
           php-version: '8.4'
           coverage: none
 
-      - uses: ramsey/composer-install@a8d0d959dab41457692a5e2041bd9b757a119e3f # 3.2.1
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
 
       - run: composer audit
 
@@ -107,7 +107,7 @@ jobs:
           extensions: pdo_pgsql, pdo_mysql
           coverage: none
 
-      - uses: ramsey/composer-install@a8d0d959dab41457692a5e2041bd9b757a119e3f # 3.2.1
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
 
       - run: vendor/bin/phpunit packages/cms/tests/SchemaTest.php packages/cms/tests/ContentTest.php packages/cms/tests/RenderTest.php packages/cms/tests/MediaTest.php packages/cms/tests/RelationTest.php packages/cms/tests/DraftTest.php packages/cms/tests/IdentityTest.php packages/cms/tests/AccountTest.php packages/cms/tests/PluginTest.php packages/cms/tests/ApiTest.php packages/cms/tests/McpTest.php packages/cms/tests/ConnectorTest.php
         env:
@@ -152,7 +152,7 @@ jobs:
           extensions: pdo_sqlsrv
           coverage: none
 
-      - uses: ramsey/composer-install@a8d0d959dab41457692a5e2041bd9b757a119e3f # 3.2.1
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
 
       # The image reports healthy before it accepts logins and creates no
       # database of its own, so waiting and creating are the same step.
