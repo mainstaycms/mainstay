@@ -12,7 +12,7 @@ export default {
       // Every story imports a .blade.php, so the adapter is the whole render
       // path -- there is no PHP callable behind a template for the default
       // runner to fall through to.
-      typeMap: {
+      components: {
         files: {
           '*.blade.php': { adapter: local('./blade-adapter.php') },
         },
