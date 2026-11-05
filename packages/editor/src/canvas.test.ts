@@ -753,6 +753,8 @@ test("types @field text in place into the block's data and its settings, and the
 
   const input = sidebar().querySelector<HTMLInputElement>('[name="data[headline]"]')!
 
+  /* jsdom, like a browser, focuses nothing inside a closed dialog. */
+  input.closest('dialog')!.showModal()
   input.focus()
   input.value = 'From the side'
   input.dispatchEvent(new Event('input', { bubbles: true }))
