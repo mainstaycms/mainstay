@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   php:
     name: PHP ${{ matrix.php }}
@@ -16,14 +19,16 @@ jobs:
         # suite cannot run on 8.3. The runtime claim is checked separately below.
         php: ['8.4', '8.5']
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ matrix.php }}
           coverage: none
 
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@a8d0d959dab41457692a5e2041bd9b757a119e3f # 3.2.1
 
       - run: vendor/bin/pint --test
 
@@ -68,15 +73,17 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: '8.4'
           extensions: pdo_pgsql, pdo_mysql
           coverage: none
 
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@a8d0d959dab41457692a5e2041bd9b757a119e3f # 3.2.1
 
       - run: vendor/bin/phpunit packages/cms/tests/SchemaTest.php packages/cms/tests/ContentTest.php packages/cms/tests/RenderTest.php packages/cms/tests/MediaTest.php packages/cms/tests/RelationTest.php packages/cms/tests/DraftTest.php packages/cms/tests/IdentityTest.php packages/cms/tests/AccountTest.php packages/cms/tests/PluginTest.php packages/cms/tests/ApiTest.php packages/cms/tests/McpTest.php packages/cms/tests/ConnectorTest.php
         env:
@@ -100,7 +107,9 @@ jobs:
           MSSQL_SA_PASSWORD: 'Mainstay-Passw0rd!'
         ports: ['1433:1433']
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       # pdo_sqlsrv talks to SQL Server through ODBC and reports its absence
       # as a connection failure, so the driver goes in before PHP does.
@@ -113,13 +122,13 @@ jobs:
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: '8.4'
           extensions: pdo_sqlsrv
           coverage: none
 
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@a8d0d959dab41457692a5e2041bd9b757a119e3f # 3.2.1
 
       # The image reports healthy before it accepts logins and creates no
       # database of its own, so waiting and creating are the same step.
@@ -163,9 +172,11 @@ jobs:
     name: PHP 8.3 runtime constraint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: '8.3'
           coverage: none
@@ -177,20 +188,28 @@ jobs:
 
       - run: composer update --no-dev --working-dir=packages/cms
 
+      # What a host installs is resolved here, not in the monorepo's lock, so
+      # this is the audit that speaks for them.
+      - run: composer audit --working-dir=packages/cms
+
   js:
     name: JavaScript
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      - run: pnpm audit
 
       - run: pnpm build
 

@@ -5,7 +5,10 @@ name: Split
 # of its own, which Packagist serves. The monorepo stays where work happens.
 on:
   push:
-    tags: ['*']
+    tags: ['v*']
+
+permissions:
+  contents: read
 
 jobs:
   split:
@@ -16,9 +19,11 @@ jobs:
       matrix:
         package: [cms, ui]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: danharrin/monorepo-split-github-action@v2.4.5
+      - uses: danharrin/monorepo-split-github-action@14e42e2437f674b8987c1f50ca3689116aea1893 # v2.4.5
         env:
           GITHUB_TOKEN: ${{ secrets.MONOREPO_SPLIT_TOKEN }}
         with:
