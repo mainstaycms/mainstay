@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<files psalm-version="7.0.3@8f2ac04d0ab5ed1d3cbe6e252b0f7232bc031aaf">
+  <file src="packages/cms/src/Content/Block.php">
+    <MissingTemplateParam>
+      <code><![CDATA[Arrayable]]></code>
+    </MissingTemplateParam>
+  </file>
+  <file src="packages/cms/src/Content/Document.php">
+    <MissingTemplateParam>
+      <code><![CDATA[Arrayable]]></code>
+    </MissingTemplateParam>
+  </file>
+  <file src="packages/cms/src/Content/Entry.php">
+    <InvalidScope>
+      <code><![CDATA[$this]]></code>
+    </InvalidScope>
+  </file>
+  <file src="packages/cms/src/Database/ContentSchema.php">
+    <TaintedSql>
+      <code><![CDATA["{$name} as l"]]></code>
+      <code><![CDATA[$name]]></code>
+      <code><![CDATA[$name]]></code>
+      <code><![CDATA[$name]]></code>
+      <code><![CDATA[$name]]></code>
+      <code><![CDATA[$name]]></code>
+      <code><![CDATA[$name]]></code>
+      <code><![CDATA[$name]]></code>
+    </TaintedSql>
+  </file>
+  <file src="packages/cms/src/Database/ContentStore.php">
+    <ParadoxicalCondition>
+      <code><![CDATA[object]]></code>
+    </ParadoxicalCondition>
+    <UndefinedClass>
+      <code><![CDATA[$class::handle()]]></code>
+    </UndefinedClass>
+  </file>
+  <file src="packages/cms/src/Fields/Content.php">
+    <DuplicateArrayKey>
+      <code><![CDATA['content' => $content]]></code>
+    </DuplicateArrayKey>
+  </file>
+  <file src="packages/cms/src/Fields/Field.php">
+    <InaccessibleProperty>
+      <code><![CDATA[$this->default]]></code>
+      <code><![CDATA[$this->hasDefault]]></code>
+      <code><![CDATA[$this->internal]]></code>
+      <code><![CDATA[$this->name]]></code>
+      <code><![CDATA[$this->nullable]]></code>
+      <code><![CDATA[$this->phpType]]></code>
+    </InaccessibleProperty>
+  </file>
+  <file src="packages/cms/src/Fields/Terms.php">
+    <InvalidParamDefault>
+      <code><![CDATA[class-string<Taxonomy>]]></code>
+    </InvalidParamDefault>
+  </file>
+  <file src="packages/cms/src/Http/EntryController.php">
+    <DuplicateArrayKey>
+      <code><![CDATA['draft' => $draft->id]]></code>
+      <code><![CDATA['modified' => $draft->updatedAt->toIso8601String()]]></code>
+      <code><![CDATA['status' => 'Changed']]></code>
+      <code><![CDATA['title' => $draft->entry->title ?? '']]></code>
+    </DuplicateArrayKey>
+    <TaintedHeader>
+      <code><![CDATA[$here]]></code>
+      <code><![CDATA[$here]]></code>
+      <code><![CDATA[$here]]></code>
+      <code><![CDATA[$here]]></code>
+      <code><![CDATA[$this->localized($request, $back)]]></code>
+      <code><![CDATA[$this->localized($request, $global ? route('mainstay.entries', $handle) : route('mainstay.entries.edit', [$handle, $published->id]))]]></code>
+      <code><![CDATA[$this->localized($request, $global ? route('mainstay.entries', $type) : route('mainstay.entries.edit', [$type, $id]))]]></code>
+      <code><![CDATA[$this->localized($request, $global ? route('mainstay.globals.history', $type) : route('mainstay.entries.history', [$type, $id]))]]></code>
+      <code><![CDATA[$this->localized($request, match (true) {
+                $global => route('mainstay.entries', $handle),
+                $id !== null => route('mainstay.entries.edit', [$handle, $id]),
+                $draft !== null => route('mainstay.drafts.edit', [$handle, $draft]),
+                default => route('mainstay.entries.create', $handle),
+            })]]></code>
+      <code><![CDATA[$this->localized($request, route('mainstay.entries', $type))]]></code>
+      <code><![CDATA[$this->localized($request, route('mainstay.entries.edit', [$handle, $term->id]))]]></code>
+    </TaintedHeader>
+  </file>
+  <file src="packages/cms/src/Http/LoginController.php">
+    <UndefinedClass>
+      <code><![CDATA[$guard->user()]]></code>
+    </UndefinedClass>
+  </file>
+  <file src="packages/cms/src/Http/RenderController.php">
+    <TaintedHeader>
+      <code><![CDATA['/'.trim($path, '/').(($query = $request->getQueryString()) === null ? '' : "?{$query}")]]></code>
+    </TaintedHeader>
+  </file>
+</files>

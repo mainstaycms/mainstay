@@ -1,0 +1,13 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - phpstan-baseline.neon
+
+parameters:
+    level: 5
+    paths:
+        - packages/cms/src
+        - packages/ui/src
+    # Larastan reads a model's columns from the migrations, which live in the
+    # package rather than in an app's database/ directory.
+    databaseMigrationsPath:
+        - packages/cms/database/migrations

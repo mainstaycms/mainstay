@@ -1,0 +1,26 @@
+name: Dependabot auto-merge
+
+# Arms GitHub's auto-merge on Dependabot's minor and patch updates, so each
+# merges only once every check the main ruleset requires has passed. A major
+# can pass the suite and still change behaviour, so it waits for a person.
+on: pull_request
+
+permissions: {}
+
+jobs:
+  auto-merge:
+    name: Arm auto-merge
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - id: metadata
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2.5.0
+
+      - if: contains(fromJSON('["version-update:semver-minor", "version-update:semver-patch"]'), steps.metadata.outputs.update-type)
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
