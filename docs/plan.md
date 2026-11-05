@@ -436,9 +436,12 @@ hands back the id instead is phase 7's question.
 **In a template** `$entry->cover` has `alt` in the locale it was read in, `url('card')` for the `<img>`'s
 copy and `url('card', 'avif')`, null where it was not written, and `width('card')` and `height('card')` as written. `picture('card')`
 prints a `<picture>` with a source for each better format written and the last as the `<img>`, alt and dimensions on it,
-lazy unless the attributes passed say otherwise. A Media from `find()` or `upload()`, read through no
-field, has no sizes and says so. A `srcset` across sizes waits until a site's templates repeat one;
-an image inside rich text waits too, since a node for one changes the closed schema in both places.
+lazy unless the attributes passed say otherwise. Every declared size is also written at a half and a
+quarter, none narrower than 150 pixels, and each source and the `<img>` offer them in a `srcset` named
+by the widths written: `sizes` is `auto, 100vw` for a lazy image, which the browser reads as the width
+it is laid out at, and `100vw` for any other, unless the attributes give one. A Media from `find()` or
+`upload()`, read through no field, has no sizes and says so. An image inside rich text waits, since a
+node for one changes the closed schema in both places.
 
 `Mainstay::media()` takes `upload()`, `find()`, `update()` and `delete()`, which ask `Gate` through a
 `MediaPolicy` shaped like `EntryPolicy`: reading is open, and until phase 9 a write needs
@@ -1783,7 +1786,8 @@ is not there, and every write is refused. `type` joins the reserved field names,
 `type`, `locale`, `uri`, `createdAt` and `updatedAt`, then each field the read set, as its
 `Field::payload()`. That is `serialize()` but for four types: a moment is RFC 3339 in UTC, which
 settles what this phase was left to choose; an image is `Media::toArray()`, its alt text, focal point
-and a URL and size for each of the field's sizes in both formats; a relation is the entry it points at
+and a URL and size for each of the field's sizes in both formats, each size's fractions after it
+as `card@0.5` and `card@0.25` (a declared name may hold no `@`); a relation is the entry it points at
 as a payload of its own, or the id where the read did not load it; and content is its tree with each
 block's fields as payloads in its node's `attrs.data`. Depth is capped at 3 with a token and 1
 without, and a page at 100 entries, since a nested entry is copied wherever it is pointed at.
