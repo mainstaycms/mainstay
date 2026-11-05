@@ -46,14 +46,14 @@ importers:
         specifier: ^1.7.2
         version: 1.7.2
       prosemirror-history:
-        specifier: ^1.5.0
-        version: 1.5.0
+        specifier: ^1.5.1
+        version: 1.5.1
       prosemirror-keymap:
         specifier: ^1.2.3
         version: 1.2.3
       prosemirror-model:
-        specifier: ^1.25.11
-        version: 1.25.11
+        specifier: ^1.25.12
+        version: 1.25.12
       prosemirror-schema-list:
         specifier: ^1.5.1
         version: 1.5.1
@@ -61,8 +61,8 @@ importers:
         specifier: ^1.4.4
         version: 1.4.4
       prosemirror-view:
-        specifier: ^1.42.3
-        version: 1.42.3
+        specifier: ^1.42.8
+        version: 1.42.8
     devDependencies:
       typescript:
         specifier: ^7.0.2
@@ -86,8 +86,8 @@ importers:
         specifier: ^10.6.5
         version: 10.6.5(@types/react@19.2.18)(react@19.2.8)
       storybook-php:
-        specifier: ^0.3.0
-        version: 0.3.0(@storybook/builder-vite@10.6.0(storybook@10.6.5(@types/react@19.2.18)(react@19.2.8))(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)))(storybook@10.6.5(@types/react@19.2.18)(react@19.2.8))(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0))(vitest@5.1.0(jsdom@30.1.3)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)))
+        specifier: ^0.4.1
+        version: 0.4.1(@storybook/builder-vite@10.6.0(storybook@10.6.5(@types/react@19.2.18)(react@19.2.8))(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)))(storybook@10.6.5(@types/react@19.2.18)(react@19.2.8))(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0))(vitest@5.1.0(jsdom@30.1.3)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)))
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
@@ -1451,14 +1451,14 @@ packages:
   prosemirror-commands@1.7.2:
     resolution: {integrity: sha512-q6Q6szxqdu9Xd6EcdKsqXghu5nQdZTpB4Q9yd04WRc7/jt763e/rT60Owh0L1GYY+T46o5rD+9lEN36dZS43tw==}
 
-  prosemirror-history@1.5.0:
-    resolution: {integrity: sha512-zlzTiH01eKA55UAf1MEjtssJeHnGxO0j4K4Dpx+gnmX9n+SHNlDqI2oO1Kv1iPN5B1dm5fsljCfqKF9nFL6HRg==}
+  prosemirror-history@1.5.1:
+    resolution: {integrity: sha512-onlwnqKvgtFg6srZOmDOAhlAy1FIHQpOExORybX0S+DvJepE5tPALrB9iGet/2sqqqrelSnB10OoiOJqAvu2DA==}
 
   prosemirror-keymap@1.2.3:
     resolution: {integrity: sha512-4HucRlpiLd1IPQQXNqeo81BGtkY8Ai5smHhKW9jjPKRc2wQIxksg7Hl1tTI2IfT2B/LgX6bfYvXxEpJl7aKYKw==}
 
-  prosemirror-model@1.25.11:
-    resolution: {integrity: sha512-QWg9RhnpLlogAmp3p96uEFrE5txQpFynd4vhBAELkwgOCWQs/X0yCzB3/hrHqiPwf91RG5KyWq6553zs9JqIOQ==}
+  prosemirror-model@1.25.12:
+    resolution: {integrity: sha512-Ue2gTmXMa7EhpLNhC7J+h4+ykD8ha12K6rrZFFKKJHBForfIStw5gJ6Zrf1mqqAa9NmpmEB4wp9bKmA4eUVjWg==}
 
   prosemirror-schema-list@1.5.1:
     resolution: {integrity: sha512-927lFx/uwyQaGwJxLWCZRkjXG0p48KpMj6ueoYiu4JX05GGuGcgzAy62dfiV8eFZftgyBUvLx76RsMe20fJl+Q==}
@@ -1469,8 +1469,11 @@ packages:
   prosemirror-transform@1.12.1:
     resolution: {integrity: sha512-t4F5615FycnCqsX7ShTUs8+jfnwcf46kuFRvSl/3qFx2QTZ4DjgowesLHQXcFP7G//TjesqZG3WtgL7vdyVJyA==}
 
-  prosemirror-view@1.42.3:
-    resolution: {integrity: sha512-oTN7EtH+CpwxU9NrwEYWd0UZ4JUx7l048l5A2Xppm4p/60isZYLnth9QVQmC3VRIvdrIWCxwZSd+Uz791G31/w==}
+  prosemirror-transform@1.12.4:
+    resolution: {integrity: sha512-2/WuPum3pn+O/Vi2vzpi8210ICUe2kIPXdLYjQ09Pv5DtT5bcKWMJhAKPBwvpPjpp5iOYUVwVEr0gOM1BY1Mgw==}
+
+  prosemirror-view@1.42.8:
+    resolution: {integrity: sha512-ftDZjCs9AjAekXmCfJRn2U3IdlRCl0Yc4tZT1/jJWCsz4DiSifEBXtWmpJpw/4f1Rg328uAUQ+u2lCJ0+AVZkw==}
 
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
@@ -1535,17 +1538,17 @@ packages:
   std-env@4.3.0:
     resolution: {integrity: sha512-OtU/EgQ1kIm5KwqQpBC6ZEMXrZRui11w8zgfTWp8cdO9B8OaPsbA8bTHO2P+HNo1VlUTGMVBwPhydu6poeXiag==}
 
-  storybook-php@0.3.0:
-    resolution: {integrity: sha512-1lorsBHDjOCQRBe9YWhNQ8pYSY/zh0+YOHGeiB/hMMdLNX20G/VnLIJ/BNIQN8UddoIBxiazmO/p3d/h4bRzSw==}
+  storybook-php@0.4.1:
+    resolution: {integrity: sha512-ag7kNvRR2MLHdUpZuOP84Yk9IddUN3EuUpYKratS9cJSJrhhdZPuKktbjdUFIH8q12jC8/oGbFtqtMwJinnUGg==}
     engines: {node: '>=20.19.0'}
     hasBin: true
     peerDependencies:
       '@storybook/addon-vitest': ^10.0.0
       '@storybook/builder-vite': ^10.0.0
-      '@vitest/browser-playwright': ^4.0.0
+      '@vitest/browser-playwright': ^4.0.0 || ^5.0.0
       storybook: ^10.0.0
-      vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
-      vitest: ^3.0.0 || ^4.0.0
+      vite: ^6.0.0 || ^7.0.0 || ^8.0.0
+      vitest: ^3.0.0 || ^4.0.0 || ^5.0.0
     peerDependenciesMeta:
       '@storybook/addon-vitest':
         optional: true
@@ -2802,15 +2805,15 @@ snapshots:
 
   prosemirror-commands@1.7.2:
     dependencies:
-      prosemirror-model: 1.25.11
+      prosemirror-model: 1.25.12
       prosemirror-state: 1.4.4
       prosemirror-transform: 1.12.1
 
-  prosemirror-history@1.5.0:
+  prosemirror-history@1.5.1:
     dependencies:
       prosemirror-state: 1.4.4
-      prosemirror-transform: 1.12.1
-      prosemirror-view: 1.42.3
+      prosemirror-transform: 1.12.4
+      prosemirror-view: 1.42.8
       rope-sequence: 1.3.4
 
   prosemirror-keymap@1.2.3:
@@ -2818,31 +2821,35 @@ snapshots:
       prosemirror-state: 1.4.4
       w3c-keyname: 2.2.8
 
-  prosemirror-model@1.25.11:
+  prosemirror-model@1.25.12:
     dependencies:
       orderedmap: 2.1.1
 
   prosemirror-schema-list@1.5.1:
     dependencies:
-      prosemirror-model: 1.25.11
+      prosemirror-model: 1.25.12
       prosemirror-state: 1.4.4
       prosemirror-transform: 1.12.1
 
   prosemirror-state@1.4.4:
     dependencies:
-      prosemirror-model: 1.25.11
+      prosemirror-model: 1.25.12
       prosemirror-transform: 1.12.1
-      prosemirror-view: 1.42.3
+      prosemirror-view: 1.42.8
 
   prosemirror-transform@1.12.1:
     dependencies:
-      prosemirror-model: 1.25.11
+      prosemirror-model: 1.25.12
 
-  prosemirror-view@1.42.3:
+  prosemirror-transform@1.12.4:
     dependencies:
-      prosemirror-model: 1.25.11
+      prosemirror-model: 1.25.12
+
+  prosemirror-view@1.42.8:
+    dependencies:
+      prosemirror-model: 1.25.12
       prosemirror-state: 1.4.4
-      prosemirror-transform: 1.12.1
+      prosemirror-transform: 1.12.4
 
   punycode@2.3.1: {}
 
@@ -2909,7 +2916,7 @@ snapshots:
 
   std-env@4.3.0: {}
 
-  storybook-php@0.3.0(@storybook/builder-vite@10.6.0(storybook@10.6.5(@types/react@19.2.18)(react@19.2.8))(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)))(storybook@10.6.5(@types/react@19.2.18)(react@19.2.8))(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0))(vitest@5.1.0(jsdom@30.1.3)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0))):
+  storybook-php@0.4.1(@storybook/builder-vite@10.6.0(storybook@10.6.5(@types/react@19.2.18)(react@19.2.8))(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0)))(storybook@10.6.5(@types/react@19.2.18)(react@19.2.8))(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0))(vitest@5.1.0(jsdom@30.1.3)(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0))):
     dependencies:
       '@storybook/builder-vite': 10.6.0(storybook@10.6.5(@types/react@19.2.18)(react@19.2.8))(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0))
       storybook: 10.6.5(@types/react@19.2.18)(react@19.2.8)
