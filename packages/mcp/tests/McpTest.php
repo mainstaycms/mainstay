@@ -1,6 +1,6 @@
 <?php
 
-namespace Mainstay\Tests;
+namespace Mainstay\Mcp\Tests;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
@@ -9,6 +9,9 @@ use Mainstay\Api\Operations;
 use Mainstay\Auth\Role;
 use Mainstay\Auth\User;
 use Mainstay\Facades\Mainstay;
+use Mainstay\Mcp\McpPlugin;
+use Mainstay\Site\SitePlugin;
+use Mainstay\Tests\DatabaseTestCase;
 use Mainstay\Tests\Fixtures\Api\Colophon;
 use Mainstay\Tests\Fixtures\Api\Essay;
 use Mainstay\Tests\Fixtures\Api\Essayist;
@@ -32,6 +35,13 @@ class McpTest extends DatabaseTestCase
     private const VERSION = '2026-07-28';
 
     private int $made = 0;
+
+    protected function defineEnvironment($app): void
+    {
+        parent::defineEnvironment($app);
+
+        $app['config']->set('mainstay.plugins', [SitePlugin::class, McpPlugin::class]);
+    }
 
     protected function setUp(): void
     {

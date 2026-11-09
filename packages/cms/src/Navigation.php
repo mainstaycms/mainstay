@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use LogicException;
-use Mainstay\Ai\Connector;
 use Mainstay\Auth\Capabilities;
 use Mainstay\Auth\Gate;
 use Mainstay\Auth\User;
@@ -16,7 +15,6 @@ use Mainstay\Content\GlobalSet;
 use Mainstay\Content\Icon;
 use Mainstay\Content\Media;
 use Mainstay\Content\Taxonomy;
-use Mainstay\Policies\ConnectorPolicy;
 use Mainstay\Policies\MediaPolicy;
 use Mainstay\Policies\PluginPolicy;
 use ReflectionClass;
@@ -27,11 +25,11 @@ class Navigation
      | The admin's sections, as data for <x-mainstay::sidebar>, built from the
      | registered types rather than written by hand: each entry type and then
      | each taxonomy under Content, the media library, each global under
-     | Globals, each plugin's screens under Plugins, the accounts and roles,
-     | and the AI connectors. A type is offered only to someone who may write
+     | Globals, each plugin's screens under Plugins, the accounts and
+     | roles. A type is offered only to someone who may write
      | to it -- its list is no use to anyone else -- the library to someone who
-     | may read it, a plugin to someone who may use it, the accounts and the
-     | connectors to someone who may manage them, and a section with nothing
+     | may read it, a plugin to someone who may use it, the accounts to
+     | someone who may manage them, and a section with nothing
      | in it is left out.
      |
      | Links come from route(), so an admin mounted at another path or on a
@@ -69,11 +67,6 @@ class Navigation
                 'items' => self::accounts() ? [
                     ['href' => route('mainstay.users', absolute: false), 'label' => 'Users', 'icon' => self::icon('<circle cx="6" cy="5.25" r="2.5" /><path d="M1.75 13.75c0-2.5 1.9-4.25 4.25-4.25s4.25 1.75 4.25 4.25M10.75 2.9a2.4 2.4 0 0 1 0 4.7M12.25 9.75c1.2.5 2 1.85 2 4" />')],
                     ['href' => route('mainstay.roles', absolute: false), 'label' => 'Roles', 'icon' => self::icon('<path d="M8 1.75 2.75 3.75v4c0 3.1 2.2 5.35 5.25 6.5 3.05-1.15 5.25-3.4 5.25-6.5v-4z" />')],
-                ] : [],
-            ],
-            [
-                'items' => self::connectors() ? [
-                    ['href' => route('mainstay.connectors', absolute: false), 'label' => 'Connectors', 'icon' => self::icon('<path d="M6 1.75v3M10 1.75v3M4.25 4.75h7.5v2.5a3.75 3.75 0 0 1-7.5 0zM8 11v3.25" />')],
                 ] : [],
             ],
         ], fn (array $section) => $section['items'] !== []));
@@ -139,13 +132,6 @@ class Navigation
     public static function accounts(): bool
     {
         return Gate::accounts()->allows('viewAny', User::class);
-    }
-
-    /* Whether the signed-in user may see and change the AI providers: the
-       question the Connectors screen and every write to it asks. */
-    public static function connectors(): bool
-    {
-        return Gate::for(Connector::class, ConnectorPolicy::class)->allows('manage', Connector::class);
     }
 
     /* Whether the signed-in user may open a plugin's screens: the question

@@ -86,7 +86,7 @@
       <code><![CDATA[$guard->user()]]></code>
     </UndefinedClass>
   </file>
-  <file src="packages/cms/src/Http/RenderController.php">
+  <file src="packages/site/src/RenderController.php">
     <TaintedHeader>
       <code><![CDATA['/'.trim($path, '/').(($query = $request->getQueryString()) === null ? '' : "?{$query}")]]></code>
     </TaintedHeader>

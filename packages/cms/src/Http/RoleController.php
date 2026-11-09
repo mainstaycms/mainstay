@@ -92,7 +92,6 @@ class RoleController
                 ...self::contentSections($this->mainstay->registered()),
                 ['label' => 'Media', 'verbs' => ['Upload', "Edit others'"], 'rows' => [['label' => 'The library', 'names' => Capabilities::MEDIA]]],
                 ['label' => 'Accounts', 'verbs' => ['Manage accounts and roles'], 'rows' => [['label' => 'Every account', 'names' => [Capabilities::USERS]]]],
-                ['label' => 'AI', 'verbs' => ['Manage connectors'], 'rows' => [['label' => 'Every provider', 'names' => [Capabilities::CONNECTORS]]]],
                 ...($plugins === [] ? [] : [
                     ['label' => 'Plugins', 'verbs' => ['Use'], 'rows' => array_map(fn (string $plugin, string $name) => ['label' => Navigation::label($plugin, plural: false), 'names' => [$name]], array_keys($plugins), $plugins)],
                 ]),

@@ -1,6 +1,6 @@
 <?php
 
-namespace Mainstay\Tests;
+namespace Mainstay\Ai\Tests;
 
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Encryption\DecryptException;
@@ -16,14 +16,17 @@ use Laravel\Ai\Ai;
 use Laravel\Ai\AiManager;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Providers\OpenAiCompatibleProvider;
+use Mainstay\Ai\AiConnectors;
 use Mainstay\Ai\Connector;
+use Mainstay\Ai\Connectors;
+use Mainstay\Ai\Tests\Fixtures\Lab as LabPlugin;
+use Mainstay\Ai\Tests\Fixtures\MainstayConnectors;
+use Mainstay\Ai\Tests\Fixtures\Offered;
 use Mainstay\Auth\Role;
 use Mainstay\Auth\User;
-use Mainstay\Facades\Mainstay;
+use Mainstay\Database\ContentSchema;
 use Mainstay\Mainstay as Registry;
-use Mainstay\Tests\Fixtures\Plugins\Lab as LabPlugin;
-use Mainstay\Tests\Fixtures\Plugins\Named;
-use Mainstay\Tests\Fixtures\Plugins\Offered;
+use Mainstay\Tests\DatabaseTestCase;
 use PHPUnit\Framework\Attributes\Test;
 
 use function Laravel\Ai\agent;
@@ -45,14 +48,16 @@ class ConnectorTest extends DatabaseTestCase
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('mainstay.plugins', [LabPlugin::class]);
-        $app['config']->set('ai.providers.openai.key', 'sk-from-env');
+        $app['config']->set('mainstay.plugins', [AiConnectors::class, LabPlugin::class]);
     }
 
     protected function setUp(): void
     {
         parent::setUp();
 
+        /* After laravel/ai's own config is merged in, which a plugin's boot
+           does, so the one key does not replace its providers. */
+        config(['ai.providers.openai.key' => 'sk-from-env']);
         LabPlugin::$made = [];
         Offered::$providers = [];
     }
@@ -91,7 +96,7 @@ class ConnectorTest extends DatabaseTestCase
     #[Test]
     public function a_saved_key_is_kept_encrypted_and_sent_by_laravel_ai(): void
     {
-        Mainstay::connectors()->save('anthropic', ' sk-ant-secret ', overrideAccess: true);
+        app(Connectors::class)->save('anthropic', ' sk-ant-secret ', overrideAccess: true);
 
         $stored = DB::table('mainstay_connectors')->where('provider', 'anthropic')->value('key');
         $this->assertStringNotContainsString('sk-ant-secret', $stored);
@@ -103,7 +108,7 @@ class ConnectorTest extends DatabaseTestCase
         $this->assertSame('OK', agent('Answer.')->prompt('Hello?', provider: 'anthropic')->text);
         Http::assertSent(fn (Request $request) => $request->header('x-api-key') === ['sk-ant-secret']);
 
-        Mainstay::connectors()->forget('anthropic', overrideAccess: true);
+        app(Connectors::class)->forget('anthropic', overrideAccess: true);
         $this->assertNull(config('ai.providers.anthropic.key'));
         $this->assertSame(0, Connector::query()->count());
     }
@@ -111,10 +116,10 @@ class ConnectorTest extends DatabaseTestCase
     #[Test]
     public function a_key_in_the_hosts_config_wins_and_is_not_saved_beneath(): void
     {
-        $this->assertSame("OpenAI's key is set in the site's config, which wins over one saved here. Change it there.", $this->refused(fn () => Mainstay::connectors()->save('openai', 'sk-other', overrideAccess: true), 'key'));
+        $this->assertSame("OpenAI's key is set in the site's config, which wins over one saved here. Change it there.", $this->refused(fn () => app(Connectors::class)->save('openai', 'sk-other', overrideAccess: true), 'key'));
         $this->assertSame('sk-from-env', $this->fresh()->instance('openai')->providerCredentials()['key']);
 
-        $listed = array_column(Mainstay::connectors()->all(overrideAccess: true), null, 'name');
+        $listed = array_column(app(Connectors::class)->all(overrideAccess: true), null, 'name');
         $this->assertSame('config', $listed['openai']['key']);
         $this->assertNull($listed['anthropic']['key']);
         $this->assertSame(['text'], $listed['anthropic']['uses']);
@@ -125,7 +130,7 @@ class ConnectorTest extends DatabaseTestCase
     #[Test]
     public function the_provider_chosen_for_a_kind_of_work_is_laravel_ais_default(): void
     {
-        $connectors = Mainstay::connectors();
+        $connectors = app(Connectors::class);
         $connectors->choose('text', 'anthropic', overrideAccess: true);
         $connectors->choose('embeddings', 'voyageai', overrideAccess: true);
 
@@ -151,11 +156,11 @@ class ConnectorTest extends DatabaseTestCase
     #[Test]
     public function a_plugin_brings_providers_and_a_driver_of_its_own(): void
     {
-        $listed = array_column(Mainstay::connectors()->all(overrideAccess: true), null, 'name');
+        $listed = array_column(app(Connectors::class)->all(overrideAccess: true), null, 'name');
         $this->assertSame('Together AI', $listed['together']['label']);
         $this->assertSame('Echo', $listed['echo']['label']);
 
-        Mainstay::connectors()->save('echo', 'echo-key', overrideAccess: true);
+        app(Connectors::class)->save('echo', 'echo-key', overrideAccess: true);
         $echo = $this->fresh()->instance('echo');
         $this->assertInstanceOf(OpenAiCompatibleProvider::class, $echo);
         $this->assertSame('echo-key', $echo->providerCredentials()['key']);
@@ -168,7 +173,7 @@ class ConnectorTest extends DatabaseTestCase
     {
         config(['ai.providers.together' => ['key' => 'tg-from-env', 'url' => 'https://eu.together.test/v1']]);
 
-        $this->assertSame('config', array_column(Mainstay::connectors()->all(overrideAccess: true), 'key', 'name')['together']);
+        $this->assertSame('config', array_column(app(Connectors::class)->all(overrideAccess: true), 'key', 'name')['together']);
         $together = $this->fresh()->instance('together');
         $this->assertSame('tg-from-env', $together->providerCredentials()['key']);
         $this->assertSame(['label' => 'Together AI', 'driver' => 'openai-compatible', 'url' => 'https://eu.together.test/v1', 'key' => 'tg-from-env', 'name' => 'together'], config('ai.providers.together') + ['name' => 'together']);
@@ -181,7 +186,9 @@ class ConnectorTest extends DatabaseTestCase
             Offered::$providers = $providers;
 
             try {
-                (new Registry)->loadPlugins($plugins);
+                $registry = new Registry;
+                $registry->loadPlugins($plugins);
+                (new Connectors($registry))->assertDeclared();
             } catch (InvalidArgumentException $exception) {
                 $this->assertStringContainsString($message, $exception->getMessage());
 
@@ -200,25 +207,25 @@ class ConnectorTest extends DatabaseTestCase
     public function the_screen_is_there_only_to_whoever_manages_connectors(): void
     {
         $this->signIn(['edit_entries', 'manage_users']);
-        $this->get(route('mainstay.connectors'))->assertNotFound();
-        $this->post(route('mainstay.connectors.save', 'anthropic'), ['key' => 'sk-ant-secret'])->assertNotFound();
-        $this->post(route('mainstay.connectors.test', 'anthropic'))->assertNotFound();
-        $this->post(route('mainstay.connectors.forget', 'anthropic'))->assertNotFound();
-        $this->post(route('mainstay.connectors.defaults'), ['defaults' => ['text' => 'anthropic']])->assertNotFound();
+        $this->get(route('mainstay.plugins.ai.index'))->assertNotFound();
+        $this->post(route('mainstay.plugins.ai.save', 'anthropic'), ['key' => 'sk-ant-secret'])->assertNotFound();
+        $this->post(route('mainstay.plugins.ai.test', 'anthropic'))->assertNotFound();
+        $this->post(route('mainstay.plugins.ai.forget', 'anthropic'))->assertNotFound();
+        $this->post(route('mainstay.plugins.ai.defaults'), ['defaults' => ['text' => 'anthropic']])->assertNotFound();
         $this->get(route('mainstay.admin'))->assertDontSee('Connectors');
         $this->assertSame(0, Connector::query()->count());
 
         try {
-            Mainstay::connectors()->all();
+            app(Connectors::class)->all();
             $this->fail('The providers were listed.');
         } catch (AuthorizationException $exception) {
-            $this->assertSame('This needs manage_connectors.', $exception->getMessage());
+            $this->assertSame('This needs use_ai.', $exception->getMessage());
         }
 
-        $this->signIn(['manage_connectors']);
+        $this->signIn(['use_ai']);
         $this->get(route('mainstay.admin'))->assertSee('Connectors');
-        $this->post(route('mainstay.connectors.save', 'anthropic'), ['key' => 'sk-ant-secret'])->assertRedirect(route('mainstay.connectors'));
-        $this->get(route('mainstay.connectors'))->assertOk()
+        $this->post(route('mainstay.plugins.ai.save', 'anthropic'), ['key' => 'sk-ant-secret'])->assertRedirect(route('mainstay.plugins.ai.index'));
+        $this->get(route('mainstay.plugins.ai.index'))->assertOk()
             ->assertSee("Anthropic's key saved.")
             ->assertSee('Together AI')
             ->assertSee('Key saved here, encrypted')
@@ -226,16 +233,16 @@ class ConnectorTest extends DatabaseTestCase
             ->assertDontSee('sk-ant-secret')
             ->assertDontSee('sk-from-env');
 
-        $this->post(route('mainstay.connectors.save', 'nobody'), ['key' => 'x'])->assertNotFound()->assertSee('There is nothing here');
+        $this->post(route('mainstay.plugins.ai.save', 'nobody'), ['key' => 'x'])->assertNotFound()->assertSee('There is nothing here');
         foreach (['anthropic' => 'sk-refused-'.str_repeat('k', 4090), 'openai' => 'sk-refused-secret'] as $provider => $refused) {
-            $this->post(route('mainstay.connectors.save', $provider), ['key' => $refused])->assertSessionHasErrors('key');
+            $this->post(route('mainstay.plugins.ai.save', $provider), ['key' => $refused])->assertSessionHasErrors('key');
             $this->assertStringNotContainsString('sk-refused-', serialize(session()->all()), 'A refused key is nowhere in the session.');
         }
-        $this->post(route('mainstay.connectors.defaults'), ['defaults' => ['text' => 'nobody']])->assertNotFound()->assertSee('There is nothing here');
-        $this->post(route('mainstay.connectors.defaults'), ['defaults' => ['text' => 'anthropic', 'images' => '']])->assertRedirect(route('mainstay.connectors'));
+        $this->post(route('mainstay.plugins.ai.defaults'), ['defaults' => ['text' => 'nobody']])->assertNotFound()->assertSee('There is nothing here');
+        $this->post(route('mainstay.plugins.ai.defaults'), ['defaults' => ['text' => 'anthropic', 'images' => '']])->assertRedirect(route('mainstay.plugins.ai.index'));
         $this->assertSame(['text'], Connector::query()->where('provider', 'anthropic')->sole()->defaults);
 
-        $page = $this->get(route('mainstay.connectors'))->getContent();
+        $page = $this->get(route('mainstay.plugins.ai.index'))->getContent();
         $select = fn (string $use) => preg_match('/<select[^>]*id="default-'.$use.'".*?<\/select>/s', $page, $found) ? $found[0] : '';
         $this->assertMatchesRegularExpression('/<input(?=[^>]*id="key-anthropic")(?=[^>]*type="password")[^>]*>/', $page);
         $this->assertStringNotContainsString('id="key-openai"', $page, 'A key the config sets is changed there.');
@@ -244,32 +251,32 @@ class ConnectorTest extends DatabaseTestCase
         $this->assertMatchesRegularExpression('/<option value="anthropic"\s+selected/', $select('text'));
         $this->assertStringNotContainsString('value="anthropic"', $select('images'), 'Anthropic makes no images.');
         $this->assertStringContainsString('value="gemini"', $select('images'));
-        $this->post(route('mainstay.connectors.defaults'), ['defaults' => ['text' => 'voyageai']])->assertSessionHasErrors('defaults.text');
-        $this->post(route('mainstay.connectors.forget', 'anthropic'))->assertRedirect(route('mainstay.connectors'));
-        $this->get(route('mainstay.connectors'))->assertSee("Anthropic's key removed.");
+        $this->post(route('mainstay.plugins.ai.defaults'), ['defaults' => ['text' => 'voyageai']])->assertSessionHasErrors('defaults.text');
+        $this->post(route('mainstay.plugins.ai.forget', 'anthropic'))->assertRedirect(route('mainstay.plugins.ai.index'));
+        $this->get(route('mainstay.plugins.ai.index'))->assertSee("Anthropic's key removed.");
     }
 
     #[Test]
     public function the_screen_lists_providers_by_label_and_asks_only_for_work_one_does(): void
     {
         config(['ai.providers' => ['anthropic' => ['driver' => 'anthropic', 'key' => null]]]);
-        $this->assertSame(['Anthropic', 'Echo', 'Together AI'], array_column(Mainstay::connectors()->all(overrideAccess: true), 'label'));
+        $this->assertSame(['Anthropic', 'Echo', 'Together AI'], array_column(app(Connectors::class)->all(overrideAccess: true), 'label'));
 
-        $this->signIn(['manage_connectors']);
-        $this->get(route('mainstay.connectors'))->assertOk()
+        $this->signIn(['use_ai']);
+        $this->get(route('mainstay.plugins.ai.index'))->assertOk()
             ->assertSee('id="default-text"', false)
             ->assertDontSee('id="default-images"', false);
 
         $this->signIn(['manage_users']);
-        $this->get(route('mainstay.roles.create'))->assertOk()->assertSeeInOrder(['AI', 'Every provider', 'value="manage_connectors"'], false);
+        $this->get(route('mainstay.roles.create'))->assertOk()->assertSeeInOrder(['Plugins', 'Ai Connectors', 'value="use_ai"'], false);
     }
 
     #[Test]
     public function a_key_saved_under_another_app_key_reads_as_none_until_replaced(): void
     {
         Exceptions::fake();
-        Mainstay::connectors()->save('anthropic', 'sk-ant-old', overrideAccess: true);
-        Mainstay::connectors()->choose('text', 'anthropic', overrideAccess: true);
+        app(Connectors::class)->save('anthropic', 'sk-ant-old', overrideAccess: true);
+        app(Connectors::class)->choose('text', 'anthropic', overrideAccess: true);
         $elsewhere = new Encrypter(Encrypter::generateKey('aes-256-cbc'), 'aes-256-cbc');
         DB::table('mainstay_connectors')->update(['key' => $elsewhere->encryptString('sk-ant-old')]);
 
@@ -277,43 +284,43 @@ class ConnectorTest extends DatabaseTestCase
         $this->assertSame('anthropic', config('ai.default'), 'Its choice outlasts its key.');
         Exceptions::assertReported(DecryptException::class);
 
-        $this->signIn(['manage_connectors']);
-        $this->get(route('mainstay.connectors'))->assertOk()
+        $this->signIn(['use_ai']);
+        $this->get(route('mainstay.plugins.ai.index'))->assertOk()
             ->assertSee('Key saved here under another APP_KEY, so unreadable')
             ->assertSee('data-dialog-open="forget-anthropic"', false);
 
-        Mainstay::connectors()->choose('text', 'openai', overrideAccess: true);
+        app(Connectors::class)->choose('text', 'openai', overrideAccess: true);
         $this->assertTrue(Connector::query()->where('provider', 'anthropic')->exists(), 'Its key keeps the row, readable or not.');
 
-        Mainstay::connectors()->save('anthropic', 'sk-ant-new', overrideAccess: true);
+        app(Connectors::class)->save('anthropic', 'sk-ant-new', overrideAccess: true);
         $this->assertSame('sk-ant-new', $this->fresh()->instance('anthropic')->providerCredentials()['key']);
     }
 
     #[Test]
     public function a_test_says_what_the_provider_answered_or_why_not_without_the_key(): void
     {
-        $this->signIn(['manage_connectors']);
-        Mainstay::connectors()->save('anthropic', 'sk-ant-secret', overrideAccess: true);
+        $this->signIn(['use_ai']);
+        app(Connectors::class)->save('anthropic', 'sk-ant-secret', overrideAccess: true);
 
         Http::fake(['api.anthropic.com/*' => Http::sequence()
             ->push(self::ANSWER)
             ->push(['type' => 'error', 'error' => ['type' => 'authentication_error', 'message' => 'invalid x-api-key sk-ant-secret']], 401)]);
-        $this->post(route('mainstay.connectors.test', 'anthropic'))->assertRedirect(route('mainstay.connectors'));
-        $this->get(route('mainstay.connectors'))->assertSee('Anthropic answered: OK');
+        $this->post(route('mainstay.plugins.ai.test', 'anthropic'))->assertRedirect(route('mainstay.plugins.ai.index'));
+        $this->get(route('mainstay.plugins.ai.index'))->assertSee('Anthropic answered: OK');
         Http::assertSent(fn (Request $request) => $request['model'] === 'claude-haiku-5-5');
 
-        $this->post(route('mainstay.connectors.test', 'anthropic'))->assertSessionHasErrors('test');
+        $this->post(route('mainstay.plugins.ai.test', 'anthropic'))->assertSessionHasErrors('test');
         $error = session('errors')->first('test');
         $this->assertStringContainsString('[key]', $error);
         $this->assertStringNotContainsString('sk-ant-secret', $error);
 
-        $this->assertStringContainsString('does neither', $this->refused(fn () => Mainstay::connectors()->test('eleven', overrideAccess: true), 'test'));
+        $this->assertStringContainsString('does neither', $this->refused(fn () => app(Connectors::class)->test('eleven', overrideAccess: true), 'test'));
     }
 
     #[Test]
-    public function every_call_needs_manage_connectors(): void
+    public function every_call_needs_use_ai(): void
     {
-        $connectors = Mainstay::connectors();
+        $connectors = app(Connectors::class);
 
         foreach ([
             fn () => $connectors->all(),
@@ -336,7 +343,7 @@ class ConnectorTest extends DatabaseTestCase
     #[Test]
     public function a_key_and_the_defaults_a_provider_holds_outlast_each_other(): void
     {
-        $connectors = Mainstay::connectors();
+        $connectors = app(Connectors::class);
         $connectors->save('anthropic', 'sk-ant-secret', overrideAccess: true);
         $connectors->choose('text', 'anthropic', overrideAccess: true);
         $connectors->choose('text', 'openai', overrideAccess: true);
@@ -360,11 +367,11 @@ class ConnectorTest extends DatabaseTestCase
         $ai = $this->app->make(AiManager::class);
         $this->assertNull($ai->instance('anthropic')->providerCredentials()['key']);
 
-        Mainstay::connectors()->save('anthropic', 'sk-ant-secret', overrideAccess: true);
+        app(Connectors::class)->save('anthropic', 'sk-ant-secret', overrideAccess: true);
         $this->assertSame('sk-ant-secret', $ai->instance('anthropic')->providerCredentials()['key']);
 
-        $this->signIn(['manage_connectors']);
-        $this->post(route('mainstay.connectors.defaults'), ['defaults' => ['text' => 'anthropic', 'images' => 'anthropic']])->assertSessionHasErrors('defaults.images');
+        $this->signIn(['use_ai']);
+        $this->post(route('mainstay.plugins.ai.defaults'), ['defaults' => ['text' => 'anthropic', 'images' => 'anthropic']])->assertSessionHasErrors('defaults.images');
         $this->assertSame([], Connector::query()->where('provider', 'anthropic')->sole()->defaults);
         $this->assertSame('openai', config('ai.default'), 'A rolled back choice is not laravel/ai\'s either.');
     }
@@ -377,17 +384,17 @@ class ConnectorTest extends DatabaseTestCase
 
         $this->assertSame('sk-from-env', $this->fresh()->instance('openai')->providerCredentials()['key']);
         $this->assertSame('openai', config('ai.default'));
-        $this->assertSame(['provider' => 'openai', 'chosen' => false], Mainstay::connectors()->defaults()['text']);
+        $this->assertSame(['provider' => 'openai', 'chosen' => false], app(Connectors::class)->defaults()['text']);
     }
 
     #[Test]
     public function an_empty_line_in_the_env_is_no_key(): void
     {
         config(['ai.providers.anthropic.key' => '']);
-        Mainstay::connectors()->save('anthropic', 'sk-ant-secret', overrideAccess: true);
+        app(Connectors::class)->save('anthropic', 'sk-ant-secret', overrideAccess: true);
 
         $this->assertSame('sk-ant-secret', $this->fresh()->instance('anthropic')->providerCredentials()['key']);
-        $this->assertSame('saved', array_column(Mainstay::connectors()->all(overrideAccess: true), 'key', 'name')['anthropic']);
+        $this->assertSame('saved', array_column(app(Connectors::class)->all(overrideAccess: true), 'key', 'name')['anthropic']);
     }
 
     #[Test]
@@ -395,7 +402,7 @@ class ConnectorTest extends DatabaseTestCase
     {
         config(['ai.default' => Lab::Anthropic, 'ai.default_for_images' => ['openai', 'gemini'], 'ai.default_for_embeddings' => ['voyageai' => 'voyage-3']]);
 
-        $defaults = Mainstay::connectors()->defaults();
+        $defaults = app(Connectors::class)->defaults();
         $this->assertSame('anthropic', $defaults['text']['provider']);
         $this->assertSame('openai', $defaults['images']['provider']);
         $this->assertSame('voyageai', $defaults['embeddings']['provider']);
@@ -405,36 +412,33 @@ class ConnectorTest extends DatabaseTestCase
     public function a_provider_its_config_does_not_make_is_shown_broken_beside_the_rest(): void
     {
         config(['ai.providers.broken' => ['driver' => 'nonsense', 'key' => 'sk-broken-secret']]);
-        $this->signIn(['manage_connectors']);
+        $this->signIn(['use_ai']);
 
-        $this->get(route('mainstay.connectors'))->assertOk()
+        $this->get(route('mainstay.plugins.ai.index'))->assertOk()
             ->assertSee('Its config makes no provider: Instance driver [nonsense] is not supported.')
             ->assertSee('Anthropic');
-        $this->post(route('mainstay.connectors.test', 'broken'))->assertSessionHasErrors('test');
-        $this->post(route('mainstay.connectors.save', 'anthropic'), ['key' => ['sk-ant-secret']])->assertSessionHasErrors('key');
+        $this->post(route('mainstay.plugins.ai.test', 'broken'))->assertSessionHasErrors('test');
+        $this->post(route('mainstay.plugins.ai.save', 'anthropic'), ['key' => ['sk-ant-secret']])->assertSessionHasErrors('key');
     }
 
     #[Test]
     public function a_test_of_a_provider_doing_no_text_embeds_a_word(): void
     {
-        Mainstay::connectors()->save('voyageai', 'pa-secret', overrideAccess: true);
+        app(Connectors::class)->save('voyageai', 'pa-secret', overrideAccess: true);
         Http::fake(['api.voyageai.com/*' => Http::response(['data' => [['embedding' => [0.1, 0.2, 0.3], 'index' => 0]], 'usage' => ['total_tokens' => 1]])]);
 
-        $this->assertSame('3 dimensions', Mainstay::connectors()->test('voyageai', overrideAccess: true));
+        $this->assertSame('3 dimensions', app(Connectors::class)->test('voyageai', overrideAccess: true));
     }
 
     #[Test]
-    public function connectors_is_a_segment_of_the_admins_own(): void
+    public function the_connectors_table_is_one_no_type_may_be_stored_in(): void
     {
-        Named::$handle = 'connectors';
+        $this->app->make(Registry::class)->types([MainstayConnectors::class]);
 
-        try {
-            (new Registry)->loadPlugins([Named::class]);
-            $this->fail('A plugin took the segment.');
-        } catch (InvalidArgumentException $exception) {
-            $this->assertStringContainsString('is called "connectors", which the admin or a view namespace uses already', $exception->getMessage());
-        } finally {
-            Named::$handle = 'named';
-        }
+        $this->assertThrows(
+            fn () => app(ContentSchema::class)->diff(),
+            InvalidArgumentException::class,
+            'would be stored in mainstay_connectors, a table Mainstay keeps for itself',
+        );
     }
 }

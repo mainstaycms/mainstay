@@ -4,49 +4,55 @@ parameters:
 			message: '#^Dead catch \- Illuminate\\Contracts\\Encryption\\DecryptException is never thrown in the try block\.$#'
 			identifier: catch.neverThrown
 			count: 1
-			path: packages/cms/src/Ai/Connector.php
+			path: packages/ai/src/Connector.php
+
+		-
+			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: packages/ai/src/ConnectorController.php
 
 		-
 			message: '#^Only iterables can be unpacked, string given\.$#'
 			identifier: arrayUnpacking.nonIterable
 			count: 1
-			path: packages/cms/src/Ai/Connectors.php
+			path: packages/ai/src/Connectors.php
 
 		-
 			message: '#^Parameter \#1 \$array of function array_diff expects array, string given\.$#'
 			identifier: argument.type
 			count: 1
-			path: packages/cms/src/Ai/Connectors.php
+			path: packages/ai/src/Connectors.php
 
 		-
 			message: '#^Parameter \#2 \$callback of method Illuminate\\Support\\MultipleInstanceManager\:\:extend\(\) expects bindable closure, static closure given\.$#'
 			identifier: argument.staticClosure
 			count: 1
-			path: packages/cms/src/Ai/Connectors.php
+			path: packages/ai/src/Connectors.php
 
 		-
 			message: '#^Parameter \#2 \$haystack of function in_array expects array, string given\.$#'
 			identifier: argument.type
 			count: 1
-			path: packages/cms/src/Ai/Connectors.php
+			path: packages/ai/src/Connectors.php
 
 		-
 			message: '#^Property Mainstay\\Ai\\Connector\:\:\$defaults \(string\) does not accept list\<mixed\>\.$#'
 			identifier: assign.propertyType
 			count: 1
-			path: packages/cms/src/Ai/Connectors.php
+			path: packages/ai/src/Connectors.php
 
 		-
 			message: '#^Strict comparison using \!\=\= between list\<mixed\> and string will always evaluate to true\.$#'
 			identifier: notIdentical.alwaysTrue
 			count: 1
-			path: packages/cms/src/Ai/Connectors.php
+			path: packages/ai/src/Connectors.php
 
 		-
 			message: '#^Strict comparison using \=\=\= between string and array\{\} will always evaluate to false\.$#'
 			identifier: identical.alwaysFalse
 			count: 1
-			path: packages/cms/src/Ai/Connectors.php
+			path: packages/ai/src/Connectors.php
 
 		-
 			message: '#^Access to an undefined property Mainstay\\Auth\\User\:\:\$email\.$#'

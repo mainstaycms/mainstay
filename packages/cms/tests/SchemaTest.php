@@ -16,7 +16,6 @@ use Mainstay\Tests\Fixtures\Accented\Article as AccentedArticle;
 use Mainstay\Tests\Fixtures\Article;
 use Mainstay\Tests\Fixtures\Bodied\Article as BodiedArticle;
 use Mainstay\Tests\Fixtures\Broken\Collided;
-use Mainstay\Tests\Fixtures\Broken\MainstayConnectors;
 use Mainstay\Tests\Fixtures\Broken\MainstayDrafts;
 use Mainstay\Tests\Fixtures\Broken\MainstayPasswordResetTokens;
 use Mainstay\Tests\Fixtures\Broken\MainstayRevisions;
@@ -924,7 +923,6 @@ class SchemaTest extends DatabaseTestCase
             MainstayUsers::class => 'would be stored in mainstay_users, a table Mainstay keeps for itself',
             MainstayPasswordResetTokens::class => 'would be stored in mainstay_password_reset_tokens, a table Mainstay keeps for itself',
             MainstayTokens::class => 'would be stored in mainstay_tokens, a table Mainstay keeps for itself',
-            MainstayConnectors::class => 'would be stored in mainstay_connectors, a table Mainstay keeps for itself',
             Typed::class => 'has a field stored as type, a column Mainstay keeps for itself',
         ] as $type => $message) {
             $this->declare($type);

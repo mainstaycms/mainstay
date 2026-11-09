@@ -1,6 +1,6 @@
 <?php
 
-namespace Mainstay\Tests;
+namespace Mainstay\Site\Tests;
 
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Http\Kernel;
@@ -14,6 +14,8 @@ use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use Mainstay\Facades\Mainstay;
 use Mainstay\Mainstay as Registry;
+use Mainstay\Site\SitePlugin;
+use Mainstay\Tests\DatabaseTestCase;
 use Mainstay\Tests\Fixtures\Blocks\Figure;
 use Mainstay\Tests\Fixtures\Blocks\Nested\Slide as NestedSlide;
 use Mainstay\Tests\Fixtures\Blocks\Other\Slide as OtherSlide;
@@ -42,8 +44,9 @@ class RenderTest extends DatabaseTestCase
     {
         parent::defineEnvironment($app);
 
+        $app['config']->set('mainstay.plugins', [SitePlugin::class]);
         $app['config']->set('mainstay.locales', ['en' => '/', 'nl' => '/nl']);
-        $app['view']->addLocation(__DIR__.'/Fixtures/views');
+        $app['view']->addLocation(dirname(__DIR__, 2).'/cms/tests/Fixtures/views');
     }
 
     protected function setUp(): void
@@ -89,13 +92,6 @@ class RenderTest extends DatabaseTestCase
     protected function apiAtOneSegment($app): void
     {
         $app['config']->set('mainstay.api.prefix', 'content');
-    }
-
-    /* `site` alone, as a host's own config leaving the middleware out would
-       have it. */
-    protected function headless($app): void
-    {
-        $app['config']->set('mainstay.site', ['enabled' => false]);
     }
 
     protected function stateless($app): void
@@ -391,16 +387,6 @@ class RenderTest extends DatabaseTestCase
         Mainstay::create(Leaf::class, ['title' => 'Y', 'slug' => 'admin'], locale: 'en', overrideAccess: true);
 
         $this->get('http://example.test/admin')->assertOk()->assertSee('leaf: Y');
-    }
-
-    #[Test]
-    #[DefineEnvironment('headless')]
-    #[DefineRoute('handWritten')]
-    public function with_public_pages_off_the_hosts_fallback_runs(): void
-    {
-        $this->writePost(['slug' => 'other']);
-
-        $this->get('/blog/other')->assertOk()->assertSee('host fallback');
     }
 
     #[Test]

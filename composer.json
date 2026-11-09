@@ -9,7 +9,10 @@
     "require-dev": {
         "larastan/larastan": "^3.14",
         "laravel/pint": "^1.18",
+        "mainstay/ai": "@dev",
         "mainstay/cms": "@dev",
+        "mainstay/mcp": "@dev",
+        "mainstay/site": "@dev",
         "mainstay/ui": "@dev",
         "orchestra/testbench": "^11.0",
         "psalm/plugin-laravel": "^4.18",
@@ -18,7 +21,28 @@
     "repositories": [
         {
             "type": "path",
+            "url": "packages/ai",
+            "options": {
+                "symlink": true
+            }
+        },
+        {
+            "type": "path",
             "url": "packages/cms",
+            "options": {
+                "symlink": true
+            }
+        },
+        {
+            "type": "path",
+            "url": "packages/mcp",
+            "options": {
+                "symlink": true
+            }
+        },
+        {
+            "type": "path",
+            "url": "packages/site",
             "options": {
                 "symlink": true
             }
@@ -33,6 +57,9 @@
     ],
     "autoload-dev": {
         "psr-4": {
+            "Mainstay\\Ai\\Tests\\": "packages/ai/tests/",
+            "Mainstay\\Mcp\\Tests\\": "packages/mcp/tests/",
+            "Mainstay\\Site\\Tests\\": "packages/site/tests/",
             "Mainstay\\Tests\\": "packages/cms/tests/",
             "Mainstay\\Ui\\Tests\\": "packages/ui/tests/",
             "Mainstay\\Ui\\Demo\\": "packages/ui/stories/php/",

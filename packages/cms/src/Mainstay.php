@@ -2,14 +2,12 @@
 
 namespace Mainstay;
 
-use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
-use Mainstay\Ai\Connectors;
 use Mainstay\Auth\Accounts;
 use Mainstay\Auth\Capabilities;
 use Mainstay\Auth\Tokens;
@@ -42,7 +40,7 @@ class Mainstay
 
     /* The first segments of the admin's own screens, which a type's handle,
        naming its screens' segment, cannot be. */
-    private const ADMIN = ['media', 'login', 'logout', 'users', 'roles', 'account', 'connectors'];
+    private const ADMIN = ['media', 'login', 'logout', 'users', 'roles', 'account'];
 
     /* View namespaces a plugin's handle cannot be: Mainstay's own, and
        Laravel's mail and error pages, which it adds only as a mail or an
@@ -181,13 +179,10 @@ class Mainstay
      | screens answer at, the namespace its views are in and its capability's
      | noun, so it is checked here, where the class can be named: none of the
      | admin's screens, no view namespace already there, no type's and no other
-     | plugin's. So is each AI provider it declares: a name laravel/ai can
-     | take, a driver, and no other plugin's.
+     | plugin's.
      */
     public function loadPlugins(array $plugins): void
     {
-        $providers = [];
-
         foreach ($plugins as $plugin) {
             if (! is_string($plugin) || ! is_subclass_of($plugin, Plugin::class)) {
                 throw new InvalidArgumentException(sprintf(
@@ -219,22 +214,6 @@ class Mainstay
             }
 
             $this->plugins[$handle] = app($plugin);
-
-            foreach ($this->plugins[$handle]->providers() as $name => $config) {
-                if (! is_string($name) || preg_match('/\A[a-z][a-z0-9_-]*\z/', $name) !== 1) {
-                    throw new InvalidArgumentException("{$plugin} declares an AI provider called \"{$name}\", and a provider's name is lowercase letters, digits, dashes and underscores, starting with a letter.");
-                }
-
-                if (! is_string($config['driver'] ?? null) && ! ($config['driver'] ?? null) instanceof Closure) {
-                    throw new InvalidArgumentException("{$plugin}'s AI provider {$name} names no driver: give it one of laravel/ai's, such as openai-compatible, or a closure that makes one.");
-                }
-
-                if (isset($providers[$name])) {
-                    throw new InvalidArgumentException("Two plugins declare the AI provider \"{$name}\": {$providers[$name]} and {$plugin}.");
-                }
-
-                $providers[$name] = $plugin;
-            }
         }
 
         foreach ($this->plugins as $loaded) {
@@ -603,13 +582,6 @@ class Mainstay
     public function accounts(): Accounts
     {
         return new Accounts($this);
-    }
-
-    /* The AI providers the site talks to through laravel/ai, their keys and
-       what each is used for: `Mainstay::connectors()->save(...)`. */
-    public function connectors(): Connectors
-    {
-        return app(Connectors::class);
     }
 
     /* The tokens programs sign in to the API with: `Mainstay::tokens()

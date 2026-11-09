@@ -1,15 +1,13 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Laravel\Mcp\Facades\Mcp;
 use Mainstay\Http\ApiController;
 use Mainstay\Http\AuthenticateToken;
 use Mainstay\Mainstay;
-use Mainstay\Mcp\Server;
 
 /*
  | The content API, every route behind a token or reading as nobody -- see
- | AuthenticateToken -- and MCP beside it, the same operations as tools.
+ | AuthenticateToken.
  | Entries and globals sit under segments of their own, so no type's handle
  | can take one of these.
  */
@@ -38,6 +36,4 @@ Route::middleware(AuthenticateToken::class)->group(function () {
     Route::get('drafts/{id}', [ApiController::class, 'draft'])->whereNumber('id')->name('mainstay.api.drafts.show');
     Route::post('drafts/{id}/publish', [ApiController::class, 'publish'])->whereNumber('id')->name('mainstay.api.drafts.publish');
     Route::delete('drafts/{id}', [ApiController::class, 'discard'])->whereNumber('id')->name('mainstay.api.drafts.destroy');
-
-    Mcp::web('mcp', Server::class)->name('mainstay.api.mcp');
 });

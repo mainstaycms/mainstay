@@ -17,6 +17,7 @@ use Mainstay\Facades\Mainstay;
 use Mainstay\Fields\Relation;
 use Mainstay\Fields\Terms;
 use Mainstay\Mainstay as Registry;
+use Mainstay\Site\SitePlugin;
 use Mainstay\Tests\Fixtures\Linked\Broken\Demanding;
 use Mainstay\Tests\Fixtures\Linked\Broken\Filed;
 use Mainstay\Tests\Fixtures\Linked\Broken\Labelled;
@@ -47,6 +48,8 @@ class RelationTest extends DatabaseTestCase
     {
         parent::defineEnvironment($app);
 
+        /* Pages are drawn by the site plugin, which these tests read back. */
+        $app['config']->set('mainstay.plugins', [SitePlugin::class]);
         $app['config']->set('mainstay.locales', ['en' => '/', 'nl' => '/nl']);
         $app['view']->addLocation(__DIR__.'/Fixtures/views');
     }

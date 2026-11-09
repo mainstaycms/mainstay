@@ -26,6 +26,7 @@ use Mainstay\Fields\Blocks;
 use Mainstay\Fields\Text;
 use Mainstay\Http\EntryController;
 use Mainstay\Http\Form;
+use Mainstay\Site\SitePlugin;
 use Mainstay\Tests\Fixtures\Accented\Article as Accented;
 use Mainstay\Tests\Fixtures\Blocks\Callout;
 use Mainstay\Tests\Fixtures\Blocks\Looped;
@@ -62,6 +63,8 @@ class AdminTest extends DatabaseTestCase
     {
         parent::defineEnvironment($app);
 
+        /* Pages are drawn by the site plugin, which these tests read back. */
+        $app['config']->set('mainstay.plugins', [SitePlugin::class]);
         $app['config']->set('mainstay.locales', ['en' => '/', 'nl' => '/nl']);
         $app['view']->addLocation(__DIR__.'/Fixtures/views');
     }

@@ -1,6 +1,6 @@
 <?php
 
-namespace Mainstay\Http;
+namespace Mainstay\Site;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;

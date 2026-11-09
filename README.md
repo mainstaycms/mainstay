@@ -71,10 +71,10 @@ Mainstay owns its tables inside your app. "Headless" describes the consumer, not
 - **Plugins.** A package adds types, blocks, field types, admin screens and listeners on content
   changes. Only the plugins your config names load, and their screens answer behind the admin's
   sign-in and a capability of their own.
-- **An API and an MCP server.** The same reads and writes over JSON and as tools a language model
+- **An API, and an MCP server as a plugin (`mainstay/mcp`).** The same reads and writes over JSON and as tools a language model
   calls, behind tokens that never hold more than the account that made them. `/schema` describes
   every payload, and `mainstay:typescript` writes it out for a front end.
-- **AI connectors.** Every provider laravel/ai speaks -- OpenAI, Anthropic, Gemini, Mistral, Ollama
+- **AI connectors, a plugin (`mainstay/ai`).** Every provider laravel/ai speaks -- OpenAI, Anthropic, Gemini, Mistral, Ollama
   and more -- on one admin screen: a key from the environment or saved there encrypted, a test, and
   the provider each kind of work goes to. Code prompts with laravel/ai and reaches what the site
   connected, and a plugin adds a provider of its own.
@@ -124,9 +124,11 @@ php artisan vendor:publish --tag=mainstay-assets
 ```
 
 The admin is then at `/admin`, behind a sign-in of its own, and the content API at `/api/mainstay`.
-Every other path an entry holds is answered by Mainstay's catch-all, after any route your app
-declares itself. The two paths, their middleware, an optional dedicated domain, where each content
-language is served, and the catch-all's middleware, or whether it runs at all, are configurable:
+That is all the package serves. Public pages are the `mainstay/site` plugin: require it and name
+`Mainstay\Site\SitePlugin` in `config('mainstay.plugins')`, and every other path an entry holds is
+answered by its catch-all, after any route your app declares itself, behind the middleware of
+`mainstay.site.middleware` (`web` unless you say otherwise). The two paths, their middleware, an
+optional dedicated domain and where each content language is served are configurable:
 
 ```bash
 php artisan vendor:publish --tag=mainstay-config
@@ -342,16 +344,17 @@ and 1 without a token), and its id past that or where you may not read its type.
 mainstay:typescript` writes `/schema` out as TypeScript declarations, to
 `resources/types/mainstay.d.ts` unless you name a path.
 
-The same operations are an MCP server at `/api/mainstay/mcp`, for a client that speaks Streamable
+With the `mainstay/mcp` plugin (name `Mainstay\Mcp\McpPlugin` in `config('mainstay.plugins')`), the same operations are an MCP server at `/api/mainstay/mcp`, for a client that speaks Streamable
 HTTP: `find-entries`, `get-entry`, `save-draft`, `publish-draft` and the rest, behind the same token.
 Give an agent a token that edits and does not publish, and it writes drafts for a person to put live.
 
 ### Connect an AI provider
 
-Mainstay talks to AI providers through [laravel/ai](https://github.com/laravel/ai), so every provider
-it speaks is one a site can connect: OpenAI, Anthropic, Gemini, Mistral, Groq, xAI, DeepSeek,
-OpenRouter, Ollama and the rest. The admin's **Connectors** screen, open to whoever holds
-`manage_connectors`, has a card per provider -- what it does, where its key comes from, Test -- and
+The `mainstay/ai` plugin talks to AI providers through [laravel/ai](https://github.com/laravel/ai), so
+every provider it speaks is one a site can connect. Require it and name `Mainstay\Ai\AiConnectors` in
+`config('mainstay.plugins')`: OpenAI, Anthropic, Gemini, Mistral, Groq, xAI, DeepSeek,
+OpenRouter, Ollama and the rest. The admin's **Ai Connectors** screen, open to whoever holds
+`use_ai`, has a card per provider -- what it does, where its key comes from, Test -- and
 chooses the provider each kind of work goes to: text, images, speech, transcription, embeddings,
 reranking and classification.
 
@@ -374,7 +377,7 @@ A provider's other settings, such as a URL or a region, are laravel/ai's config:
 `php artisan vendor:publish --tag=ai-config`. A queue worker reads the screen's keys when it first
 prompts, so restart workers after changing one.
 
-A plugin adds providers with `providers()`, as entries of laravel/ai's `ai.providers` with a label for
+A plugin adds providers by implementing `Mainstay\Ai\DeclaresProviders` and its `providers()`, as entries of laravel/ai's `ai.providers` with a label for
 the screen. One on a driver laravel/ai has is config alone -- an `openai-compatible` one names its
 models, since laravel/ai cannot guess them -- and one on a driver of its own hands over a closure that
 returns a laravel/ai provider:

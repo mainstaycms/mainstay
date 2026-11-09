@@ -41,7 +41,7 @@
                             @endif
 
                             @if ($provider['key'] !== 'config')
-                                <form method="post" action="{{ route('mainstay.connectors.save', $provider['name']) }}" class="flex gap-2">
+                                <form method="post" action="{{ route('mainstay.plugins.ai.save', $provider['name']) }}" class="flex gap-2">
                                     @csrf
                                     <label for="key-{{ $provider['name'] }}" class="sr-only">{{ $provider['label'] }}'s key</label>
                                     <x-mainstay::input :id="'key-'.$provider['name']" name="key" type="password" autocomplete="new-password" required :placeholder="$provider['key'] === 'saved' ? 'A new key' : 'Key'" />
@@ -50,14 +50,14 @@
                             @endif
 
                             <div class="flex gap-2">
-                                <form method="post" action="{{ route('mainstay.connectors.test', $provider['name']) }}">
+                                <form method="post" action="{{ route('mainstay.plugins.ai.test', $provider['name']) }}">
                                     @csrf
                                     <x-mainstay::button type="submit" variant="secondary">Test</x-mainstay::button>
                                 </form>
                                 @if (in_array($provider['key'], ['saved', 'unreadable'], true))
                                     <x-mainstay::button type="button" variant="secondary" data-dialog-open="forget-{{ $provider['name'] }}">Remove key</x-mainstay::button>
                                     <x-mainstay::dialog :id="'forget-'.$provider['name']" :label="'Remove '.$provider['label'].'\'s key?'">
-                                        <form method="post" action="{{ route('mainstay.connectors.forget', $provider['name']) }}" class="space-y-4">
+                                        <form method="post" action="{{ route('mainstay.plugins.ai.forget', $provider['name']) }}" class="space-y-4">
                                             @csrf
                                             <p>Whatever the site asks {{ $provider['label'] }} stops working until a key is saved again. Mainstay keeps no copy.</p>
                                             <div class="flex justify-end gap-2">
@@ -73,7 +73,7 @@
                 </ul>
             </section>
 
-            <form id="connectors-defaults" method="post" action="{{ route('mainstay.connectors.defaults') }}">
+            <form id="connectors-defaults" method="post" action="{{ route('mainstay.plugins.ai.defaults') }}">
                 @csrf
                 <x-mainstay::field-group label="Used for">
                     @foreach ($uses as $use => $label)

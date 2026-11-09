@@ -11,7 +11,10 @@
     errorBaseline="psalm-baseline.xml"
 >
     <projectFiles>
+        <directory name="packages/ai/src"/>
         <directory name="packages/cms/src"/>
+        <directory name="packages/mcp/src"/>
+        <directory name="packages/site/src"/>
         <directory name="packages/ui/src"/>
         <ignoreFiles>
             <directory name="vendor"/>

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 use Laravel\Ai\AiManager;
 use Laravel\Ai\Contracts\Providers\AudioProvider;
 use Laravel\Ai\Contracts\Providers\ClassificationProvider;
@@ -21,8 +22,6 @@ use Laravel\Ai\Embeddings;
 use Laravel\Ai\Enums\Lab;
 use Mainstay\Auth\Gate;
 use Mainstay\Mainstay;
-use Mainstay\Plugin;
-use Mainstay\Policies\ConnectorPolicy;
 
 use function Laravel\Ai\agent;
 
@@ -36,8 +35,8 @@ use function Laravel\Ai\agent;
  | `agent('...')->prompt('...')`, `Image::of('...')->generate()` -- and
  | reaches whatever the site connected.
  |
- | `Mainstay::connectors()->save('anthropic', $key)`. Every call needs
- | `manage_connectors`, unless `overrideAccess` says the caller acts on its
+ | `app(Connectors::class)->save('anthropic', $key)`. Every call needs
+ | `use_ai`, unless `overrideAccess` says the caller acts on its
  | own authority.
  */
 final class Connectors
@@ -300,7 +299,40 @@ final class Connectors
     /** @return array<string, array<string, mixed>> the providers plugins declare, by name */
     private function declared(): array
     {
-        return array_merge(...array_map(fn (Plugin $plugin) => $plugin->providers(), array_values($this->mainstay->plugins())));
+        return array_merge(...array_map(fn (DeclaresProviders $plugin) => $plugin->providers(), $this->declaring()));
+    }
+
+    /** @return list<DeclaresProviders> */
+    private function declaring(): array
+    {
+        return array_values(array_filter($this->mainstay->plugins(), fn ($plugin) => $plugin instanceof DeclaresProviders));
+    }
+
+    /*
+     | Refused as the plugins load rather than when a screen draws them: a
+     | name laravel/ai can take, a driver, and no other plugin's.
+     */
+    public function assertDeclared(): void
+    {
+        $owners = [];
+
+        foreach ($this->declaring() as $plugin) {
+            foreach ($plugin->providers() as $name => $config) {
+                if (preg_match('/\A[a-z][a-z0-9_-]*\z/', $name) !== 1) {
+                    throw new InvalidArgumentException($plugin::class." declares an AI provider called \"{$name}\", and a provider's name is lowercase letters, digits, dashes and underscores, starting with a letter.");
+                }
+
+                if (! is_string($config['driver'] ?? null) && ! ($config['driver'] ?? null) instanceof Closure) {
+                    throw new InvalidArgumentException($plugin::class."'s AI provider {$name} names no driver: give it one of laravel/ai's, such as openai-compatible, or a closure that makes one.");
+                }
+
+                if (isset($owners[$name])) {
+                    throw new InvalidArgumentException("Two plugins declare the AI provider \"{$name}\": {$owners[$name]} and ".$plugin::class.'.');
+                }
+
+                $owners[$name] = $plugin::class;
+            }
+        }
     }
 
     private function hosted(): array

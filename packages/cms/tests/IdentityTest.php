@@ -197,7 +197,7 @@ class IdentityTest extends DatabaseTestCase
             'edit_banner', 'publish_banner', 'edit_footer', 'publish_footer',
             'manage_topics',
             'edit_entries', 'edit_published_entries', 'edit_others_entries', 'publish_entries', 'delete_entries', 'delete_others_entries',
-            'edit_globals', 'publish_globals', 'manage_terms', 'upload_media', 'edit_others_media', 'manage_users', 'manage_connectors',
+            'edit_globals', 'publish_globals', 'manage_terms', 'upload_media', 'edit_others_media', 'manage_users',
         ], Mainstay::capabilities());
     }
 
@@ -243,7 +243,7 @@ class IdentityTest extends DatabaseTestCase
     public function the_migrations_ship_an_administrator_and_an_editor(): void
     {
         $this->assertSame(
-            ['administrator' => ['*'], 'editor' => array_values(array_diff(Capabilities::shared(), [Capabilities::USERS, Capabilities::CONNECTORS]))],
+            ['administrator' => ['*'], 'editor' => array_values(array_diff(Capabilities::shared(), [Capabilities::USERS]))],
             Role::query()->orderBy('name')->pluck('capabilities', 'name')->all(),
         );
     }
