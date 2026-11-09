@@ -3,8 +3,8 @@
 namespace Mainstay\Tests\Fixtures;
 
 use Mainstay\Content\Entry;
-use Mainstay\Content\Route;
 use Mainstay\Fields\Text;
+use Mainstay\Site\Route;
 
 /* A path of one segment, which is the one that can run into a locale's
    prefix or the admin's. */

@@ -25,6 +25,7 @@ use Mainstay\Content\Draft;
 use Mainstay\Content\Entry;
 use Mainstay\Content\GlobalSet;
 use Mainstay\Content\Taxonomy;
+use Mainstay\Database\Paths;
 use Mainstay\Fields\Blocks;
 use Mainstay\Fields\Content;
 use Mainstay\Fields\Field;
@@ -77,7 +78,7 @@ class EntryController
         'horizontal_rule' => ['type' => 'horizontal_rule'],
     ];
 
-    public function __construct(private Mainstay $mainstay) {}
+    public function __construct(private Mainstay $mainstay, private Paths $paths) {}
 
     /* A type's list, or a global's form: a global is the one there is. */
     public function index(Request $request, string $type): View
@@ -176,7 +177,7 @@ class EntryController
     {
         $class = $this->type($type, entries: true);
 
-        if ($this->mainstay->route($class) === null) {
+        if (! $this->paths->routed($class)) {
             throw $this->missing();
         }
 
@@ -287,7 +288,7 @@ class EntryController
         $class = $this->type($type, entries: true);
         $content = $this->mainstay->fields($class)['content'];
 
-        if ($this->mainstay->route($class) === null) {
+        if (! $this->paths->routed($class)) {
             throw $this->missing();
         }
 
@@ -376,7 +377,7 @@ class EntryController
         $insert = (string) $request->query('insert');
         $block = str_starts_with($insert, 'block:') ? Form::blocks($class)[substr($insert, 6)] ?? null : null;
 
-        if ($this->mainstay->route($class) === null || (! isset(self::SAMPLES[$insert]) && ($block === null || Form::example($block) === null))) {
+        if (! $this->paths->routed($class) || (! isset(self::SAMPLES[$insert]) && ($block === null || Form::example($block) === null))) {
             throw $this->missing();
         }
 
@@ -924,7 +925,7 @@ class EntryController
             $seen['template'] = sha1($template);
         }
 
-        $routed = ! $global && $this->mainstay->route($class) !== null;
+        $routed = ! $global && $this->paths->routed($class);
         $live = $id !== null && $shown instanceof Entry;
         $title = $global ? Navigation::label($class) : ((($entry ?? $other)?->title ?? '') ?: 'Untitled');
         $current = $draft ?? ($elsewhere instanceof Draft ? $elsewhere : null);

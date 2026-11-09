@@ -1,6 +1,6 @@
 <?php
 
-namespace Mainstay\Content;
+namespace Mainstay\Site;
 
 use Attribute;
 

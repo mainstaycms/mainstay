@@ -2,9 +2,9 @@
 
 namespace Mainstay\Tests\Fixtures\Linked;
 
-use Mainstay\Content\Route;
 use Mainstay\Content\Taxonomy;
 use Mainstay\Fields\Text;
+use Mainstay\Site\Route;
 
 #[Route('/genres/{slug}')]
 class Genre extends Taxonomy

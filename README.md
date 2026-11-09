@@ -55,8 +55,9 @@ Mainstay owns its tables inside your app. "Headless" describes the consumer, not
   class drawn by its own Blade view. The admin's Content tab is the page as your site draws it, with
   text typed in place, blocks added, dragged and nested, and each block's fields and images edited in
   dialogs beside it.
-- **Served by Laravel.** An entry is served at the path its `#[Route]` builds, through a Blade
-  template, after any route your app declares itself. No Node on the server.
+- **Served by Laravel.** With the `mainstay/site` plugin, an entry is served at the path its
+  `#[Route]` builds, through a Blade template, after any route your app declares itself. No Node on
+  the server. Core alone gives entries no path.
 - **Translated per field.** A field says whether it is translated. A title gets one value per
   language, a date or a price stays one, and each language is served on its own host or path prefix.
 - **Images written once.** An installation-wide media library with alt text in every language and a
@@ -149,9 +150,9 @@ namespace App\Content;
 use App\Blocks\FeatureGrid;
 use App\Blocks\Hero;
 use Mainstay\Content\Entry;
-use Mainstay\Content\Route;
 use Mainstay\Fields\Blocks;
 use Mainstay\Fields\Text;
+use Mainstay\Site\Route;
 
 #[Route('/{slug}')]
 #[Blocks([Hero::class, FeatureGrid::class])]
@@ -161,6 +162,9 @@ class Page extends Entry
     public string $slug;
 }
 ```
+
+`#[Route]` comes from the site plugin (`Mainstay\Site\Route`), which keeps the entries' paths, their
+front page and the `/path` lookup; without it an entry has no `uri` and `/path` finds nothing.
 
 Every entry already has a title and content, and `#[Blocks]` names the blocks a page's content may
 hold. Register the type in a service provider's `boot()`:

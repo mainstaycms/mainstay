@@ -87,7 +87,7 @@ class ContentSchema
                 }
             }
 
-            if (in_array($handle, ['sites', 'uris', 'migrations', 'mainstay_media', 'mainstay_drafts', 'mainstay_revisions', 'mainstay_roles', 'mainstay_users', 'mainstay_password_reset_tokens', 'mainstay_tokens', ...$pluginTables], true) || str_ends_with($handle, '_locales') || str_ends_with($handle, '_entries')) {
+            if (in_array($handle, ['sites', 'migrations', 'mainstay_media', 'mainstay_drafts', 'mainstay_revisions', 'mainstay_roles', 'mainstay_users', 'mainstay_password_reset_tokens', 'mainstay_tokens', ...$pluginTables], true) || str_ends_with($handle, '_locales') || str_ends_with($handle, '_entries')) {
                 throw new InvalidArgumentException("{$type} would be stored in {$handle}, a table Mainstay keeps for itself. Rename the class.");
             }
 

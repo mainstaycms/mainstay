@@ -239,10 +239,11 @@ class RelationTest extends DatabaseTestCase
 
         $this->assertSame($two, [$queries(0), $queries(1)], 'As many queries for seven stories as for three.');
 
-        /* The site, the stories and their genres' pivot; then a level: the
-           people, the genres and the stories they point at, those stories'
-           pivot, and the people's portraits. */
-        $this->assertSame([3, 8], $two);
+        /* The site, the stories, their paths and their genres' pivot; then a
+           level: the people, the genres and the stories they point at, those
+           stories' pivot, and each type's paths -- one lookup for the rows of
+           a read, not one per row -- and the people's portraits. */
+        $this->assertSame([4, 12], $two);
     }
 
     #[Test]

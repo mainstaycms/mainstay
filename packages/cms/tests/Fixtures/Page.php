@@ -4,9 +4,9 @@ namespace Mainstay\Tests\Fixtures;
 
 use Illuminate\Database\Eloquent\Attributes\UsePolicy;
 use Mainstay\Content\Entry;
-use Mainstay\Content\Route;
 use Mainstay\Fields\Select;
 use Mainstay\Fields\Text;
+use Mainstay\Site\Route;
 use Mainstay\Tests\Fixtures\Policies\ClosedPolicy;
 
 /* A path built from a shared field and a translated one, so changing the

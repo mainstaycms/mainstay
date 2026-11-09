@@ -3,9 +3,9 @@
 namespace Mainstay\Tests\Fixtures\Drafted;
 
 use Mainstay\Content\Entry;
-use Mainstay\Content\Route;
 use Mainstay\Fields\Select;
 use Mainstay\Fields\Text;
+use Mainstay\Site\Route;
 
 /* A path ending in a select, whose options a suffix would leave. */
 #[Route('/sections/{kind}')]

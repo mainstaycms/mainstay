@@ -4,9 +4,9 @@ namespace Mainstay\Tests\Fixtures\Api;
 
 use Mainstay\Content\Entry;
 use Mainstay\Content\PublicRead;
-use Mainstay\Content\Route;
 use Mainstay\Fields\Relation;
 use Mainstay\Fields\Text;
+use Mainstay\Site\Route;
 
 /* Who writes an essay, pointing back at what they wrote: a relation a
    deeper read follows round again. */

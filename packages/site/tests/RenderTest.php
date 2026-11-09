@@ -517,7 +517,7 @@ class RenderTest extends DatabaseTestCase
         $this->assertSame('/blog/hello', Mainstay::findById(Post::class, $id, locale: 'en')->uri);
 
         $leaflet = Mainstay::create(Leaflet::class, ['title' => 'Leaflet'], locale: 'en', overrideAccess: true)->id;
-        $this->assertThrows(fn () => Mainstay::setFrontPage(Leaflet::class, $leaflet, overrideAccess: true), InvalidArgumentException::class, 'has no #[Route], so it has no path to serve at /.');
+        $this->assertThrows(fn () => Mainstay::setFrontPage(Leaflet::class, $leaflet, overrideAccess: true), InvalidArgumentException::class, 'has no path, so it has nothing to serve at /.');
 
         /* Nobody signed in, nobody moves a page every visitor sees first. */
         $this->assertThrows(fn () => Mainstay::setFrontPage(Post::class, $id), AuthorizationException::class);

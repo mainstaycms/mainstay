@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class RenderController
 {
-    public function __invoke(Request $request, Mainstay $mainstay): Response
+    public function __invoke(Request $request, Mainstay $mainstay, Addresses $addresses): Response
     {
         /* One address per page. The router ignores a trailing slash, so a
            path with one is sent to the path without, as Laravel's own
@@ -25,7 +25,7 @@ class RenderController
             return redirect()->to('/'.trim($path, '/').(($query = $request->getQueryString()) === null ? '' : "?{$query}"), 301);
         }
 
-        [$locale, $uri] = $mainstay->resolve($request->getHost(), $request->path()) ?? abort(404);
+        [$locale, $uri] = $addresses->resolve($request->getHost(), $request->path()) ?? abort(404);
 
         /* Before the lookup, so a 404 renders in the locale too, and every
            read the template makes is in it unless it asks for another. */

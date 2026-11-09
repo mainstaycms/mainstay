@@ -3,9 +3,9 @@
 namespace Mainstay\Tests\Fixtures;
 
 use Mainstay\Content\Entry;
-use Mainstay\Content\Route;
 use Mainstay\Content\Template;
 use Mainstay\Fields\Text;
+use Mainstay\Site\Route;
 
 /* A view named that nobody wrote. */
 #[Route('/lost')]

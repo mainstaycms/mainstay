@@ -8,14 +8,15 @@ use Mainstay\Tests\Fixtures\Post;
 use Orchestra\Testbench\Attributes\DefineRoute;
 use PHPUnit\Framework\Attributes\Test;
 
-/* A host that builds its front end elsewhere leaves the plugin out, and its
-   own fallback route answers a path an entry holds. */
+/* A host that builds its front end elsewhere leaves the plugin out: entries
+   are written without paths, and its own fallback route answers the request. */
 class HeadlessTest extends DatabaseTestCase
 {
     protected function defineEnvironment($app): void
     {
         parent::defineEnvironment($app);
 
+        $app['config']->set('mainstay.plugins', []);
         $app['config']->set('mainstay.locales', ['en' => '/', 'nl' => '/nl']);
     }
 

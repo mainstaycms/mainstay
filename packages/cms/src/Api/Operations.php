@@ -10,6 +10,7 @@ use Mainstay\Content\PublicRead;
 use Mainstay\Content\Taxonomy;
 use Mainstay\Database\BadQuery;
 use Mainstay\Database\ContentStore;
+use Mainstay\Database\Paths;
 use Mainstay\Mainstay;
 use Mainstay\Navigation;
 use ReflectionClass;
@@ -37,7 +38,7 @@ final class Operations
     /* What a caller with no token is told on being refused. */
     public const NOBODY = 'Without a token, only the types marked #[PublicRead] can be read, and nothing written.';
 
-    public function __construct(private Mainstay $mainstay, private Payload $payload, private Schema $schema) {}
+    public function __construct(private Mainstay $mainstay, private Payload $payload, private Schema $schema, private Paths $paths) {}
 
     /** @return list<array<string, mixed>> the types the caller may read */
     public function types(): array
@@ -172,7 +173,7 @@ final class Operations
                 is_subclass_of($type, Taxonomy::class) => 'taxonomy',
                 default => 'entry',
             },
-            'routed' => $this->mainstay->route($type) !== null,
+            'routed' => $this->paths->routed($type),
             'public' => (new ReflectionClass($type))->getAttributes(PublicRead::class) !== [],
             /* What a write takes, which a read hands back with what the
                fields point at loaded: /schema has that. */

@@ -3,11 +3,11 @@
 namespace Mainstay\Tests\Fixtures\Linked;
 
 use Mainstay\Content\Entry;
-use Mainstay\Content\Route;
 use Mainstay\Fields\Blocks;
 use Mainstay\Fields\Relation;
 use Mainstay\Fields\Terms;
 use Mainstay\Fields\Text;
+use Mainstay\Site\Route;
 use Mainstay\Tests\Fixtures\Linked\Blocks\Shelf;
 
 /* Every shape a relation takes: one and a list, of one type and of several,

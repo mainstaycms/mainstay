@@ -2,10 +2,8 @@
 
 namespace Mainstay;
 
-use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\URL;
 use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
 use Mainstay\Auth\Accounts;
@@ -15,16 +13,15 @@ use Mainstay\Content\Block;
 use Mainstay\Content\ContentType;
 use Mainstay\Content\Entry;
 use Mainstay\Content\GlobalSet;
-use Mainstay\Content\Route;
 use Mainstay\Content\Template;
 use Mainstay\Database\ContentStore;
 use Mainstay\Database\Drafts;
+use Mainstay\Database\Paths;
 use Mainstay\Database\Revisions;
 use Mainstay\Fields\Blocks;
 use Mainstay\Fields\Content;
 use Mainstay\Fields\Field;
 use Mainstay\Fields\Internal;
-use Mainstay\Fields\Select;
 use Mainstay\Fields\Terms;
 use Mainstay\Fields\Text;
 use Mainstay\Fields\Textarea;
@@ -48,6 +45,12 @@ class Mainstay
        refused as it is found. */
     private const NAMESPACES = ['mainstay', 'mail', 'errors'];
 
+    /* One or more lowercase segments, each after its slash: a locale's
+       prefix. A path is held to the same by whatever serves one, so MySQL
+       and SQL Server, which fold case in a comparison, match what SQLite
+       and Postgres do. */
+    private const PATH = '(?:/[a-z0-9]+(?:-[a-z0-9]+)*)+';
+
     /** @var array<string, class-string<ContentType>> */
     private array $types = [];
 
@@ -62,9 +65,6 @@ class Mainstay
 
     /** @var array<class-string<Block>, Blocks|null> each block's inner blocks */
     private array $inner = [];
-
-    /** @var array<class-string, string|array<string, string>|null> */
-    private array $routes = [];
 
     /** @var array{0: mixed, 1: array<string, array{origin: string, host: ?string, prefix: string}>}|null */
     private ?array $locales = null;
@@ -361,87 +361,6 @@ class Mainstay
     }
 
     /*
-     | The type's #[Route] as declared -- one pattern, or one per locale --
-     | or null for a type with no URL. Checked here, the first time it is
-     | asked for, so a pattern no path can be built from is refused naming
-     | the type rather than surfacing as a broken lookup row.
-     |
-     | A pattern is `/` or a run of segments, each a lowercase slug or one
-     | `{field}`. Lowercase because the lookup's unique index compares as the
-     | database does, and MySQL and SQL Server fold case where SQLite and
-     | Postgres do not: `/Blog/x` and `/blog/x` would be one path on two
-     | drivers and two on the others. A placeholder names a field that is
-     | required, so there is always something to build the path from; a
-     | string, so the path is the value an editor typed rather than a date's
-     | column format; and not internal, since the path is published.
-     |
-     | @return string|array<string, string>|null
-     */
-    public function route(string $type): string|array|null
-    {
-        $type = $this->canonical($type);
-
-        if (array_key_exists($type, $this->routes)) {
-            return $this->routes[$type];
-        }
-
-        $attributes = (new ReflectionClass($type))->getAttributes(Route::class);
-        $route = $attributes === [] ? null : $attributes[0]->newInstance()->pattern;
-
-        if (is_array($route) && ($route === [] || array_is_list($route))) {
-            throw new InvalidArgumentException("{$type}'s #[Route] is a list. Give one pattern, or a pattern per locale keyed by the locale.");
-        }
-
-        foreach ((array) $route as $pattern) {
-            $this->pattern($type, $pattern);
-        }
-
-        return $this->routes[$type] = $route;
-    }
-
-    private function pattern(string $type, mixed $pattern): void
-    {
-        if (! is_string($pattern) || ($pattern !== '/' && ! preg_match('#\A(?:/(?:'.Route::SEGMENT.'|'.Route::PLACEHOLDER.'))+\z#', $pattern))) {
-            throw new InvalidArgumentException(sprintf(
-                "%s's #[Route] pattern %s is not a path Mainstay can store: it starts with /, has no trailing slash, and each segment is a lowercase slug or one {field}.",
-                $type,
-                is_string($pattern) ? "\"{$pattern}\"" : get_debug_type($pattern),
-            ));
-        }
-
-        preg_match_all('/'.Route::PLACEHOLDER.'/', $pattern, $names);
-
-        foreach ($names[1] as $name) {
-            $field = $this->fields($type)[$name] ?? throw new InvalidArgumentException("{$type}'s #[Route] pattern \"{$pattern}\" names {{$name}}, which is not a field of the type.");
-
-            $because = match (true) {
-                $field->internal => 'is internal, and the path is published',
-                $field->phpType !== 'string' => "is typed {$field->phpType}, and a path is built from strings",
-                ! $field->isRequired() => 'is optional, and a path cannot be built from nothing',
-                /* Every write choosing one would be refused for it. */
-                $field instanceof Select && ($option = $this->unrouted($field)) !== null => "offers \"{$option}\", which is not a path segment",
-                default => null,
-            };
-
-            if ($because !== null) {
-                throw new InvalidArgumentException("{$type}'s #[Route] pattern \"{$pattern}\" names {{$name}}, which {$because}.");
-            }
-        }
-    }
-
-    /* A select's first option that cannot be a segment of a path. */
-    private function unrouted(Select $field): ?string
-    {
-        foreach ($field->values() as $value) {
-            if (! preg_match(Route::SLUG, $value)) {
-                return $value;
-            }
-        }
-
-        return null;
-    }
-
-    /*
      | The type as JSON Schema, which phase 13 serves from a discovery endpoint
      | and writes out as a `.d.ts` -- from here rather than derived twice.
      |
@@ -593,7 +512,7 @@ class Mainstay
 
     private function store(): ContentStore
     {
-        return new ContentStore($this);
+        return new ContentStore($this, app(Paths::class));
     }
 
     /* The media library: `Mainstay::media()->upload(...)`, beside the
@@ -659,7 +578,7 @@ class Mainstay
             /* The prefix held to what a path is, lowercase, for the reason a
                path is: MySQL and SQL Server would match `/NL` to it and the
                others would not. */
-            if (! is_string($locale) || ! is_string($base) || ! preg_match('#\A(https?://([A-Za-z0-9.-]+)(?::\d+)?)?((?:'.Route::PATH.')?)/?\z#', $base, $parts)) {
+            if (! is_string($locale) || ! is_string($base) || ! preg_match('#\A(https?://([A-Za-z0-9.-]+)(?::\d+)?)?((?:'.self::PATH.')?)/?\z#', $base, $parts)) {
                 throw new InvalidArgumentException(sprintf(
                     'mainstay.locales serves %s at %s, which is neither a path of lowercase segments, like /nl, nor a URL, like https://example.nl.',
                     $locale,
@@ -682,94 +601,6 @@ class Mainstay
         }
 
         return ($this->locales = [$config, $locales])[1];
-    }
-
-    /*
-     | The locale a request is in and its path with the locale's prefix taken
-     | off, which is what the lookup holds. The longest prefix wins, and a
-     | prefix matches whole segments: `/nlx` is not under `/nl`. A host is
-     | compared without scheme or port, which a proxy in front of the
-     | application may have changed. Null where no locale is served.
-     |
-     | @return array{0: string, 1: string}|null
-     */
-    public function resolve(string $host, string $path): ?array
-    {
-        $path = '/'.trim($path, '/');
-        $found = null;
-
-        foreach ($this->locales() as $locale => $base) {
-            if (($base['host'] === null || $base['host'] === strtolower($host)) && $this->under($path, $base['prefix'])
-                && ($found === null || strlen($base['prefix']) > strlen($found[1]))) {
-                $found = [$locale, $base['prefix']];
-            }
-        }
-
-        return $found === null ? null : [$found[0], substr($path, strlen($found[1])) ?: '/'];
-    }
-
-    /*
-     | The link to an entry: its locale's base and its path, with the
-     | subdirectory the application is served from between them, since a
-     | request's path is read below it. For a locale with no host, all of it
-     | through the URL generator, which puts the request's host on as well.
-     |
-     | Null for a type with no #[Route], and for an entry not read with its
-     | locale and path: one handed to a caller that may write the type but
-     | not read it, the one a policy is shown, or one never read at all.
-     */
-    public function url(Entry $entry): ?string
-    {
-        if (! isset($entry->locale, $entry->uri)) {
-            return null;
-        }
-
-        $base = $this->locales()[$entry->locale];
-        $path = $this->path($base['prefix'], $entry->uri);
-
-        return $base['host'] === null ? URL::to($path) : $base['origin'].parse_url(URL::to('/'), PHP_URL_PATH).$path;
-    }
-
-    /*
-     | What a request for a locale's path reaches instead of the entry that
-     | holds it, or null when nothing does: a route of Mainstay's own, or
-     | another locale whose prefix the path runs into -- `/nl` in an
-     | unprefixed English beside a Dutch at `/nl`.
-     |
-     | The routes are asked of the router, which is what answers the request:
-     | every one named `mainstay.*` but the catch-all, so the admin at any
-     | path, the API, and whatever the package adds are one check. Not the
-     | host's own, which may be reading the same entry on purpose. A locale
-     | with no host is served on every host, and a route kept to a domain
-     | takes only one of them, so for such a locale it is left out.
-     */
-    public function shadow(string $locale, string $uri): ?string
-    {
-        $base = $this->locales()[$locale];
-        $path = $this->path($base['prefix'], $uri);
-        $request = Request::create(($base['host'] === null ? '' : "http://{$base['host']}").$path);
-
-        foreach (app('router')->getRoutes()->get('GET') as $route) {
-            if (str_starts_with((string) $route->getName(), 'mainstay.') && ! $route->isFallback
-                && ($base['host'] !== null || $route->getDomain() === null) && $route->matches($request)) {
-                return "the route {$route->getName()}";
-            }
-        }
-
-        $reached = $this->resolve($base['host'] ?? '', $path)[0];
-
-        return $reached === $locale ? null : "{$reached}'s prefix {$this->locales()[$reached]['prefix']}";
-    }
-
-    /* A locale's path under its prefix: `/nl` for its `/`, not `/nl/`. */
-    private function path(string $prefix, string $uri): string
-    {
-        return $prefix !== '' && $uri === '/' ? $prefix : $prefix.$uri;
-    }
-
-    private function under(string $path, string $prefix): bool
-    {
-        return $prefix === '' || $path === $prefix || str_starts_with($path, "{$prefix}/");
     }
 
     /* `\App\Article` and `App\Article` are one class and two cache keys -- and
@@ -921,7 +752,7 @@ class Mainstay
         }
 
         $attributes = $reflection->getAttributes(Blocks::class);
-        $page = $reflection->getAttributes(Route::class) !== [];
+        $page = app(Paths::class)->routed($type);
 
         if ($attributes !== [] && ! $entry && ! is_subclass_of($type, Block::class)) {
             throw new InvalidArgumentException("{$type} names blocks with #[Blocks], and only an entry type's content and a block hold them.");

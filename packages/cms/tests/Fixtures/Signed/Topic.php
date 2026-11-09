@@ -2,10 +2,10 @@
 
 namespace Mainstay\Tests\Fixtures\Signed;
 
-use Mainstay\Content\Route;
 use Mainstay\Content\Taxonomy;
 use Mainstay\Fields\Internal;
 use Mainstay\Fields\Text;
+use Mainstay\Site\Route;
 
 #[Route('/topics/{slug}')]
 class Topic extends Taxonomy

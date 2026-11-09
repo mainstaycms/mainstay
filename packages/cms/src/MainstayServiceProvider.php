@@ -22,6 +22,8 @@ use Mainstay\Console\TokenCommand;
 use Mainstay\Console\TypeScriptCommand;
 use Mainstay\Console\UserCommand;
 use Mainstay\Database\ContentSchema;
+use Mainstay\Database\NoPaths;
+use Mainstay\Database\Paths;
 use Mainstay\Http\PreventRequestForgery;
 use Mainstay\Http\StartSession;
 use Mainstay\Ui\UiServiceProvider;
@@ -43,6 +45,10 @@ class MainstayServiceProvider extends ServiceProvider
         $this->app->register(UiServiceProvider::class);
 
         $this->app->singleton(Mainstay::class);
+
+        /* No addresses until a plugin that gives entries some binds its own
+           over this when it boots. */
+        $this->app->singleton(Paths::class, NoPaths::class);
 
         /*
          | Mainstay's own guard, user provider and password broker, beside the

@@ -4,10 +4,10 @@ namespace Mainstay\Tests\Fixtures;
 
 use Mainstay\Content\Entry;
 use Mainstay\Content\Media;
-use Mainstay\Content\Route;
 use Mainstay\Fields\Blocks;
 use Mainstay\Fields\Image;
 use Mainstay\Fields\Text;
+use Mainstay\Site\Route;
 use Mainstay\Tests\Fixtures\Blocks\Strip;
 
 /* A cover every write needs, cropped and scaled, and images in its content
