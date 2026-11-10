@@ -26,6 +26,11 @@ class AiConnectors extends Plugin
         return __DIR__.'/../resources/views';
     }
 
+    public function widgets(): array
+    {
+        return [ConnectorsWidget::class];
+    }
+
     public function routes(): ?string
     {
         return __DIR__.'/../routes/admin.php';

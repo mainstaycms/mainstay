@@ -1087,6 +1087,34 @@ never loses the submission.
   plugins that ship any. Nothing about this is released yet: the split workflow names them, the six
   plugins' repositories do not exist, and `mainstay-site` still runs on the 0.1 release of core alone.
 
+## Dashboard widgets are classes, and each user's choice is a map in their own row
+
+*2026-11-10*
+
+The dashboard shows cards, and each user switches them on and off in Screen options, as WordPress
+allows. A plugin names its widgets in `Plugin::widgets()` and a host in `Mainstay::widgets()`.
+
+- **A widget is a class, not a bare view.** It has to say who may see it: a card about AI connectors is
+  no use to someone who cannot use them, and listing it in Screen options would tell them it exists.
+  `visibleTo()` answers that, `data()` fetches what the view draws, and the container makes it so it
+  may take dependencies. A list of views could have said none of this.
+- **Preferences are a JSON column on `mainstay_users`.** What an account chooses for itself belongs
+  with the account, is read with the user already loaded, and goes when the account does. A table of
+  key and value rows would need a join and a type for every value; JSON reads on every driver
+  Mainstay runs on, and a screen later needs only a new key.
+- **The choice is a map of handle to yes or no, not a list of what is on.** A list cannot tell a
+  widget the user switched off from one that did not exist when they chose, so a widget added by an
+  upgrade would be off for everyone who had ever opened Screen options. With a map the widget with no
+  entry follows `enabledByDefault()`.
+- **Only the widgets a user may see are stored.** A handle posted for any other is ignored, so Screen
+  options cannot grant a widget `visibleTo()` refused, and a capability gained later does not find an
+  old choice waiting.
+- **No JavaScript.** A `<details>` and a form that posts and redirects do all of it, and need nothing
+  the admin's bundle would have to ship.
+- **Handles are unique across core, plugins and the host**, checked as they are registered and again as
+  they are read, since a plugin may load before or after the host names its own. They are the keys of
+  what is stored, so two sharing one would share a switch.
+
 ## Deferred
 
 Questions raised and deliberately left open. The reasoning is recorded so it does not have to be

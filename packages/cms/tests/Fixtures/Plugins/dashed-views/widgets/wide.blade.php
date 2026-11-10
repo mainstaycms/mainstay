@@ -1,0 +1,1 @@
+<p>Wide body</p>

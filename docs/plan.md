@@ -1106,7 +1106,7 @@ refused the trash until another is chosen. In the admin, "Use as front page" sit
 entry's menu, and the list marks the one that is.
 
 **Dashboard.** `/admin` is the shell with nothing in it. Widgets, as WordPress has them, are phase
-15's, onboarding's checklist the first of them.
+18's; onboarding's checklist is to be one of them.
 
 **The site.** Home, Blog and DocsIndex become pages, edited as any page is, with no template to
 choose. Page gains Home's blocks field beside its body, and the blog's and the docs' listings become
@@ -1867,8 +1867,8 @@ shown and refused.
 
 Settings the checklist collects are globals, so it gets no storage of its own.
 
-The checklist is the dashboard's first widget. Phase 10 leaves `/admin` empty; widgets, as WordPress
-draws them, arrive here as a list a host adds to in its service provider, each a Blade view.
+The checklist is to be a dashboard widget. Phase 10 leaves `/admin` empty; widgets, as WordPress
+draws them, are phase 18's: classes a plugin or a host registers, each drawing a Blade view.
 
 ## Phase 16 — Template parts
 
@@ -1925,6 +1925,28 @@ Still to do:
   admin and the API let a plugin add a route, an action or a tool.
 - **The checks on other drivers.** Every step ran on SQLite; the Postgres, MySQL and SQL Server
   suites have still to run on the branch.
+
+## Phase 18 — Dashboard widgets
+
+The dashboard was empty. It now draws cards, as WordPress's does, which each user switches on and off
+in Screen options, and which a plugin or a host adds to. `decisions.md` has the reasons; this is the
+order, each step verified before the next.
+
+1. **The seam.** `Mainstay\Admin\Widget`, `Plugin::widgets()` and `Mainstay::widgets()` for a host's
+   own, and `Mainstay::dashboardWidgets($user)` for those a user may see, in core, plugin, host order.
+2. **Preferences.** A nullable JSON `preferences` column on `mainstay_users`, read and set by dotted key
+   with `User::preference()` and `setPreference()`. The dashboard keeps `dashboard.widgets`, a map of
+   handle to yes or no.
+3. **The screen.** `DashboardController`, with Screen options as a `<details>` holding a form that posts
+   to `mainstay.dashboard.screen`, and the grid. No JavaScript.
+4. **`AtAGlance`**, core's one widget: the live entries of each entry type the user may read and the
+   media, each linking to its list.
+5. **A widget in each plugin** (`ai`, `mcp`, `site`, `page-builder`, `parts`, `forms`), each shown to
+   whoever holds the capability that makes it useful, and onboarding's checklist, which this phase's
+   seam is to take.
+
+Seams: `Widget::visibleTo()` is the capability check, so a widget nobody may use is never listed;
+`enabledByDefault()` and `columns()` are the only presentation a widget has.
 
 ## Not in this plan
 

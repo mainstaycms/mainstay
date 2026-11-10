@@ -7,9 +7,12 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
 use Mainstay\Admin\EntryTab;
+use Mainstay\Admin\Widget;
+use Mainstay\Admin\Widgets\AtAGlance;
 use Mainstay\Auth\Accounts;
 use Mainstay\Auth\Capabilities;
 use Mainstay\Auth\Tokens;
+use Mainstay\Auth\User;
 use Mainstay\Content\Block;
 use Mainstay\Content\ContentType;
 use Mainstay\Content\Entry;
@@ -40,13 +43,16 @@ class Mainstay
 
     /* The first segments of the admin's own screens, which a type's handle,
        naming its screens' segment, cannot be. */
-    private const ADMIN = ['media', 'login', 'logout', 'users', 'roles', 'account'];
+    private const ADMIN = ['media', 'login', 'logout', 'users', 'roles', 'account', 'dashboard'];
 
     /* View namespaces a plugin's handle cannot be: Mainstay's own, and
        Laravel's mail and error pages, which it adds only as a mail or an
        error renders and then replaces. Any other already registered is
        refused as it is found. */
     private const NAMESPACES = ['mainstay', 'mail', 'errors'];
+
+    /** @var list<class-string<Widget>> what the dashboard has of its own */
+    private const CORE_WIDGETS = [AtAGlance::class];
 
     /* One or more lowercase segments, each after its slash: a locale's
        prefix. A path is held to the same by whatever serves one, so MySQL
@@ -71,6 +77,9 @@ class Mainstay
 
     /** @var array{0: mixed, 1: array<string, array{origin: string, host: ?string, prefix: string}>}|null */
     private ?array $locales = null;
+
+    /** @var list<class-string<Widget>> the host's, in the order it named them */
+    private array $widgets = [];
 
     /** @var array{stylesheets: list<string>, class: string}|null */
     private ?array $editorStyle = null;
@@ -246,6 +255,76 @@ class Mainstay
         }
 
         return $tabs;
+    }
+
+    /*
+     | The host's own dashboard widgets, named in its service provider as its
+     | types are: each a class extending Widget, with a handle no other widget
+     | -- core's, a plugin's or the host's -- has. Those are checked together
+     | wherever the plugins are loaded by then, and again as they are read.
+     |
+     | @param  list<class-string<Widget>>  $widgets
+     */
+    public function widgets(array $widgets): void
+    {
+        $host = [...$this->widgets, ...$widgets];
+        $this->widgetClasses($host);
+
+        $this->widgets = $host;
+    }
+
+    /*
+     | Every widget the user may have, in the order they are drawn: the
+     | core's, then each plugin's in plugin order, then the host's. Made by
+     | the container when asked, so a plugin's is not made while it loads.
+     |
+     | @return list<Widget>
+     */
+    public function dashboardWidgets(User $user): array
+    {
+        $widgets = array_map(fn (string $class) => app($class), array_values($this->widgetClasses($this->widgets)));
+
+        return array_values(array_filter($widgets, fn (Widget $widget) => $widget->visibleTo($user)));
+    }
+
+    /*
+     | The classes of every widget by handle, checked together: a handle is
+     | the key of what a user has stored, so no two widgets share one.
+     |
+     | @param  list<mixed>  $host
+     | @return array<string, class-string<Widget>>
+     */
+    private function widgetClasses(array $host): array
+    {
+        $classes = [...self::CORE_WIDGETS, ...array_merge(...array_map(fn (Plugin $plugin) => $plugin->widgets(), array_values($this->plugins))), ...$host];
+        $byHandle = [];
+
+        foreach ($classes as $class) {
+            if (! is_string($class) || ! is_subclass_of($class, Widget::class)) {
+                throw new InvalidArgumentException(sprintf(
+                    '%s is not a dashboard widget. Extend Mainstay\Admin\Widget.',
+                    is_string($class) ? $class : get_debug_type($class),
+                ));
+            }
+
+            if ((new ReflectionClass($class))->isAbstract()) {
+                throw new InvalidArgumentException("{$class} is abstract, so there is no widget to show. Name the class that extends it.");
+            }
+
+            $handle = $class::handle();
+
+            if (preg_match('/\A[a-z][a-z0-9_]*\z/', $handle) !== 1) {
+                throw new InvalidArgumentException("{$class} is called \"{$handle}\", and a widget's handle is lowercase letters, digits and underscores, starting with a letter.");
+            }
+
+            if (isset($byHandle[$handle])) {
+                throw new InvalidArgumentException("Two dashboard widgets are called \"{$handle}\": {$byHandle[$handle]} and {$class}. Return another handle() from one of them.");
+            }
+
+            $byHandle[$handle] = $class;
+        }
+
+        return $byHandle;
     }
 
     /** @return list<string> the scripts and stylesheets of every plugin, as public paths */

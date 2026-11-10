@@ -17,7 +17,8 @@ use Mainstay\Plugin;
  | without this plugin.
  |
  | It has no sidebar screens, so it asks no capability of its own: who may
- | edit is what the store asks of Gate, as a save does.
+ | edit is what the store asks of Gate, as a save does. Its dashboard widget
+ | is for whoever may edit and read a type with a page.
  */
 class PageBuilderPlugin extends Plugin
 {
@@ -34,6 +35,11 @@ class PageBuilderPlugin extends Plugin
     public function entryTabs(): array
     {
         return [ContentTab::class];
+    }
+
+    public function widgets(): array
+    {
+        return [PagesWidget::class];
     }
 
     public function assets(): array
