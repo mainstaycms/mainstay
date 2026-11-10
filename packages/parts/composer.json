@@ -1,0 +1,17 @@
+{
+    "name": "mainstay/parts",
+    "description": "Template parts for Mainstay: a navigation, a footer, built from blocks once per site.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "mainstay/cms": "self.version",
+        "mainstay/page-builder": "self.version",
+        "mainstay/site": "self.version"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mainstay\\Parts\\": "src/"
+        }
+    }
+}

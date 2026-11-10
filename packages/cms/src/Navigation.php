@@ -2,6 +2,7 @@
 
 namespace Mainstay;
 
+use Closure;
 use Doctrine\Inflector\InflectorFactory;
 use Doctrine\Inflector\Language;
 use Illuminate\Support\Facades\Blade;
@@ -12,6 +13,7 @@ use Mainstay\Auth\Capabilities;
 use Mainstay\Auth\Gate;
 use Mainstay\Auth\User;
 use Mainstay\Content\GlobalSet;
+use Mainstay\Content\HoldsPage;
 use Mainstay\Content\Icon;
 use Mainstay\Content\Media;
 use Mainstay\Content\Taxonomy;
@@ -25,7 +27,8 @@ class Navigation
      | The admin's sections, as data for <x-mainstay::sidebar>, built from the
      | registered types rather than written by hand: each entry type and then
      | each taxonomy under Content, the media library, each global under
-     | Globals, each plugin's screens under Plugins, the accounts and
+     | Globals, each global edited as a page under a heading of its own, each
+     | plugin's screens under Plugins, the accounts and
      | roles. A type is offered only to someone who may write
      | to it -- its list is no use to anyone else -- the library to someone who
      | may read it, a plugin to someone who may use it, the accounts to
@@ -57,8 +60,9 @@ class Navigation
             ],
             [
                 'label' => 'Globals',
-                'items' => array_map(fn (string $type) => $item($type, self::icon('<path d="M1.75 4.75h12.5M1.75 11.25h12.5" /><circle cx="6" cy="4.75" r="1.75" /><circle cx="10" cy="11.25" r="1.75" />')), array_values(array_filter($types, fn (string $type) => is_subclass_of($type, GlobalSet::class)))),
+                'items' => array_map(fn (string $type) => $item($type, self::icon('<path d="M1.75 4.75h12.5M1.75 11.25h12.5" /><circle cx="6" cy="4.75" r="1.75" /><circle cx="10" cy="11.25" r="1.75" />')), array_values(array_filter($types, fn (string $type) => is_subclass_of($type, GlobalSet::class) && ! is_subclass_of($type, HoldsPage::class)))),
             ],
+            ...self::pages($types, $item),
             [
                 'label' => 'Plugins',
                 'items' => array_map(self::plugin(...), array_values(array_filter(array_keys(Capabilities::plugins()), fn (string $plugin) => self::uses($plugin) && self::routed($plugin)))),
@@ -70,6 +74,25 @@ class Navigation
                 ] : [],
             ],
         ], fn (array $section) => $section['items'] !== []));
+    }
+
+    /*
+     | The globals edited as pages, each kind under the heading its type gives:
+     | they are not settings, so Globals does not list them.
+     |
+     | @param  array<string, class-string>  $types
+     | @return list<array{label: string, items: list<array<string, mixed>>}>
+     */
+    private static function pages(array $types, Closure $item): array
+    {
+        $icon = self::icon('<rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" /><path d="M1.75 6.25h12.5" />');
+        $headings = [];
+
+        foreach (array_filter($types, fn (string $type) => is_subclass_of($type, HoldsPage::class)) as $type) {
+            $headings[$type::heading()][] = $item($type, $icon);
+        }
+
+        return array_map(fn (string $heading, array $items) => ['label' => $heading, 'items' => $items], array_keys($headings), $headings);
     }
 
     /*

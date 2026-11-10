@@ -223,7 +223,7 @@ parameters:
 			path: packages/cms/src/Database/ContentStore.php
 
 		-
-			message: '#^Method Mainstay\\Database\\ContentStore\:\:preview\(\) should return Mainstay\\Content\\Entry but returns Mainstay\\Content\\ContentType\.$#'
+			message: '#^Method Mainstay\\Database\\ContentStore\:\:preview\(\) should return Mainstay\\Content\\Entry\|\(Mainstay\\Content\\GlobalSet&Mainstay\\Content\\HoldsPage\) but returns Mainstay\\Content\\ContentType\.$#'
 			identifier: return.type
 			count: 1
 			path: packages/cms/src/Database/ContentStore.php
@@ -465,5 +465,5 @@ parameters:
 		-
 			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
 			identifier: argument.type
-			count: 2
+			count: 3
 			path: packages/page-builder/src/Http/CanvasController.php

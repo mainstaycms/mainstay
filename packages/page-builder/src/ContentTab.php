@@ -4,7 +4,7 @@ namespace Mainstay\PageBuilder;
 
 use Mainstay\Admin\EntryTab;
 use Mainstay\Admin\EntryTabContext;
-use Mainstay\Database\Paths;
+use Mainstay\Content\GlobalSet;
 use Mainstay\Fields\Content;
 use Mainstay\Fields\Field;
 use Mainstay\Fields\Image;
@@ -13,12 +13,13 @@ use Mainstay\Mainstay;
 
 /*
  | The Content tab of a type with a page: the page the site draws from the
- | form, edited in place. A type without one -- the site plugin gives the
- | addresses -- has rich text in Details alone.
+ | form, edited in place, or for a global edited as a page, its content alone.
+ | A type without one -- the site plugin gives the addresses -- has rich text
+ | in Details alone.
  */
 class ContentTab implements EntryTab
 {
-    public function __construct(private Mainstay $mainstay, private Paths $paths, private RefusedBlocks $refused) {}
+    public function __construct(private Mainstay $mainstay, private RefusedBlocks $refused) {}
 
     public function handle(): string
     {
@@ -32,7 +33,7 @@ class ContentTab implements EntryTab
 
     public function applies(string $type): bool
     {
-        return $this->paths->routed($type);
+        return $this->mainstay->hasPage($type);
     }
 
     public function panel(): string
@@ -62,6 +63,7 @@ class ContentTab implements EntryTab
         $handle = $type::handle();
         $content = $context->fields['content'] ?? null;
         $at = match (true) {
+            is_subclass_of($type, GlobalSet::class) => fn (string $kind) => route("mainstay.{$kind}.global", $handle),
             $context->id !== null => fn (string $kind) => route("mainstay.{$kind}.entry", [$handle, $context->id]),
             $context->draft !== null => fn (string $kind) => route("mainstay.{$kind}.draft", [$handle, $context->draft->id]),
             default => fn (string $kind) => route("mainstay.{$kind}.create", $handle),

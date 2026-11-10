@@ -57,6 +57,8 @@ class PageBuilderPlugin extends Plugin
         ], function () {
             Route::post('{type}/new/canvas', [CanvasController::class, 'canvas'])->name('mainstay.canvas.create');
             Route::post('{type}/new/block', [CanvasController::class, 'block'])->name('mainstay.block.create');
+            Route::post('{type}/canvas', [CanvasController::class, 'canvas'])->name('mainstay.canvas.global');
+            Route::post('{type}/block', [CanvasController::class, 'block'])->name('mainstay.block.global');
             Route::post('{type}/drafts/{draft}/canvas', [CanvasController::class, 'draftCanvas'])->whereNumber('draft')->name('mainstay.canvas.draft');
             Route::post('{type}/drafts/{draft}/block', [CanvasController::class, 'draftBlock'])->whereNumber('draft')->name('mainstay.block.draft');
             Route::post('{type}/{id}/canvas', [CanvasController::class, 'entryCanvas'])->whereNumber('id')->name('mainstay.canvas.entry');

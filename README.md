@@ -56,6 +56,9 @@ Mainstay owns its tables inside your app. "Headless" describes the consumer, not
   in Details. With the plugin, and `mainstay/site` to give the type a page, the admin's Content tab is
   the page as your site draws it, with text typed in place, blocks added, dragged and nested, and each
   block's fields and images edited in dialogs beside it.
+- **Template parts, a plugin (`mainstay/parts`).** A navigation or a footer built from blocks, declared as
+  `class Footer extends Part` with `#[Blocks([...])]`, stored once per site, localized, drafted and
+  published as a global is, and edited on the Content tab, listed in the admin apart from the globals.
 - **Served by Laravel.** With the `mainstay/site` plugin, an entry is served at the path its
   `#[Route]` builds, through a Blade template, after any route your app declares itself. No Node on
   the server. Core alone gives entries no path.
@@ -138,6 +141,22 @@ optional dedicated domain and where each content language is served are configur
 ```bash
 php artisan vendor:publish --tag=mainstay-config
 ```
+
+Template parts are the `mainstay/parts` plugin. A global holds settings, plain fields; a part is a piece of
+the layout built from blocks, a navigation or a footer. Require it with `mainstay/page-builder` and
+`mainstay/site`, name `Mainstay\Parts\PartsPlugin` in `config('mainstay.plugins')`, and declare parts like
+any type. It has no files to publish.
+
+```php
+#[Blocks([Link::class, Social::class])]
+class Footer extends Part {}
+```
+
+A part has content, as an entry does, and no address: it is stored once per site, localized, drafted and
+published as a global is, so who may edit and publish it is what a global asks (`edit_footer`,
+`publish_footer`). The admin lists it under Parts, apart from the globals, and its edit screen draws it alone
+in the site's `Mainstay::editorStyles()`, its blocks edited in place. A view prints it, in the request's
+locale, with `@part(Footer::class)`.
 
 Nothing on the web makes the first account. Make it on the server, and invite the rest from the
 admin's Users:

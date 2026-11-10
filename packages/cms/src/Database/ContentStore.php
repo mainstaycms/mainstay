@@ -28,6 +28,7 @@ use Mainstay\Content\ContentType;
 use Mainstay\Content\Draft;
 use Mainstay\Content\Entry;
 use Mainstay\Content\GlobalSet;
+use Mainstay\Content\HoldsPage;
 use Mainstay\Content\Media;
 use Mainstay\Content\Revision;
 use Mainstay\Content\Taxonomy;
@@ -1024,11 +1025,13 @@ class ContentStore
      | required, and refused as that save would be, Gate included. What comes
      | back is the public's, as a visitor would read it once it is live: no
      | internal field. A field left empty that its property cannot hold is
-     | absent, as a draft reads it.
+     | absent, as a draft reads it. A global edited as a page is previewed
+     | the same way, by its type alone over its one draft.
      */
-    public function preview(string $type, ?int $entry = null, array $changes = [], ?int $draft = null, ?string $locale = null, bool $overrideAccess = false, int $depth = self::DEPTH): Entry
+    /** @return Entry|(GlobalSet&HoldsPage) */
+    public function preview(string $type, ?int $entry = null, array $changes = [], ?int $draft = null, ?string $locale = null, bool $overrideAccess = false, int $depth = self::DEPTH): ContentType
     {
-        $type = $this->entry($type);
+        $type = is_subclass_of($type, HoldsPage::class) ? $this->globalSet($type) : $this->entry($type);
         $term = is_subclass_of($type, Taxonomy::class);
 
         if ($draft !== null && ($entry !== null || $term)) {
@@ -1039,6 +1042,7 @@ class ContentStore
             $draft !== null => DB::table(self::DRAFTS)->where('site_id', $this->site())->where('type', $type::handle())->where('id', $draft)->first()
                 ?? throw $this->missing($type, $overrideAccess, "Draft {$draft} of {$type} is not there to preview."),
             $entry !== null && ! $term => $this->draftFor($type, $entry),
+            is_subclass_of($type, GlobalSet::class) => $this->draftFor($type, 0),
             default => null,
         };
 

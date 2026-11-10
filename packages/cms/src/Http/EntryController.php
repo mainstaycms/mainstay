@@ -20,6 +20,7 @@ use Mainstay\Content\ContentType;
 use Mainstay\Content\Draft;
 use Mainstay\Content\Entry;
 use Mainstay\Content\GlobalSet;
+use Mainstay\Content\HoldsPage;
 use Mainstay\Content\Taxonomy;
 use Mainstay\Database\Paths;
 use Mainstay\Fields\Relation;
@@ -620,7 +621,7 @@ class EntryController
         $title = $global ? Navigation::label($class) : ((($entry ?? $other)?->title ?? '') ?: 'Untitled');
         $current = $draft ?? ($elsewhere instanceof Draft ? $elsewhere : null);
         $context = new EntryTabContext($class, $id, $current, $locale, $locale === array_key_first($this->mainstay->locales()), $request, $fields, $values);
-        $tabs = $global ? [] : array_map(fn (EntryTab $tab) => ['tab' => $tab, 'data' => $tab->data($context)], $this->mainstay->entryTabs($class));
+        $tabs = $global && ! is_subclass_of($class, HoldsPage::class) ? [] : array_map(fn (EntryTab $tab) => ['tab' => $tab, 'data' => $tab->data($context)], $this->mainstay->entryTabs($class));
 
         return view('mainstay::form', [
             'class' => $class,

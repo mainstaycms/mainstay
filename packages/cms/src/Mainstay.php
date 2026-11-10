@@ -14,6 +14,7 @@ use Mainstay\Content\Block;
 use Mainstay\Content\ContentType;
 use Mainstay\Content\Entry;
 use Mainstay\Content\GlobalSet;
+use Mainstay\Content\HoldsPage;
 use Mainstay\Content\Template;
 use Mainstay\Database\ContentStore;
 use Mainstay\Database\Drafts;
@@ -510,9 +511,10 @@ class Mainstay
         $this->store()->setFrontPage($type, ...$arguments);
     }
 
-    /* An entry as its page would read with unsaved changes over it, written
-       nowhere: what the admin's Content tab draws. */
-    public function preview(string $type, mixed ...$arguments): Entry
+    /* An entry, or a global edited as a page, as it would read with unsaved
+       changes over it, written nowhere: what the admin's Content tab draws. */
+    /** @return Entry|(GlobalSet&HoldsPage) */
+    public function preview(string $type, mixed ...$arguments): ContentType
     {
         return $this->store()->preview($type, ...$arguments);
     }
@@ -765,41 +767,61 @@ class Mainstay
     /*
      | An entry's blocks go in its content, the list its class names with
      | #[Blocks([...])]; a block's names the blocks it holds inside it. That
-     | is all the attribute takes. A type with no #[Route] has no page to edit
-     | a block on, so its content holds text alone. Content is Entry's, and
-     | the edit screen is built on it, so a type redeclares it only as
-     | content.
+     | is all the attribute takes. A type with no page to edit a block on --
+     | no #[Route], and not a global edited as a page -- holds text alone.
+     | Content is Entry's, and the edit screen is built on it, so a type
+     | redeclares it only as content. A global edited as a page declares it
+     | too, and has no route for it to be a page of.
      */
     private function content(string $type, ReflectionClass $reflection, array $fields): void
     {
         $entry = is_subclass_of($type, Entry::class);
+        $holdsPage = is_subclass_of($type, HoldsPage::class);
+        $owns = $entry || $holdsPage;
+
+        if ($holdsPage && ! is_subclass_of($type, GlobalSet::class)) {
+            throw new InvalidArgumentException("{$type} is edited as a page and is not a global: an entry's page is its #[Route]'s.");
+        }
+
+        if ($holdsPage && app(Paths::class)->routed($type)) {
+            throw new InvalidArgumentException("{$type} is edited as a page and has a #[Route]: a type has a page of its own or none.");
+        }
 
         foreach ($fields as $name => $field) {
-            if ($field instanceof Content && (! $entry || $name !== 'content')) {
+            if ($field instanceof Content && (! $owns || $name !== 'content')) {
                 throw new InvalidArgumentException("{$type}::\${$name} is a content field, and content is an entry's own, its \$content.");
             }
         }
 
-        if ($entry && ! ($fields['content'] ?? null) instanceof Content) {
+        if ($owns && ! ($fields['content'] ?? null) instanceof Content) {
             throw new InvalidArgumentException("{$type}::\$content is redeclared as another kind of field. The edit screen is built on an entry's content, so redeclare it with #[Content], as one content for every language is.");
         }
 
         $attributes = $reflection->getAttributes(Blocks::class);
-        $page = app(Paths::class)->routed($type);
+        $page = $this->hasPage($type);
 
-        if ($attributes !== [] && ! $entry && ! is_subclass_of($type, Block::class)) {
+        if ($attributes !== [] && ! $owns && ! is_subclass_of($type, Block::class)) {
             throw new InvalidArgumentException("{$type} names blocks with #[Blocks], and only an entry type's content and a block hold them.");
         }
 
         $this->listing($type, $attributes);
 
-        if ($attributes !== [] && $entry && ! $page) {
+        if ($attributes !== [] && $owns && ! $page) {
             throw new InvalidArgumentException("{$type} names blocks with #[Blocks] and has no #[Route]: with no page there is nowhere to edit a block on, so its content holds text alone.");
         }
 
-        if ($entry) {
+        if ($owns) {
             $fields['content']->holds($attributes === [] ? null : $attributes[0]->newInstance()->check($this), $page);
         }
+    }
+
+    /*
+     | Whether a type has a page to edit its content on: the address its
+     | #[Route] gives an entry, or a global's being edited as one.
+     */
+    public function hasPage(string $type): bool
+    {
+        return is_subclass_of($type, HoldsPage::class) || app(Paths::class)->routed($type);
     }
 
     /** @param list<ReflectionAttribute> $attributes a class's #[Blocks], which names blocks, and on a block text, and nothing more */

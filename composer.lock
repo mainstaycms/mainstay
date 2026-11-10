@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e84acf092398c7f6b161dce14fe6caf8",
+    "content-hash": "8ac88d8dd7d49cb104ba0b7cd30d1358",
     "packages": [],
     "packages-dev": [
         {
@@ -4189,6 +4189,35 @@
                 "MIT"
             ],
             "description": "The Content tab for Mainstay: the page the site draws, edited in place.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
+            "name": "mainstay/parts",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/parts",
+                "reference": "e22ce9a709e30f0a9e4e03a4290f26d3d83c8ca7"
+            },
+            "require": {
+                "mainstay/cms": "self.version",
+                "mainstay/page-builder": "self.version",
+                "mainstay/site": "self.version",
+                "php": "^8.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mainstay\\Parts\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Template parts for Mainstay: a navigation, a footer, built from blocks once per site.",
             "transport-options": {
                 "symlink": true,
                 "relative": true
@@ -12217,6 +12246,7 @@
         "mainstay/cms": 20,
         "mainstay/mcp": 20,
         "mainstay/page-builder": 20,
+        "mainstay/parts": 20,
         "mainstay/site": 20,
         "mainstay/ui": 20
     },

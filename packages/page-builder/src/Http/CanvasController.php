@@ -11,6 +11,7 @@ use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use Mainstay\Auth\Gate;
 use Mainstay\Content\Document;
+use Mainstay\Content\HoldsPage;
 use Mainstay\Fields\Field;
 use Mainstay\Fields\Terms;
 use Mainstay\Http\Form;
@@ -33,7 +34,9 @@ class CanvasController
      | The page the Content tab draws: the public page of the entry as the
      | form now holds it, unsaved -- Mainstay::preview() of what the form
      | changed, over the entry's draft -- drawn with nobody signed in and its
-     | content printed for the editor. Only a type with a page has one. What
+     | content printed for the editor. A global edited as a page has no view
+     | to draw it in, so its content is drawn alone, in the site's editor
+     | styles. Only a type with a page has one. What
      | cannot be drawn answers why, as messages for the tab to show: a change
      | refused as its save would be, a field the page needs left empty, a
      | view that throws.
@@ -88,9 +91,13 @@ class CanvasController
 
         $entry->content = ($entry->content ?? Document::empty())->editing();
 
-        return $this->visitor->draw($request, $locale, function () use ($entry) {
+        return $this->visitor->draw($request, $locale, function () use ($entry, $locale) {
             try {
-                return response(view($this->mainstay->template($entry), ['entry' => $entry])->render())->header('Cache-Control', 'no-store');
+                $page = $entry instanceof HoldsPage
+                    ? view('page_builder::frame', ['content' => $entry->content, 'locale' => $locale, 'style' => $this->mainstay->editorStyle()])
+                    : view($this->mainstay->template($entry), ['entry' => $entry]);
+
+                return response($page->render())->header('Cache-Control', 'no-store');
             } catch (Throwable $exception) {
                 report($exception);
 
