@@ -12,13 +12,24 @@ use Mainstay\Plugin;
 /*
  | The content API as an MCP server at `/mcp` beside it, behind the same
  | tokens: a token that only edits drafts can write drafts and never publish
- | them. It has no admin screens, so it asks no capability of its own.
+ | them. It has no admin screens, so it asks no capability of its own, and
+ | its dashboard widget is for every account, which may each make tokens.
  */
 class McpPlugin extends Plugin
 {
     public static function handle(): string
     {
         return 'mcp_server';
+    }
+
+    public function views(): ?string
+    {
+        return __DIR__.'/../resources/views';
+    }
+
+    public function widgets(): array
+    {
+        return [McpWidget::class];
     }
 
     /*
