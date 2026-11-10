@@ -4,10 +4,11 @@ namespace Mainstay;
 
 use Illuminate\Contracts\Foundation\Application;
 use Mainstay\Admin\EntryTab;
+use Mainstay\Admin\Widget;
 use Mainstay\Content\ContentType;
 
 /*
- | A package's types, views, admin screens, listeners, migrations and boot step, which
+ | A package's types, views, admin screens, dashboard widgets, listeners, migrations and boot step, which
  | Mainstay wires in when `config('mainstay.plugins')` names the class and at
  | no other time: nothing is discovered, and nothing is switched on from the
  | admin. A plugin is the host's own code once installed, so this is what it
@@ -53,6 +54,12 @@ abstract class Plugin
 
     /** @return list<class-string<EntryTab>|EntryTab> the tabs it adds to an entry's form, beside Details */
     public function entryTabs(): array
+    {
+        return [];
+    }
+
+    /** @return list<class-string<Widget>> the cards it adds to the dashboard, each one the user may switch off in Screen options */
+    public function widgets(): array
     {
         return [];
     }

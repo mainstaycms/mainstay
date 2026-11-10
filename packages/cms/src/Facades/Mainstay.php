@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Facade;
  * @method static array capabilities()
  * @method static void loadPlugins(array $plugins)
  * @method static array plugins()
+ * @method static void widgets(array $widgets)
+ * @method static array dashboardWidgets(\Mainstay\Auth\User $user)
  * @method static array entryTabs(string $type)
  * @method static array assets()
  * @method static void editorStyles(array $stylesheets, string $class = '')

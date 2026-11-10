@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Mainstay\Http\Authenticate;
 use Mainstay\Http\AuthenticateSession;
 use Mainstay\Http\AuthorizePlugin;
+use Mainstay\Http\DashboardController;
 use Mainstay\Http\EntryController;
 use Mainstay\Http\LoginController;
 use Mainstay\Http\MediaController;
@@ -25,12 +26,13 @@ Route::post('reset-password', [PasswordController::class, 'update'])->name('main
 /*
  | Every screen under a type's handle, which registration keeps from being
  | one of the admin's own: `login`, `logout`, `media`, `users`, `roles`,
- | `account`, or a plugin's. A path none of them answers is the admin's
+ | `account`, `dashboard`, or a plugin's. A path none of them answers is the admin's
  | own not-found, drawn in the shell: named as the others are, so no entry
  | can be given a path anywhere under the prefix.
  */
 Route::middleware([Authenticate::class, AuthenticateSession::class])->group(function () {
-    Route::view('/', 'mainstay::dashboard')->name('mainstay.admin');
+    Route::get('/', [DashboardController::class, 'show'])->name('mainstay.admin');
+    Route::post('dashboard', [DashboardController::class, 'update'])->name('mainstay.dashboard.screen');
 
     Route::get('media', [MediaController::class, 'index'])->name('mainstay.media');
     Route::post('media', [MediaController::class, 'store'])->name('mainstay.media.store');

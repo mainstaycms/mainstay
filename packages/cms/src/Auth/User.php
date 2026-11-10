@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
 /*
@@ -32,7 +33,7 @@ class User extends Model implements AuthenticatableContract, CanResetPasswordCon
 
     protected function casts(): array
     {
-        return ['password' => 'hashed', 'grants' => 'array', 'denials' => 'array'];
+        return ['password' => 'hashed', 'grants' => 'array', 'denials' => 'array', 'preferences' => 'array'];
     }
 
     protected function email(): Attribute
@@ -76,6 +77,21 @@ class User extends Model implements AuthenticatableContract, CanResetPasswordCon
         }
 
         return in_array('*', $this->role->capabilities, true) || array_intersect($names, [...$this->grants, ...$this->role->capabilities]) !== [];
+    }
+
+    /* What this account chose for itself, by a dotted key: `dashboard.widgets`. */
+    public function preference(string $key, mixed $default = null): mixed
+    {
+        return Arr::get($this->preferences ?? [], $key, $default);
+    }
+
+    public function setPreference(string $key, mixed $value): void
+    {
+        $preferences = $this->preferences ?? [];
+        Arr::set($preferences, $key, $value);
+
+        $this->setAttribute('preferences', $preferences);
+        $this->save();
     }
 
     public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
