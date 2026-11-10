@@ -17,6 +17,7 @@ use Mainstay\Facades\Mainstay;
 use Mainstay\Fields\Relation;
 use Mainstay\Fields\Terms;
 use Mainstay\Mainstay as Registry;
+use Mainstay\Site\SitePlugin;
 use Mainstay\Tests\Fixtures\Linked\Broken\Demanding;
 use Mainstay\Tests\Fixtures\Linked\Broken\Filed;
 use Mainstay\Tests\Fixtures\Linked\Broken\Labelled;
@@ -47,6 +48,8 @@ class RelationTest extends DatabaseTestCase
     {
         parent::defineEnvironment($app);
 
+        /* Pages are drawn by the site plugin, which these tests read back. */
+        $app['config']->set('mainstay.plugins', [SitePlugin::class]);
         $app['config']->set('mainstay.locales', ['en' => '/', 'nl' => '/nl']);
         $app['view']->addLocation(__DIR__.'/Fixtures/views');
     }
@@ -236,10 +239,11 @@ class RelationTest extends DatabaseTestCase
 
         $this->assertSame($two, [$queries(0), $queries(1)], 'As many queries for seven stories as for three.');
 
-        /* The site, the stories and their genres' pivot; then a level: the
-           people, the genres and the stories they point at, those stories'
-           pivot, and the people's portraits. */
-        $this->assertSame([3, 8], $two);
+        /* The site, the stories, their paths and their genres' pivot; then a
+           level: the people, the genres and the stories they point at, those
+           stories' pivot, and each type's paths -- one lookup for the rows of
+           a read, not one per row -- and the people's portraits. */
+        $this->assertSame([4, 12], $two);
     }
 
     #[Test]

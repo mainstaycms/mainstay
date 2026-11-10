@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "391393e9743592b21fc4f49528aaffcf",
+    "content-hash": "bc263c90fdfbde382fede3e30d9477a5",
     "packages": [],
     "packages-dev": [
         {
@@ -4059,12 +4059,40 @@
             "time": "2026-11-04T12:45:07+00:00"
         },
         {
+            "name": "mainstay/ai",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/ai",
+                "reference": "03517f0eb3e0ff98abc1e57e544ab0f368c5ca9f"
+            },
+            "require": {
+                "laravel/ai": "^1.3",
+                "mainstay/cms": "self.version",
+                "php": "^8.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mainstay\\Ai\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "AI providers for Mainstay: keys, defaults and a Connectors screen over laravel/ai.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
             "name": "mainstay/cms",
             "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/cms",
-                "reference": "2d8096d1eef16eaa342d3856caf7e825e4d33494"
+                "reference": "8217cce730ddb36449587dcf7628f5a0a1579fd2"
             },
             "require": {
                 "illuminate/auth": "^13.0",
@@ -4074,8 +4102,6 @@
                 "illuminate/queue": "^13.0",
                 "illuminate/support": "^13.0",
                 "illuminate/validation": "^13.0",
-                "laravel/ai": "^1.3",
-                "laravel/mcp": "^1.1",
                 "mainstay/ui": "self.version",
                 "php": "^8.3",
                 "spatie/image": "^3.9"
@@ -4107,6 +4133,146 @@
                 "headless",
                 "laravel"
             ],
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
+            "name": "mainstay/forms",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/forms",
+                "reference": "06dd6dce936991c6a80a0fbc9cca81b4c47dd84d"
+            },
+            "require": {
+                "mainstay/cms": "self.version",
+                "mainstay/page-builder": "self.version",
+                "php": "^8.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mainstay\\Forms\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "A form builder for Mainstay: forms built from blocks, submissions kept as entries, mailed to the people who answer them.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
+            "name": "mainstay/mcp",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/mcp",
+                "reference": "83c597b8572d4b01061addb3923979dfa53019c7"
+            },
+            "require": {
+                "laravel/mcp": "^1.1",
+                "mainstay/cms": "self.version",
+                "php": "^8.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mainstay\\Mcp\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "An MCP server for Mainstay: the content API as tools a language model calls.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
+            "name": "mainstay/page-builder",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/page-builder",
+                "reference": "e3ab3ac25750763a292c9468f77146dcf1543922"
+            },
+            "require": {
+                "mainstay/cms": "self.version",
+                "mainstay/site": "self.version",
+                "php": "^8.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mainstay\\PageBuilder\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "The Content tab for Mainstay: the page the site draws, edited in place.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
+            "name": "mainstay/parts",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/parts",
+                "reference": "e22ce9a709e30f0a9e4e03a4290f26d3d83c8ca7"
+            },
+            "require": {
+                "mainstay/cms": "self.version",
+                "mainstay/page-builder": "self.version",
+                "mainstay/site": "self.version",
+                "php": "^8.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mainstay\\Parts\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Template parts for Mainstay: a navigation, a footer, built from blocks once per site.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
+            "name": "mainstay/site",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/site",
+                "reference": "6d9f383146ea5d4439b8a0ac0d0e738d884aa93a"
+            },
+            "require": {
+                "mainstay/cms": "self.version",
+                "php": "^8.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mainstay\\Site\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Public pages for Mainstay: every path an entry holds, rendered in its view.",
             "transport-options": {
                 "symlink": true,
                 "relative": true
@@ -12104,7 +12270,13 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
+        "mainstay/ai": 20,
         "mainstay/cms": 20,
+        "mainstay/forms": 20,
+        "mainstay/mcp": 20,
+        "mainstay/page-builder": 20,
+        "mainstay/parts": 20,
+        "mainstay/site": 20,
         "mainstay/ui": 20
     },
     "prefer-stable": true,
@@ -12113,5 +12285,5 @@
         "php": "^8.3"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.11.0"
 }

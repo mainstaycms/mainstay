@@ -51,12 +51,17 @@ Mainstay owns its tables inside your app. "Headless" describes the consumer, not
   production's migrations still need.
 - **One query layer.** Templates, seeders, the admin and the API read and write through
   `Mainstay::find()`, `create()`, `update()` and `delete()`, and every call asks Laravel's Gate first.
-- **A page builder.** Every entry has content: text and the blocks its type allows, each block a PHP
-  class drawn by its own Blade view. The admin's Content tab is the page as your site draws it, with
-  text typed in place, blocks added, dragged and nested, and each block's fields and images edited in
-  dialogs beside it.
-- **Served by Laravel.** An entry is served at the path its `#[Route]` builds, through a Blade
-  template, after any route your app declares itself. No Node on the server.
+- **A page builder, a plugin (`mainstay/page-builder`).** Every entry has content: text and the blocks
+  its type allows, each block a PHP class drawn by its own Blade view, edited as rich text and raw data
+  in Details. With the plugin, and `mainstay/site` to give the type a page, the admin's Content tab is
+  the page as your site draws it, with text typed in place, blocks added, dragged and nested, and each
+  block's fields and images edited in dialogs beside it.
+- **Template parts, a plugin (`mainstay/parts`).** A navigation or a footer built from blocks, declared as
+  `class Footer extends Part` with `#[Blocks([...])]`, stored once per site, localized, drafted and
+  published as a global is, and edited on the Content tab, listed in the admin apart from the globals.
+- **Served by Laravel.** With the `mainstay/site` plugin, an entry is served at the path its
+  `#[Route]` builds, through a Blade template, after any route your app declares itself. No Node on
+  the server. Core alone gives entries no path.
 - **Translated per field.** A field says whether it is translated. A title gets one value per
   language, a date or a price stays one, and each language is served on its own host or path prefix.
 - **Images written once.** An installation-wide media library with alt text in every language and a
@@ -71,10 +76,10 @@ Mainstay owns its tables inside your app. "Headless" describes the consumer, not
 - **Plugins.** A package adds types, blocks, field types, admin screens and listeners on content
   changes. Only the plugins your config names load, and their screens answer behind the admin's
   sign-in and a capability of their own.
-- **An API and an MCP server.** The same reads and writes over JSON and as tools a language model
+- **An API, and an MCP server as a plugin (`mainstay/mcp`).** The same reads and writes over JSON and as tools a language model
   calls, behind tokens that never hold more than the account that made them. `/schema` describes
   every payload, and `mainstay:typescript` writes it out for a front end.
-- **AI connectors.** Every provider laravel/ai speaks -- OpenAI, Anthropic, Gemini, Mistral, Ollama
+- **AI connectors, a plugin (`mainstay/ai`).** Every provider laravel/ai speaks -- OpenAI, Anthropic, Gemini, Mistral, Ollama
   and more -- on one admin screen: a key from the environment or saved there encrypted, a test, and
   the provider each kind of work goes to. Code prompts with laravel/ai and reaches what the site
   connected, and a plugin adds a provider of its own.
@@ -124,13 +129,60 @@ php artisan vendor:publish --tag=mainstay-assets
 ```
 
 The admin is then at `/admin`, behind a sign-in of its own, and the content API at `/api/mainstay`.
-Every other path an entry holds is answered by Mainstay's catch-all, after any route your app
-declares itself. The two paths, their middleware, an optional dedicated domain, where each content
-language is served, and the catch-all's middleware, or whether it runs at all, are configurable:
+That is all the package serves. The Content tab is the `mainstay/page-builder` plugin: require it with
+`mainstay/site`, name `Mainstay\PageBuilder\PageBuilderPlugin` in `config('mainstay.plugins')`, and
+publish its script and stylesheet again with the same `mainstay-assets` tag, which copies them to
+`public/vendor/page_builder`. Without it, Details edits the content. Public pages are the `mainstay/site` plugin: require it and name
+`Mainstay\Site\SitePlugin` in `config('mainstay.plugins')`, and every other path an entry holds is
+answered by its catch-all, after any route your app declares itself, behind the middleware of
+`mainstay.site.middleware` (`web` unless you say otherwise). The two paths, their middleware, an
+optional dedicated domain and where each content language is served are configurable:
 
 ```bash
 php artisan vendor:publish --tag=mainstay-config
 ```
+
+Template parts are the `mainstay/parts` plugin. A global holds settings, plain fields; a part is a piece of
+the layout built from blocks, a navigation or a footer. Require it with `mainstay/page-builder` and
+`mainstay/site`, name `Mainstay\Parts\PartsPlugin` in `config('mainstay.plugins')`, and declare parts like
+any type. It has no files to publish.
+
+```php
+#[Blocks([Link::class, Social::class])]
+class Footer extends Part {}
+```
+
+A part has content, as an entry does, and no address: it is stored once per site, localized, drafted and
+published as a global is, so who may edit and publish it is what a global asks (`edit_footer`,
+`publish_footer`). The admin lists it under Parts, apart from the globals, and its edit screen draws it alone
+in the site's `Mainstay::editorStyles()`, its blocks edited in place. A view prints it, in the request's
+locale, with `@part(Footer::class)`.
+
+Forms are the `mainstay/forms` plugin. Require it (it needs `mainstay/page-builder`), name
+`Mainstay\Forms\FormsPlugin` in `config('mainstay.plugins')` and run `php artisan mainstay:sync`. You declare
+nothing: the plugin ships two types, `Form` and `Submission`, and the blocks a form is built from: text input,
+email input, textarea, select (its options one to a line), checkbox and submit button, each with a name, a
+label and whether it is required. Add a form in the admin under Forms and build it on the Content tab, with
+ordinary text between the fields. A form is mailed to its `recipients` (comma-separated), and thanks the
+visitor with its `message` or sends them on to its `redirect` address. Its rules come from its blocks, a name is
+used once per form, and a form needs to be published to take a post; the same goes for a draft-only or trashed one.
+
+Print a form on a page with `@form($form)` (or `Mainstay\Forms\Forms::print()`), or let editors drop the Form
+block into a type's content by listing `Mainstay\Forms\Blocks\FormBlock::class` in its `#[Blocks([...])]`. A form
+that is not live prints nothing. The markup is unstyled, for your stylesheet.
+
+```php
+#[Blocks([Hero::class, FormBlock::class])]
+class Page extends Entry {}
+```
+
+A post is kept as a `Submission` first, then mailed with Laravel's mailer; a mail that fails is reported and the
+visitor still sees success. Submissions are read and deleted in the admin and the API and never written by hand
+(`SubmissionPolicy`). Two endpoints take a post, both rate limited by address with the `mainstay-forms` limiter
+(30 a minute, `mainstay.forms.limit`): `POST /mainstay/forms/{id}` from a page, in the site's middleware
+(`mainstay.site.middleware`, `web`) with its CSRF token, redirecting back with the errors and what was typed, and
+`POST {api prefix}/forms/{id}/submissions`, open without a token, answering 201 with the confirmation or 422 with the
+errors; `?locale=` picks the language. No spam protection beyond the limiter, file uploads or export yet.
 
 Nothing on the web makes the first account. Make it on the server, and invite the rest from the
 admin's Users:
@@ -147,9 +199,9 @@ namespace App\Content;
 use App\Blocks\FeatureGrid;
 use App\Blocks\Hero;
 use Mainstay\Content\Entry;
-use Mainstay\Content\Route;
 use Mainstay\Fields\Blocks;
 use Mainstay\Fields\Text;
+use Mainstay\Site\Route;
 
 #[Route('/{slug}')]
 #[Blocks([Hero::class, FeatureGrid::class])]
@@ -159,6 +211,9 @@ class Page extends Entry
     public string $slug;
 }
 ```
+
+`#[Route]` comes from the site plugin (`Mainstay\Site\Route`), which keeps the entries' paths, their
+front page and the `/path` lookup; without it an entry has no `uri` and `/path` finds nothing.
 
 Every entry already has a title and content, and `#[Blocks]` names the blocks a page's content may
 hold. Register the type in a service provider's `boot()`:
@@ -290,6 +345,12 @@ plugin's item in the sidebar. A screen's view is drawn in `<x-mainstay::admin>`,
 Route::get('/', [RedirectController::class, 'index'])->name('index');
 ```
 
+A plugin adds a tab to an entry's form by returning classes implementing `Mainstay\Admin\EntryTab`
+from `entryTabs()`: the view of its panel, which types it applies to, and optionally a toolbar for the
+end of the tab bar and an aside in the publishing rail's place while the tab is open. `assets()` lists
+the scripts and stylesheets, relative to `public/vendor/<handle>`, that every admin screen loads after
+Mainstay's own; the plugin publishes them under the `mainstay-assets` tag.
+
 `Saved`, `Published`, `Deleted` and `Restored`, in `Mainstay\Events`, carry the type and id of live
 content written, heard once the write commits and never when it rolls back. Your app listens to them
 with `Event::listen` as a plugin does.
@@ -342,16 +403,17 @@ and 1 without a token), and its id past that or where you may not read its type.
 mainstay:typescript` writes `/schema` out as TypeScript declarations, to
 `resources/types/mainstay.d.ts` unless you name a path.
 
-The same operations are an MCP server at `/api/mainstay/mcp`, for a client that speaks Streamable
+With the `mainstay/mcp` plugin (name `Mainstay\Mcp\McpPlugin` in `config('mainstay.plugins')`), the same operations are an MCP server at `/api/mainstay/mcp`, for a client that speaks Streamable
 HTTP: `find-entries`, `get-entry`, `save-draft`, `publish-draft` and the rest, behind the same token.
 Give an agent a token that edits and does not publish, and it writes drafts for a person to put live.
 
 ### Connect an AI provider
 
-Mainstay talks to AI providers through [laravel/ai](https://github.com/laravel/ai), so every provider
-it speaks is one a site can connect: OpenAI, Anthropic, Gemini, Mistral, Groq, xAI, DeepSeek,
-OpenRouter, Ollama and the rest. The admin's **Connectors** screen, open to whoever holds
-`manage_connectors`, has a card per provider -- what it does, where its key comes from, Test -- and
+The `mainstay/ai` plugin talks to AI providers through [laravel/ai](https://github.com/laravel/ai), so
+every provider it speaks is one a site can connect. Require it and name `Mainstay\Ai\AiConnectors` in
+`config('mainstay.plugins')`: OpenAI, Anthropic, Gemini, Mistral, Groq, xAI, DeepSeek,
+OpenRouter, Ollama and the rest. The admin's **Ai Connectors** screen, open to whoever holds
+`use_ai`, has a card per provider -- what it does, where its key comes from, Test -- and
 chooses the provider each kind of work goes to: text, images, speech, transcription, embeddings,
 reranking and classification.
 
@@ -374,7 +436,7 @@ A provider's other settings, such as a URL or a region, are laravel/ai's config:
 `php artisan vendor:publish --tag=ai-config`. A queue worker reads the screen's keys when it first
 prompts, so restart workers after changing one.
 
-A plugin adds providers with `providers()`, as entries of laravel/ai's `ai.providers` with a label for
+A plugin adds providers by implementing `Mainstay\Ai\DeclaresProviders` and its `providers()`, as entries of laravel/ai's `ai.providers` with a label for
 the screen. One on a driver laravel/ai has is config alone -- an `openai-compatible` one names its
 models, since laravel/ai cannot guess them -- and one on a driver of its own hands over a closure that
 returns a laravel/ai provider:
@@ -409,11 +471,13 @@ migration for whatever it reports.
 Mainstay is built in phases, each ending at something that works. Phases 1 to 13 are done: content
 types and schema sync, reading and writing from PHP, public rendering, rich text and blocks, media,
 relations and taxonomies, drafts and revisions, identity, the admin, accounts, the page builder, and
-the API with its tokens and MCP server. AI connectors came after them. Next:
+the API with its tokens and MCP server. AI connectors came after them, and then the split of core
+from its plugins: `ai`, `mcp`, `site`, `page-builder`, `parts` for template parts and `forms` for a
+form builder. Next:
 
 - **The second locale and the second site.**
 - **Onboarding.**
-- **Template parts** -- a site's header, menu and footer built with blocks.
+- **Releasing the plugins**, and `mainstay-site` running on them.
 
 [`docs/plan.md`](docs/plan.md) has every phase in detail, and [`docs/decisions.md`](docs/decisions.md)
 the reasons behind them.

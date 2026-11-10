@@ -4,7 +4,6 @@ use Illuminate\Support\Facades\Route;
 use Mainstay\Http\Authenticate;
 use Mainstay\Http\AuthenticateSession;
 use Mainstay\Http\AuthorizePlugin;
-use Mainstay\Http\ConnectorController;
 use Mainstay\Http\EntryController;
 use Mainstay\Http\LoginController;
 use Mainstay\Http\MediaController;
@@ -26,7 +25,7 @@ Route::post('reset-password', [PasswordController::class, 'update'])->name('main
 /*
  | Every screen under a type's handle, which registration keeps from being
  | one of the admin's own: `login`, `logout`, `media`, `users`, `roles`,
- | `account`, `connectors`, or a plugin's. A path none of them answers is the admin's
+ | `account`, or a plugin's. A path none of them answers is the admin's
  | own not-found, drawn in the shell: named as the others are, so no entry
  | can be given a path anywhere under the prefix.
  */
@@ -63,12 +62,6 @@ Route::middleware([Authenticate::class, AuthenticateSession::class])->group(func
     Route::post('account/tokens', [TokenController::class, 'store'])->name('mainstay.tokens.store');
     Route::post('account/tokens/{id}/revoke', [TokenController::class, 'destroy'])->whereNumber('id')->name('mainstay.tokens.destroy');
 
-    Route::get('connectors', [ConnectorController::class, 'index'])->name('mainstay.connectors');
-    Route::post('connectors', [ConnectorController::class, 'defaults'])->name('mainstay.connectors.defaults');
-    Route::post('connectors/{provider}', [ConnectorController::class, 'save'])->name('mainstay.connectors.save');
-    Route::post('connectors/{provider}/forget', [ConnectorController::class, 'forget'])->name('mainstay.connectors.forget');
-    Route::post('connectors/{provider}/test', [ConnectorController::class, 'test'])->name('mainstay.connectors.test');
-
     /* Before the types', which would answer a plugin's segment, and named
        apart from Mainstay's own, which a plugin's route would otherwise take. */
     foreach (app(Mainstay::class)->plugins() as $handle => $plugin) {
@@ -80,8 +73,6 @@ Route::middleware([Authenticate::class, AuthenticateSession::class])->group(func
     Route::get('{type}', [EntryController::class, 'index'])->name('mainstay.entries');
     Route::post('{type}', [EntryController::class, 'store'])->name('mainstay.entries.store');
     Route::get('{type}/new', [EntryController::class, 'create'])->name('mainstay.entries.create');
-    Route::post('{type}/new/canvas', [EntryController::class, 'canvas'])->name('mainstay.canvas.create');
-    Route::post('{type}/new/block', [EntryController::class, 'block'])->name('mainstay.block.create');
     Route::get('{type}/trash', [EntryController::class, 'trashed'])->name('mainstay.entries.trash');
     Route::get('{type}/history', [EntryController::class, 'history'])->name('mainstay.globals.history');
     Route::post('{type}/revisions/{revision}', [EntryController::class, 'restoreGlobalRevision'])->whereNumber('revision')->name('mainstay.globals.revisions.restore');
@@ -89,17 +80,12 @@ Route::middleware([Authenticate::class, AuthenticateSession::class])->group(func
 
     Route::get('{type}/drafts/{draft}', [EntryController::class, 'draft'])->whereNumber('draft')->name('mainstay.drafts.edit');
     Route::post('{type}/drafts/{draft}', [EntryController::class, 'saveDraft'])->whereNumber('draft')->name('mainstay.drafts.update');
-    Route::post('{type}/drafts/{draft}/canvas', [EntryController::class, 'draftCanvas'])->whereNumber('draft')->name('mainstay.canvas.draft');
-    Route::post('{type}/drafts/{draft}/block', [EntryController::class, 'draftBlock'])->whereNumber('draft')->name('mainstay.block.draft');
     Route::post('{type}/drafts/{draft}/discard', [EntryController::class, 'discard'])->whereNumber('draft')->name('mainstay.drafts.discard');
     Route::post('{type}/drafts/{draft}/author', [EntryController::class, 'assignDraft'])->whereNumber('draft')->name('mainstay.drafts.assign');
     Route::get('{type}/relations/{field}', [EntryController::class, 'relations'])->name('mainstay.relations');
-    Route::get('{type}/previews', [EntryController::class, 'previews'])->name('mainstay.previews');
 
     Route::get('{type}/{id}', [EntryController::class, 'edit'])->whereNumber('id')->name('mainstay.entries.edit');
     Route::post('{type}/{id}', [EntryController::class, 'update'])->whereNumber('id')->name('mainstay.entries.update');
-    Route::post('{type}/{id}/canvas', [EntryController::class, 'entryCanvas'])->whereNumber('id')->name('mainstay.canvas.entry');
-    Route::post('{type}/{id}/block', [EntryController::class, 'entryBlock'])->whereNumber('id')->name('mainstay.block.entry');
     Route::post('{type}/{id}/trash', [EntryController::class, 'trash'])->whereNumber('id')->name('mainstay.entries.delete');
     Route::post('{type}/{id}/restore', [EntryController::class, 'restore'])->whereNumber('id')->name('mainstay.entries.restore');
     Route::post('{type}/{id}/destroy', [EntryController::class, 'destroy'])->whereNumber('id')->name('mainstay.entries.destroy');

@@ -16,7 +16,6 @@ use Mainstay\Tests\Fixtures\Accented\Article as AccentedArticle;
 use Mainstay\Tests\Fixtures\Article;
 use Mainstay\Tests\Fixtures\Bodied\Article as BodiedArticle;
 use Mainstay\Tests\Fixtures\Broken\Collided;
-use Mainstay\Tests\Fixtures\Broken\MainstayConnectors;
 use Mainstay\Tests\Fixtures\Broken\MainstayDrafts;
 use Mainstay\Tests\Fixtures\Broken\MainstayPasswordResetTokens;
 use Mainstay\Tests\Fixtures\Broken\MainstayRevisions;
@@ -27,7 +26,6 @@ use Mainstay\Tests\Fixtures\Broken\Publisher;
 use Mainstay\Tests\Fixtures\Broken\Reserved;
 use Mainstay\Tests\Fixtures\Broken\Templated;
 use Mainstay\Tests\Fixtures\Broken\Typed;
-use Mainstay\Tests\Fixtures\Broken\Uris;
 use Mainstay\Tests\Fixtures\Coded\Article as CodedArticle;
 use Mainstay\Tests\Fixtures\Moody\Article as MoodyArticle;
 use Mainstay\Tests\Fixtures\Prose\Article as ProseArticle;
@@ -63,43 +61,6 @@ class SchemaTest extends DatabaseTestCase
             [(object) ['id' => 1, 'handle' => 'default', 'name' => config('app.name'), 'hostname' => null, 'front_type' => null, 'front_id' => null]],
             DB::table('sites')->get()->all(),
         );
-    }
-
-    #[Test]
-    public function the_uri_lookup_holds_one_path_per_site_and_locale(): void
-    {
-        $row = ['site_id' => 1, 'locale' => 'en', 'uri' => '/blog/hello', 'type' => 'article', 'entry_id' => 1];
-
-        $second = DB::table('sites')->insertGetId(['handle' => 'campaign', 'name' => 'Campaign', 'hostname' => 'campaign.test']);
-
-        /* An entry belongs to one site, so the same path on the second site
-           is another entry's. */
-        DB::table('uris')->insert($row);
-        DB::table('uris')->insert(['locale' => 'nl'] + $row);
-        DB::table('uris')->insert(['site_id' => $second, 'entry_id' => 2] + $row);
-
-        $this->expectException(UniqueConstraintViolationException::class);
-
-        DB::table('uris')->insert(['entry_id' => 3] + $row);
-    }
-
-    #[Test]
-    public function one_path_per_entry_and_locale_arrives_over_rows_that_break_it(): void
-    {
-        $migration = require __DIR__.'/../database/migrations/2026_09_24_000000_hold_one_path_per_entry_and_locale.php';
-        $migration->down();
-
-        $row = ['site_id' => 1, 'locale' => 'en', 'type' => 'article', 'entry_id' => 1];
-        $first = DB::table('uris')->insertGetId(['uri' => '/blog/first'] + $row);
-        DB::table('uris')->insert(['uri' => '/blog/second'] + $row);
-        DB::table('uris')->insert(['uri' => '/blog/other', 'entry_id' => 2] + $row);
-
-        $migration->up();
-
-        $this->assertSame([$first, '/blog/first'], [(int) DB::table('uris')->where('entry_id', 1)->value('id'), DB::table('uris')->where('entry_id', 1)->value('uri')]);
-        $this->assertSame(2, DB::table('uris')->count());
-        $this->expectException(UniqueConstraintViolationException::class);
-        DB::table('uris')->insert(['uri' => '/blog/third'] + $row);
     }
 
     #[Test]
@@ -917,14 +878,12 @@ class SchemaTest extends DatabaseTestCase
             Templated::class => 'has a field stored as template, a column Mainstay keeps for itself',
             Publisher::class => 'has a field stored as published_by, a column Mainstay keeps for itself',
             Collided::class => 'has two properties stored in the same column',
-            Uris::class => 'would be stored in uris, a table Mainstay keeps for itself',
             MainstayDrafts::class => 'would be stored in mainstay_drafts, a table Mainstay keeps for itself',
             MainstayRevisions::class => 'would be stored in mainstay_revisions, a table Mainstay keeps for itself',
             MainstayRoles::class => 'would be stored in mainstay_roles, a table Mainstay keeps for itself',
             MainstayUsers::class => 'would be stored in mainstay_users, a table Mainstay keeps for itself',
             MainstayPasswordResetTokens::class => 'would be stored in mainstay_password_reset_tokens, a table Mainstay keeps for itself',
             MainstayTokens::class => 'would be stored in mainstay_tokens, a table Mainstay keeps for itself',
-            MainstayConnectors::class => 'would be stored in mainstay_connectors, a table Mainstay keeps for itself',
             Typed::class => 'has a field stored as type, a column Mainstay keeps for itself',
         ] as $type => $message) {
             $this->declare($type);

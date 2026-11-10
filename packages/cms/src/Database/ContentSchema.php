@@ -21,6 +21,7 @@ use Mainstay\Content\Taxonomy;
 use Mainstay\Fields\Field;
 use Mainstay\Fields\Terms;
 use Mainstay\Mainstay;
+use Mainstay\Plugin;
 use TypeError;
 
 /*
@@ -57,6 +58,8 @@ class ContentSchema
     {
         $tables = [];
 
+        $pluginTables = array_merge(...array_map(fn (Plugin $plugin) => $plugin->tables(), array_values($this->mainstay->plugins())));
+
         foreach ($this->mainstay->registered() as $handle => $type) {
             /* A field kept in rows of its own has no column here. */
             $fields = array_filter($this->mainstay->fields($type), fn (Field $field) => $field->column() !== null);
@@ -84,7 +87,7 @@ class ContentSchema
                 }
             }
 
-            if (in_array($handle, ['sites', 'uris', 'migrations', 'mainstay_media', 'mainstay_drafts', 'mainstay_revisions', 'mainstay_roles', 'mainstay_users', 'mainstay_password_reset_tokens', 'mainstay_tokens', 'mainstay_connectors'], true) || str_ends_with($handle, '_locales') || str_ends_with($handle, '_entries')) {
+            if (in_array($handle, ['sites', 'migrations', 'mainstay_media', 'mainstay_drafts', 'mainstay_revisions', 'mainstay_roles', 'mainstay_users', 'mainstay_password_reset_tokens', 'mainstay_tokens', ...$pluginTables], true) || str_ends_with($handle, '_locales') || str_ends_with($handle, '_entries')) {
                 throw new InvalidArgumentException("{$type} would be stored in {$handle}, a table Mainstay keeps for itself. Rename the class.");
             }
 

@@ -2,10 +2,12 @@
 
 namespace Mainstay;
 
+use Illuminate\Contracts\Foundation\Application;
+use Mainstay\Admin\EntryTab;
 use Mainstay\Content\ContentType;
 
 /*
- | A package's types, views, admin screens, listeners and AI providers, which
+ | A package's types, views, admin screens, listeners, migrations and boot step, which
  | Mainstay wires in when `config('mainstay.plugins')` names the class and at
  | no other time: nothing is discovered, and nothing is switched on from the
  | admin. A plugin is the host's own code once installed, so this is what it
@@ -49,25 +51,45 @@ abstract class Plugin
         return null;
     }
 
+    /** @return list<class-string<EntryTab>|EntryTab> the tabs it adds to an entry's form, beside Details */
+    public function entryTabs(): array
+    {
+        return [];
+    }
+
+    /*
+     | Scripts and stylesheets the admin loads after its own, as paths in the
+     | directory the host publishes the plugin's files to, `public/vendor/<handle>`.
+     |
+     | @return list<string>
+     */
+    public function assets(): array
+    {
+        return [];
+    }
+
     /** @return array<class-string, list<class-string|callable>> each event it listens to and its listeners, as Laravel's `$listen` */
     public function listeners(): array
     {
         return [];
     }
 
-    /*
-     | AI providers for the Connectors screen, as entries of laravel/ai's
-     | `ai.providers` by name, with a `label` to list them by:
-     | `['together' => ['label' => 'Together AI', 'driver' => 'openai-compatible',
-     | 'url' => 'https://api.together.xyz/v1']]`. A driver laravel/ai lacks is a
-     | closure taking the app and the provider's config and returning a
-     | laravel/ai Provider. The host's own `ai.providers` entry of the name
-     | wins key by key, so its config gives one a key from its env.
-     |
-     | @return array<string, array<string, mixed>>
-     */
-    public function providers(): array
+    /* The directory its migrations are in, run with the package's own. */
+    public function migrations(): ?string
+    {
+        return null;
+    }
+
+    /** @return list<string> the tables its migrations make, which no content type may be stored in */
+    public function tables(): array
     {
         return [];
     }
+
+    /*
+     | What Laravel keeps no declarative home for: a service provider to
+     | register, a container callback, a Blade directive, a route outside the
+     | admin. Run once every plugin is loaded, before the admin's routes.
+     */
+    public function boot(Application $app): void {}
 }

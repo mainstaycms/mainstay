@@ -2,14 +2,11 @@
 
 namespace Mainstay;
 
-use Closure;
-use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\URL;
 use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
-use Mainstay\Ai\Connectors;
+use Mainstay\Admin\EntryTab;
 use Mainstay\Auth\Accounts;
 use Mainstay\Auth\Capabilities;
 use Mainstay\Auth\Tokens;
@@ -17,16 +14,17 @@ use Mainstay\Content\Block;
 use Mainstay\Content\ContentType;
 use Mainstay\Content\Entry;
 use Mainstay\Content\GlobalSet;
-use Mainstay\Content\Route;
+use Mainstay\Content\HoldsPage;
+use Mainstay\Content\Taxonomy;
 use Mainstay\Content\Template;
 use Mainstay\Database\ContentStore;
 use Mainstay\Database\Drafts;
+use Mainstay\Database\Paths;
 use Mainstay\Database\Revisions;
 use Mainstay\Fields\Blocks;
 use Mainstay\Fields\Content;
 use Mainstay\Fields\Field;
 use Mainstay\Fields\Internal;
-use Mainstay\Fields\Select;
 use Mainstay\Fields\Terms;
 use Mainstay\Fields\Text;
 use Mainstay\Fields\Textarea;
@@ -42,13 +40,19 @@ class Mainstay
 
     /* The first segments of the admin's own screens, which a type's handle,
        naming its screens' segment, cannot be. */
-    private const ADMIN = ['media', 'login', 'logout', 'users', 'roles', 'account', 'connectors'];
+    private const ADMIN = ['media', 'login', 'logout', 'users', 'roles', 'account'];
 
     /* View namespaces a plugin's handle cannot be: Mainstay's own, and
        Laravel's mail and error pages, which it adds only as a mail or an
        error renders and then replaces. Any other already registered is
        refused as it is found. */
     private const NAMESPACES = ['mainstay', 'mail', 'errors'];
+
+    /* One or more lowercase segments, each after its slash: a locale's
+       prefix. A path is held to the same by whatever serves one, so MySQL
+       and SQL Server, which fold case in a comparison, match what SQLite
+       and Postgres do. */
+    private const PATH = '(?:/[a-z0-9]+(?:-[a-z0-9]+)*)+';
 
     /** @var array<string, class-string<ContentType>> */
     private array $types = [];
@@ -64,9 +68,6 @@ class Mainstay
 
     /** @var array<class-string<Block>, Blocks|null> each block's inner blocks */
     private array $inner = [];
-
-    /** @var array<class-string, string|array<string, string>|null> */
-    private array $routes = [];
 
     /** @var array{0: mixed, 1: array<string, array{origin: string, host: ?string, prefix: string}>}|null */
     private ?array $locales = null;
@@ -181,13 +182,10 @@ class Mainstay
      | screens answer at, the namespace its views are in and its capability's
      | noun, so it is checked here, where the class can be named: none of the
      | admin's screens, no view namespace already there, no type's and no other
-     | plugin's. So is each AI provider it declares: a name laravel/ai can
-     | take, a driver, and no other plugin's.
+     | plugin's.
      */
     public function loadPlugins(array $plugins): void
     {
-        $providers = [];
-
         foreach ($plugins as $plugin) {
             if (! is_string($plugin) || ! is_subclass_of($plugin, Plugin::class)) {
                 throw new InvalidArgumentException(sprintf(
@@ -219,22 +217,6 @@ class Mainstay
             }
 
             $this->plugins[$handle] = app($plugin);
-
-            foreach ($this->plugins[$handle]->providers() as $name => $config) {
-                if (! is_string($name) || preg_match('/\A[a-z][a-z0-9_-]*\z/', $name) !== 1) {
-                    throw new InvalidArgumentException("{$plugin} declares an AI provider called \"{$name}\", and a provider's name is lowercase letters, digits, dashes and underscores, starting with a letter.");
-                }
-
-                if (! is_string($config['driver'] ?? null) && ! ($config['driver'] ?? null) instanceof Closure) {
-                    throw new InvalidArgumentException("{$plugin}'s AI provider {$name} names no driver: give it one of laravel/ai's, such as openai-compatible, or a closure that makes one.");
-                }
-
-                if (isset($providers[$name])) {
-                    throw new InvalidArgumentException("Two plugins declare the AI provider \"{$name}\": {$providers[$name]} and {$plugin}.");
-                }
-
-                $providers[$name] = $plugin;
-            }
         }
 
         foreach ($this->plugins as $loaded) {
@@ -246,6 +228,38 @@ class Mainstay
     public function plugins(): array
     {
         return $this->plugins;
+    }
+
+    /** @return list<EntryTab> every plugin's tabs for an entry's form of `$type` */
+    public function entryTabs(string $type): array
+    {
+        $tabs = [];
+
+        foreach ($this->plugins as $plugin) {
+            foreach ($plugin->entryTabs() as $tab) {
+                $tab = is_string($tab) ? app($tab) : $tab;
+
+                if ($tab->applies($type)) {
+                    $tabs[] = $tab;
+                }
+            }
+        }
+
+        return $tabs;
+    }
+
+    /** @return list<string> the scripts and stylesheets of every plugin, as public paths */
+    public function assets(): array
+    {
+        $assets = [];
+
+        foreach ($this->plugins as $handle => $plugin) {
+            foreach ($plugin->assets() as $asset) {
+                $assets[] = "vendor/{$handle}/{$asset}";
+            }
+        }
+
+        return $assets;
     }
 
     /*
@@ -382,87 +396,6 @@ class Mainstay
     }
 
     /*
-     | The type's #[Route] as declared -- one pattern, or one per locale --
-     | or null for a type with no URL. Checked here, the first time it is
-     | asked for, so a pattern no path can be built from is refused naming
-     | the type rather than surfacing as a broken lookup row.
-     |
-     | A pattern is `/` or a run of segments, each a lowercase slug or one
-     | `{field}`. Lowercase because the lookup's unique index compares as the
-     | database does, and MySQL and SQL Server fold case where SQLite and
-     | Postgres do not: `/Blog/x` and `/blog/x` would be one path on two
-     | drivers and two on the others. A placeholder names a field that is
-     | required, so there is always something to build the path from; a
-     | string, so the path is the value an editor typed rather than a date's
-     | column format; and not internal, since the path is published.
-     |
-     | @return string|array<string, string>|null
-     */
-    public function route(string $type): string|array|null
-    {
-        $type = $this->canonical($type);
-
-        if (array_key_exists($type, $this->routes)) {
-            return $this->routes[$type];
-        }
-
-        $attributes = (new ReflectionClass($type))->getAttributes(Route::class);
-        $route = $attributes === [] ? null : $attributes[0]->newInstance()->pattern;
-
-        if (is_array($route) && ($route === [] || array_is_list($route))) {
-            throw new InvalidArgumentException("{$type}'s #[Route] is a list. Give one pattern, or a pattern per locale keyed by the locale.");
-        }
-
-        foreach ((array) $route as $pattern) {
-            $this->pattern($type, $pattern);
-        }
-
-        return $this->routes[$type] = $route;
-    }
-
-    private function pattern(string $type, mixed $pattern): void
-    {
-        if (! is_string($pattern) || ($pattern !== '/' && ! preg_match('#\A(?:/(?:'.Route::SEGMENT.'|'.Route::PLACEHOLDER.'))+\z#', $pattern))) {
-            throw new InvalidArgumentException(sprintf(
-                "%s's #[Route] pattern %s is not a path Mainstay can store: it starts with /, has no trailing slash, and each segment is a lowercase slug or one {field}.",
-                $type,
-                is_string($pattern) ? "\"{$pattern}\"" : get_debug_type($pattern),
-            ));
-        }
-
-        preg_match_all('/'.Route::PLACEHOLDER.'/', $pattern, $names);
-
-        foreach ($names[1] as $name) {
-            $field = $this->fields($type)[$name] ?? throw new InvalidArgumentException("{$type}'s #[Route] pattern \"{$pattern}\" names {{$name}}, which is not a field of the type.");
-
-            $because = match (true) {
-                $field->internal => 'is internal, and the path is published',
-                $field->phpType !== 'string' => "is typed {$field->phpType}, and a path is built from strings",
-                ! $field->isRequired() => 'is optional, and a path cannot be built from nothing',
-                /* Every write choosing one would be refused for it. */
-                $field instanceof Select && ($option = $this->unrouted($field)) !== null => "offers \"{$option}\", which is not a path segment",
-                default => null,
-            };
-
-            if ($because !== null) {
-                throw new InvalidArgumentException("{$type}'s #[Route] pattern \"{$pattern}\" names {{$name}}, which {$because}.");
-            }
-        }
-    }
-
-    /* A select's first option that cannot be a segment of a path. */
-    private function unrouted(Select $field): ?string
-    {
-        foreach ($field->values() as $value) {
-            if (! preg_match(Route::SLUG, $value)) {
-                return $value;
-            }
-        }
-
-        return null;
-    }
-
-    /*
      | The type as JSON Schema, which phase 13 serves from a discovery endpoint
      | and writes out as a `.d.ts` -- from here rather than derived twice.
      |
@@ -579,9 +512,10 @@ class Mainstay
         $this->store()->setFrontPage($type, ...$arguments);
     }
 
-    /* An entry as its page would read with unsaved changes over it, written
-       nowhere: what the admin's Content tab draws. */
-    public function preview(string $type, mixed ...$arguments): Entry
+    /* An entry, or a global edited as a page, as it would read with unsaved
+       changes over it, written nowhere: what the admin's Content tab draws. */
+    /** @return Entry|(GlobalSet&HoldsPage) */
+    public function preview(string $type, mixed ...$arguments): ContentType
     {
         return $this->store()->preview($type, ...$arguments);
     }
@@ -605,13 +539,6 @@ class Mainstay
         return new Accounts($this);
     }
 
-    /* The AI providers the site talks to through laravel/ai, their keys and
-       what each is used for: `Mainstay::connectors()->save(...)`. */
-    public function connectors(): Connectors
-    {
-        return app(Connectors::class);
-    }
-
     /* The tokens programs sign in to the API with: `Mainstay::tokens()
        ->issue(...)`. */
     public function tokens(): Tokens
@@ -621,7 +548,7 @@ class Mainstay
 
     private function store(): ContentStore
     {
-        return new ContentStore($this);
+        return new ContentStore($this, app(Paths::class));
     }
 
     /* The media library: `Mainstay::media()->upload(...)`, beside the
@@ -687,7 +614,7 @@ class Mainstay
             /* The prefix held to what a path is, lowercase, for the reason a
                path is: MySQL and SQL Server would match `/NL` to it and the
                others would not. */
-            if (! is_string($locale) || ! is_string($base) || ! preg_match('#\A(https?://([A-Za-z0-9.-]+)(?::\d+)?)?((?:'.Route::PATH.')?)/?\z#', $base, $parts)) {
+            if (! is_string($locale) || ! is_string($base) || ! preg_match('#\A(https?://([A-Za-z0-9.-]+)(?::\d+)?)?((?:'.self::PATH.')?)/?\z#', $base, $parts)) {
                 throw new InvalidArgumentException(sprintf(
                     'mainstay.locales serves %s at %s, which is neither a path of lowercase segments, like /nl, nor a URL, like https://example.nl.',
                     $locale,
@@ -710,94 +637,6 @@ class Mainstay
         }
 
         return ($this->locales = [$config, $locales])[1];
-    }
-
-    /*
-     | The locale a request is in and its path with the locale's prefix taken
-     | off, which is what the lookup holds. The longest prefix wins, and a
-     | prefix matches whole segments: `/nlx` is not under `/nl`. A host is
-     | compared without scheme or port, which a proxy in front of the
-     | application may have changed. Null where no locale is served.
-     |
-     | @return array{0: string, 1: string}|null
-     */
-    public function resolve(string $host, string $path): ?array
-    {
-        $path = '/'.trim($path, '/');
-        $found = null;
-
-        foreach ($this->locales() as $locale => $base) {
-            if (($base['host'] === null || $base['host'] === strtolower($host)) && $this->under($path, $base['prefix'])
-                && ($found === null || strlen($base['prefix']) > strlen($found[1]))) {
-                $found = [$locale, $base['prefix']];
-            }
-        }
-
-        return $found === null ? null : [$found[0], substr($path, strlen($found[1])) ?: '/'];
-    }
-
-    /*
-     | The link to an entry: its locale's base and its path, with the
-     | subdirectory the application is served from between them, since a
-     | request's path is read below it. For a locale with no host, all of it
-     | through the URL generator, which puts the request's host on as well.
-     |
-     | Null for a type with no #[Route], and for an entry not read with its
-     | locale and path: one handed to a caller that may write the type but
-     | not read it, the one a policy is shown, or one never read at all.
-     */
-    public function url(Entry $entry): ?string
-    {
-        if (! isset($entry->locale, $entry->uri)) {
-            return null;
-        }
-
-        $base = $this->locales()[$entry->locale];
-        $path = $this->path($base['prefix'], $entry->uri);
-
-        return $base['host'] === null ? URL::to($path) : $base['origin'].parse_url(URL::to('/'), PHP_URL_PATH).$path;
-    }
-
-    /*
-     | What a request for a locale's path reaches instead of the entry that
-     | holds it, or null when nothing does: a route of Mainstay's own, or
-     | another locale whose prefix the path runs into -- `/nl` in an
-     | unprefixed English beside a Dutch at `/nl`.
-     |
-     | The routes are asked of the router, which is what answers the request:
-     | every one named `mainstay.*` but the catch-all, so the admin at any
-     | path, the API, and whatever the package adds are one check. Not the
-     | host's own, which may be reading the same entry on purpose. A locale
-     | with no host is served on every host, and a route kept to a domain
-     | takes only one of them, so for such a locale it is left out.
-     */
-    public function shadow(string $locale, string $uri): ?string
-    {
-        $base = $this->locales()[$locale];
-        $path = $this->path($base['prefix'], $uri);
-        $request = Request::create(($base['host'] === null ? '' : "http://{$base['host']}").$path);
-
-        foreach (app('router')->getRoutes()->get('GET') as $route) {
-            if (str_starts_with((string) $route->getName(), 'mainstay.') && ! $route->isFallback
-                && ($base['host'] !== null || $route->getDomain() === null) && $route->matches($request)) {
-                return "the route {$route->getName()}";
-            }
-        }
-
-        $reached = $this->resolve($base['host'] ?? '', $path)[0];
-
-        return $reached === $locale ? null : "{$reached}'s prefix {$this->locales()[$reached]['prefix']}";
-    }
-
-    /* A locale's path under its prefix: `/nl` for its `/`, not `/nl/`. */
-    private function path(string $prefix, string $uri): string
-    {
-        return $prefix !== '' && $uri === '/' ? $prefix : $prefix.$uri;
-    }
-
-    private function under(string $path, string $prefix): bool
-    {
-        return $prefix === '' || $path === $prefix || str_starts_with($path, "{$prefix}/");
     }
 
     /* `\App\Article` and `App\Article` are one class and two cache keys -- and
@@ -929,41 +768,65 @@ class Mainstay
     /*
      | An entry's blocks go in its content, the list its class names with
      | #[Blocks([...])]; a block's names the blocks it holds inside it. That
-     | is all the attribute takes. A type with no #[Route] has no page to edit
-     | a block on, so its content holds text alone. Content is Entry's, and
-     | the edit screen is built on it, so a type redeclares it only as
-     | content.
+     | is all the attribute takes. A type with no page to edit a block on --
+     | no #[Route], and not a type edited as a page -- holds text alone.
+     | Content is Entry's, and the edit screen is built on it, so a type
+     | redeclares it only as content. A global edited as a page declares it
+     | too, and has no route for it to be a page of.
      */
     private function content(string $type, ReflectionClass $reflection, array $fields): void
     {
         $entry = is_subclass_of($type, Entry::class);
+        $holdsPage = is_subclass_of($type, HoldsPage::class);
+        $owns = $entry || $holdsPage;
+
+        if ($holdsPage && is_subclass_of($type, Taxonomy::class)) {
+            throw new InvalidArgumentException("{$type} is edited as a page and is a taxonomy: only a global or an entry type is.");
+        }
+
+        if ($holdsPage && ! $entry && ! is_subclass_of($type, GlobalSet::class)) {
+            throw new InvalidArgumentException("{$type} is edited as a page and is not a global or an entry type.");
+        }
+
+        if ($holdsPage && app(Paths::class)->routed($type)) {
+            throw new InvalidArgumentException("{$type} is edited as a page and has a #[Route]: a type has a page of its own or none.");
+        }
 
         foreach ($fields as $name => $field) {
-            if ($field instanceof Content && (! $entry || $name !== 'content')) {
+            if ($field instanceof Content && (! $owns || $name !== 'content')) {
                 throw new InvalidArgumentException("{$type}::\${$name} is a content field, and content is an entry's own, its \$content.");
             }
         }
 
-        if ($entry && ! ($fields['content'] ?? null) instanceof Content) {
+        if ($owns && ! ($fields['content'] ?? null) instanceof Content) {
             throw new InvalidArgumentException("{$type}::\$content is redeclared as another kind of field. The edit screen is built on an entry's content, so redeclare it with #[Content], as one content for every language is.");
         }
 
         $attributes = $reflection->getAttributes(Blocks::class);
-        $page = $reflection->getAttributes(Route::class) !== [];
+        $page = $this->hasPage($type);
 
-        if ($attributes !== [] && ! $entry && ! is_subclass_of($type, Block::class)) {
+        if ($attributes !== [] && ! $owns && ! is_subclass_of($type, Block::class)) {
             throw new InvalidArgumentException("{$type} names blocks with #[Blocks], and only an entry type's content and a block hold them.");
         }
 
         $this->listing($type, $attributes);
 
-        if ($attributes !== [] && $entry && ! $page) {
+        if ($attributes !== [] && $owns && ! $page) {
             throw new InvalidArgumentException("{$type} names blocks with #[Blocks] and has no #[Route]: with no page there is nowhere to edit a block on, so its content holds text alone.");
         }
 
-        if ($entry) {
+        if ($owns) {
             $fields['content']->holds($attributes === [] ? null : $attributes[0]->newInstance()->check($this), $page);
         }
+    }
+
+    /*
+     | Whether a type has a page to edit its content on: the address its
+     | #[Route] gives an entry, or a global's being edited as one.
+     */
+    public function hasPage(string $type): bool
+    {
+        return is_subclass_of($type, HoldsPage::class) || app(Paths::class)->routed($type);
     }
 
     /** @param list<ReflectionAttribute> $attributes a class's #[Blocks], which names blocks, and on a block text, and nothing more */

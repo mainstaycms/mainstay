@@ -1,0 +1,1 @@
+<main>@form($form)</main>

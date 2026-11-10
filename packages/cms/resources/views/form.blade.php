@@ -76,7 +76,7 @@
 
         <div class="flex min-h-0 min-w-0 flex-1 flex-col">
             {{-- Over the tabs, and taking no room there while it says nothing. --}}
-            <div class="mx-auto w-full max-w-3xl shrink-0 space-y-2 px-6 {{ $canvas ? 'has-[>:not([hidden])]:py-3' : 'pt-8' }}">
+            <div class="mx-auto w-full max-w-3xl shrink-0 space-y-2 px-6 {{ $tabs !== [] ? 'has-[>:not([hidden])]:py-3' : 'pt-8' }}">
                 <div data-copy-offer hidden role="status" class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-control border border-border bg-surface px-3 py-2 text-sm">
                     <span class="mr-auto">You have unsaved changes from <time data-copy-time></time>.</span>
                     <x-mainstay::button type="button" data-copy-restore>Restore</x-mainstay::button>
@@ -90,21 +90,18 @@
                 @endif
             </div>
 
-            {{-- A type with a page edits it on Content, the page the site
-                 draws from the form; Details is every field, the content's
-                 raw data among them, and opens first -- and again after a
-                 save a field refused. Content's own controls, for the whole
-                 document, sit at the end of the tabs' bar while it is open. --}}
-            @if ($canvas)
+            {{-- A plugin adds its tabs beside Details, which is every field
+                 and opens first -- and again after a save a field refused.
+                 A tab's toolbar sits at the end of the tabs' bar while it is
+                 open; its script shows and hides it. --}}
+            @if ($tabs !== [])
                 <div class="relative shrink-0">
-                    <x-mainstay::tabs name="entry" label="Edit" :tabs="['details' => 'Details', 'content' => 'Content']" :data-tabs-open="$errors->isNotEmpty() ? 'details' : null" />
-                    <div id="canvas-header" role="toolbar" aria-label="Content" hidden class="absolute inset-y-0 right-4 flex items-center gap-0.5">
-                        @php($tool = 'rounded-control px-2 py-1 text-sm text-muted hover:bg-surface hover:text-ink disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent')
-                        <button type="button" data-command="undo" class="{{ $tool }}">Undo</button>
-                        <button type="button" data-command="redo" class="{{ $tool }}">Redo</button>
-                        <span aria-hidden="true" class="mx-1 h-5 w-px bg-border"></span>
-                        <button type="button" data-command="add" aria-haspopup="dialog" aria-controls="canvas-inserter" class="{{ $tool }}">Add block</button>
-                    </div>
+                    <x-mainstay::tabs name="entry" label="Edit" :tabs="['details' => 'Details', ...collect($tabs)->mapWithKeys(fn ($each) => [$each['tab']->handle() => $each['tab']->label()])->all()]" :data-tabs-open="$errors->isNotEmpty() ? 'details' : null" />
+                    @foreach ($tabs as $each)
+                        @if ($each['tab']->toolbar())
+                            @include($each['tab']->toolbar(), $each['data'])
+                        @endif
+                    @endforeach
                 </div>
             @endif
 
@@ -126,11 +123,11 @@
                 </div>
             </x-mainstay::tab-panel>
 
-            @if ($canvas)
-                <x-mainstay::tab-panel id="content" class="flex min-h-0 flex-1 flex-col">
-                    <x-mainstay::canvas :url="$canvas" :block="$block" sidebar="mainstay-block" header="canvas-header" :blocks="$blocks" :top="$top" :invalid="$invalid" :pictures="$pictures" :previews="$previews" />
+            @foreach ($tabs as $each)
+                <x-mainstay::tab-panel :id="$each['tab']->handle()" class="flex min-h-0 flex-1 flex-col">
+                    @include($each['tab']->panel(), $each['data'])
                 </x-mainstay::tab-panel>
-            @endif
+            @endforeach
         </div>
 
         <aside aria-label="Publishing" data-publishing class="min-h-0 w-72 shrink-0 overflow-y-auto border-l border-border bg-surface">
@@ -191,24 +188,13 @@
             @endif
         </aside>
 
-        {{-- On the Content tab, in the rail's place: every block of the
-             content, the ones inside another under it, each by its icon
-             and its name, the current one marked, each selected on the
-             page from here. canvas.ts fills it
-             from the template and swaps it for the rail. --}}
-        @if ($canvas)
-            <aside aria-labelledby="canvas-tree-label" data-canvas-tree hidden class="min-h-0 w-72 shrink-0 overflow-y-auto border-l border-border bg-surface px-4 py-3">
-                <h2 id="canvas-tree-label" class="pb-1.5 text-xs font-medium text-muted">Blocks</h2>
-                <ul data-tree-list class="-mx-2 [&_ul]:ml-3 [&_ul]:border-l [&_ul]:border-border [&_ul]:pl-1"></ul>
-                <template data-tree-item><li><button type="button" data-tree-select class="flex w-full items-center gap-2 rounded-control px-2 py-1.5 text-left text-sm text-ink hover:bg-canvas aria-[current=true]:bg-accent aria-[current=true]:text-accent-ink focus-visible:outline-2 focus-visible:outline-accent [&>span]:min-w-0 [&>span]:truncate [&>:not(span)]:shrink-0"></button></li></template>
-            </aside>
-        @endif
+        {{-- A tab's aside, in the rail's place while the tab is open. --}}
+        @foreach ($tabs as $each)
+            @if ($each['tab']->aside())
+                @include($each['tab']->aside(), $each['data'])
+            @endif
+        @endforeach
     </form>
-
-    {{-- Outside the entry's form: see block-sidebar. --}}
-    @if ($canvas)
-        <x-mainstay::block-sidebar id="mainstay-block" />
-    @endif
 
     @if ($deletes)
         <form id="trash-form" method="post" action="{{ $localized(route('mainstay.entries.delete', [$handle, $id])) }}">@csrf</form>

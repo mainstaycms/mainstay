@@ -1,0 +1,16 @@
+{
+    "name": "mainstay/ai",
+    "description": "AI providers for Mainstay: keys, defaults and a Connectors screen over laravel/ai.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "laravel/ai": "^1.3",
+        "mainstay/cms": "self.version"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mainstay\\Ai\\": "src/"
+        }
+    }
+}

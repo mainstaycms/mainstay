@@ -16,11 +16,11 @@ use Mainstay\Content\Entry;
 use Mainstay\Content\Example;
 use Mainstay\Content\GlobalSet;
 use Mainstay\Content\Icon;
+use Mainstay\Database\Paths;
 use Mainstay\Fields\Content;
 use Mainstay\Fields\Field;
 use Mainstay\Fields\Relation;
 use Mainstay\Fields\Terms;
-use Mainstay\Fields\Text;
 use Mainstay\Mainstay;
 use Mainstay\Navigation;
 use ReflectionClass;
@@ -98,19 +98,11 @@ final class Form
         return in_array($request->query('locale'), $locales, true) ? $request->query('locale') : $locales[0];
     }
 
-    /* The field a type's slug is: the Text field its route ends in, in the
-       first locale's pattern. Null for a type with none. */
+    /* The field a type's slug is, which its paths end in. Null for a type
+       with none. */
     public static function slug(string $class): ?string
     {
-        $mainstay = app(Mainstay::class);
-        $route = $mainstay->route($class);
-        $pattern = is_array($route) ? reset($route) : $route;
-
-        if ($pattern === null || ! preg_match('/\{(\w+)\}\z/', $pattern, $last) || $last[1] === 'title') {
-            return null;
-        }
-
-        return ($mainstay->fields($class)[$last[1]] ?? null) instanceof Text ? $last[1] : null;
+        return app(Paths::class)->slugField($class);
     }
 
     /*

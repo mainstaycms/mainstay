@@ -1,7 +1,7 @@
 {
   "name": "@mainstay/editor",
   "version": "0.1.0",
-  "description": "The Mainstay content editor: a visual page builder built on ProseMirror.",
+  "description": "The Mainstay rich text editor and content schema, built on ProseMirror.",
   "license": "MIT",
   "type": "module",
   "sideEffects": [

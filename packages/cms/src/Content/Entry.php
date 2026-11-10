@@ -3,6 +3,7 @@
 namespace Mainstay\Content;
 
 use Closure;
+use Mainstay\Database\Paths;
 use Mainstay\Fields\Content;
 use Mainstay\Fields\Text;
 use Mainstay\Mainstay;
@@ -45,8 +46,8 @@ abstract class Entry extends ContentType
      | The path the entry answers to in the locale it was read in, from the
      | lookup row every save writes from the pattern. Restoring from the trash
      | suffixes the slug rather than the path, so the two agree. No locale
-     | base on it: a link is the locale's base and this. Null for a type with
-     | no #[Route].
+     | base on it: a link is the locale's base and this. Null where nothing
+     | gives entries paths, and for a type with no #[Route].
      */
     public ?string $uri;
 
@@ -75,11 +76,12 @@ abstract class Entry extends ContentType
      */
     public bool $missing = false;
 
-    /* Where the entry is linked to: its locale's base and its path. Null for
-       a type with no #[Route], and for an entry not read with its path. */
+    /* Where the entry is linked to, which whatever gives entries paths says:
+       the site plugin's, its locale's base and its path. Null for an entry
+       with none, and for one not read with its path. */
     public function url(): ?string
     {
-        return app(Mainstay::class)->url($this);
+        return app(Paths::class)->url($this);
     }
 
     /* What a relation holds for the entry `$id` of this type when the read

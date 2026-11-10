@@ -2,6 +2,7 @@
 
 namespace Mainstay\Tests;
 
+use Illuminate\Support\Facades\Route;
 use Mainstay\Mainstay;
 use Mainstay\MainstayServiceProvider;
 use Orchestra\Testbench\TestCase;
@@ -37,5 +38,14 @@ class ServiceProviderTest extends TestCase
     public function it_resolves_mainstay_as_a_singleton(): void
     {
         $this->assertSame($this->app->make(Mainstay::class), $this->app->make(Mainstay::class));
+    }
+
+    #[Test]
+    public function it_boots_with_no_plugins_and_so_none_of_their_tables_routes_or_screens(): void
+    {
+        $this->assertSame([], config('mainstay.plugins'));
+        $this->assertSame([], $this->app->make(Mainstay::class)->plugins());
+        $this->assertFalse(Route::has('mainstay.plugins.ai.index'));
+        $this->assertFalse(Route::has('mainstay.api.mcp'));
     }
 }

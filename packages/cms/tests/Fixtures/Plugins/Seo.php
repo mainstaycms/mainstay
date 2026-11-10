@@ -29,6 +29,16 @@ class Seo extends Plugin
         return __DIR__.'/views';
     }
 
+    public function entryTabs(): array
+    {
+        return [Notes::class];
+    }
+
+    public function assets(): array
+    {
+        return ['seo.css', 'seo.js'];
+    }
+
     public function routes(): ?string
     {
         return __DIR__.'/routes.php';

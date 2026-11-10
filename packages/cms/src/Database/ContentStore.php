@@ -28,9 +28,9 @@ use Mainstay\Content\ContentType;
 use Mainstay\Content\Draft;
 use Mainstay\Content\Entry;
 use Mainstay\Content\GlobalSet;
+use Mainstay\Content\HoldsPage;
 use Mainstay\Content\Media;
 use Mainstay\Content\Revision;
-use Mainstay\Content\Route;
 use Mainstay\Content\Taxonomy;
 use Mainstay\Events\Deleted;
 use Mainstay\Events\Published;
@@ -40,8 +40,6 @@ use Mainstay\Fields\Date;
 use Mainstay\Fields\Field;
 use Mainstay\Fields\Relation;
 use Mainstay\Fields\Terms;
-use Mainstay\Fields\Text;
-use Mainstay\Fields\Textarea;
 use Mainstay\Mainstay;
 use ReflectionClass;
 use ReflectionProperty;
@@ -93,9 +91,6 @@ class ContentStore
 
     private ?int $site = null;
 
-    /** @var array{0: string, 1: int}|false|null the front page's handle and id, false for none, null unread */
-    private array|false|null $front = null;
-
     /** @var array<string, bool> by type, whether the caller sees its internal fields */
     private array $sees = [];
 
@@ -105,7 +100,7 @@ class ContentStore
        and a read and value() take a blank as null first. */
     private Date $moment;
 
-    public function __construct(private Mainstay $mainstay)
+    public function __construct(private Mainstay $mainstay, private Paths $paths)
     {
         $this->moment = new Date(time: true);
     }
@@ -130,7 +125,7 @@ class ContentStore
         $internal = $this->reads($type, $overrideAccess);
 
         $rows = $this->select($type, $locale, $where, $sort, $internal, $trashed)->limit($limit)->get();
-        $this->attach($type, $rows);
+        $this->attach($type, $rows, locale: $locale);
         $loaded = $this->resolve([$type => $rows], $locale, $overrideAccess, $depth);
 
         return $rows->map(fn (object $row) => $this->hydrate($type, $row, $locale, $internal, loaded: $loaded));
@@ -154,7 +149,7 @@ class ContentStore
         $internal = $this->reads($type, $overrideAccess);
 
         $entries = $this->select($type, $locale, $where, $sort, $internal, $trashed)->paginate($perPage, page: $page);
-        $this->attach($type, $entries->items());
+        $this->attach($type, $entries->items(), locale: $locale);
         $loaded = $this->resolve([$type => $entries->items()], $locale, $overrideAccess, $depth);
 
         return $entries->through(fn (object $row) => $this->hydrate($type, $row, $locale, $internal, loaded: $loaded));
@@ -173,30 +168,24 @@ class ContentStore
 
     /*
      | The entry a path leads to in a locale, whatever its type: the lookup
-     | row, then the entry read as findById() reads it.
+     | the paths answer, then the entry read as findById() reads it. Null
+     | where nothing gives entries paths.
      |
      | Null, rather than refused, for a type the caller may not read. The
      | caller named a path and not a type, and a refusal would tell it the
-     | path is there. Null without a query for a path that is not lowercase
-     | segments, which no path is stored as and which MySQL and SQL Server
-     | would still match to one by folding case.
+     | path is there.
      */
     public function findByUri(string $uri, ?string $locale = null, bool $overrideAccess = false, int $depth = self::DEPTH): ?Entry
     {
         $locale = $this->locale($locale);
-
-        if ($uri !== '/' && ! preg_match('#\A'.Route::PATH.'\z#', $uri)) {
-            return null;
-        }
-
-        $row = DB::table('uris')->where('site_id', $this->site())->where('locale', $locale)->where('uri', $uri)->first(['type', 'entry_id']);
-        $type = $row === null ? null : $this->mainstay->registered()[$row->type] ?? null;
+        $found = $this->paths->lookup($uri, $locale, $this->site());
+        $type = $found === null ? null : $this->mainstay->registered()[$found[0]] ?? null;
 
         if ($type === null || ! is_subclass_of($type, Entry::class) || ! ($overrideAccess || $this->gate($type)->allows('viewAny', [$type, $type]))) {
             return null;
         }
 
-        return $this->findById($type, (int) $row->entry_id, $locale, $overrideAccess, $depth);
+        return $this->findById($type, $found[1], $locale, $overrideAccess, $depth);
     }
 
     /**
@@ -289,25 +278,14 @@ class ContentStore
 
         $this->writes($type, 'delete', fn () => $this->hydrate($type, $row, null, true), $overrideAccess);
 
-        /* `/` would answer nothing, and a visitor's first page is not one to
-           lose by tidying up. */
-        if ($this->front() === [$type::handle(), $id]) {
-            throw ValidationException::withMessages(['front' => 'This is the front page. Choose another before moving it to the trash.']);
-        }
+        $this->paths->guardTrashing($type, $id, $this->site());
 
         DB::transaction(function () use ($type, $id) {
             $now = $this->stamp(CarbonImmutable::now());
 
             DB::table($type::handle())->where('id', $id)->whereNull('deleted_at')->update(['deleted_at' => $now, 'updated_at' => $now]);
 
-            /* By entry, which reads the rows as they are now: MySQL answers a
-               plain read inside a caller's transaction from its snapshot, and
-               a path added since would outlive the trash. The gap lock this
-               takes makes a create inserting beside it wait until the commit.
-               Alone that is a wait, not a deadlock; a caller's own
-               transaction that writes a path after the delete can turn it
-               into one, which reaches the caller. */
-            DB::table('uris')->where('type', $type::handle())->where('entry_id', $id)->delete();
+            $this->paths->forget($type, $id);
         }, self::ATTEMPTS);
 
         Event::dispatch(new Deleted($type, $id));
@@ -812,11 +790,11 @@ class ContentStore
 
     /*
      | Out of the trash, with its paths built again as a save builds them. A
-     | path taken since is the one place a suffix is right: the slug ending
-     | the pattern takes the first of `-2`, `-3` that frees it -- see
-     | suffix() -- since refusing would hold the content hostage to a slug
-     | somebody else claimed, and the caller is standing in front of the
-     | change. Anything a suffix cannot free is refused, as a save is.
+     | path taken since is the one place a suffix is right: the paths move
+     | the slug to one that frees it -- see Paths::resolveClashes() -- since
+     | refusing would hold the content hostage to a slug somebody else
+     | claimed, and the caller is standing in front of the change. Anything
+     | that cannot be freed is refused, as a save is.
      |
      | Hands back the paths it took, by locale, to a caller that may read
      | the type.
@@ -843,12 +821,12 @@ class ContentStore
             /* A slug moved to a free path changes what is live, as a write
                does: it names who restored it, and files what it replaced. */
             $nested = $this->snapshotted(1);
-            $this->filed($type, $id, fn () => $this->suffix($type, $id, $nested), $this->publisher($overrideAccess));
-            $this->paths($type, $id, $this->site(), false, $reads, $nested);
+            $this->filed($type, $id, fn () => $this->paths->resolveClashes($type, $id, $this->site(), $nested), $this->publisher($overrideAccess));
+            $this->paths->settle($type, $id, $this->site(), false, $reads, $nested);
 
             /* None to a caller that may not read the type: a path spells out
                the fields it is built from. */
-            return $reads ? DB::table('uris')->where('type', $handle)->where('entry_id', $id)->pluck('uri', 'locale')->all() : [];
+            return $reads ? $this->paths->held($type, $id) : [];
         }, self::ATTEMPTS);
 
         Event::dispatch(new Restored($type, $id));
@@ -893,7 +871,7 @@ class ContentStore
                 DB::table($table)->where('site_id', $this->site())->where('type', $handle)->where('entry_id', $id)->delete();
             }
 
-            DB::table('uris')->where('type', $handle)->where('entry_id', $id)->delete();
+            $this->paths->forget($type, $id);
             DB::table("{$handle}_locales")->where('parent_id', $id)->delete();
             DB::table($handle)->where('id', $id)->delete();
         }, self::ATTEMPTS);
@@ -950,26 +928,20 @@ class ContentStore
     }
 
     /*
-     | The entry served at `/`, as its type and id, or null: this site's
-     | choice, as WordPress's static front page is.
+     | The entry served at `/`, as its type and id, or null: none where
+     | nothing gives entries paths.
      |
      | @return array{0: class-string<Entry>, 1: int}|null
      */
     public function frontPage(): ?array
     {
-        $front = $this->front();
-        $type = $front === null ? null : $this->mainstay->registered()[$front[0]] ?? null;
-
-        return $type === null ? null : [$type, $front[1]];
+        return $this->paths->frontPage($this->site());
     }
 
     /*
-     | Makes an entry the front page, or none: its path becomes `/` in every
-     | locale it has, and the one it replaces takes its pattern's path again
-     | -- suffixed as a restore suffixes where that was taken while it was
-     | free, refused naming the path where no suffix frees one. Only a live
-     | entry of a routed type, and asking `publish` about each entry it
-     | moves, since each one's address changes for every visitor.
+     | Makes an entry the front page, or none: see Paths::setFrontPage(). Only
+     | a live entry of a type with a path, and asking `publish` about each
+     | entry it moves, since each one's address changes for every visitor.
      */
     public function setFrontPage(?string $type, ?int $id = null, bool $overrideAccess = false): void
     {
@@ -978,48 +950,29 @@ class ContentStore
         if ($type !== null) {
             $type = $this->entry($type);
 
-            if ($this->patterns($type) === null) {
-                throw new InvalidArgumentException("{$type} has no #[Route], so it has no path to serve at /.");
+            if (! $this->paths->routed($type)) {
+                throw new InvalidArgumentException("{$type} has no path, so it has nothing to serve at /.");
             }
 
             [$row] = $this->load($type, $id ?? throw new InvalidArgumentException('Name the entry to make the front page.'), $overrideAccess);
             $this->writes($type, 'publish', fn () => $this->hydrate($type, $row, null, true), $overrideAccess);
-            $new = [$type::handle(), $id];
+            $new = [$type, $id];
         }
 
         $old = $this->frontPage();
 
-        if ($old !== null && [$old[0]::handle(), $old[1]] !== $new) {
+        if ($old !== null && $old !== $new) {
             [$row] = $this->load($old[0], $old[1], $overrideAccess);
             $this->writes($old[0], 'publish', fn () => $this->hydrate($old[0], $row, null, true), $overrideAccess);
         }
 
-        DB::transaction(function () use ($type, $new, $old, $overrideAccess) {
-            DB::table('sites')->where('id', $this->site())->lockForUpdate()->value('id');
-            DB::table('sites')->where('id', $this->site())->update(['front_type' => $new[0] ?? null, 'front_id' => $new[1] ?? null]);
-            $this->front = $new ?? false;
-
-            /* The old one first, so `/` is free for the new one to take. A
-               slug moved to a free path is a write, as on a restore. */
-            if ($old !== null && [$old[0]::handle(), $old[1]] !== $new) {
-                $nested = $this->snapshotted(1);
-                $this->filed($old[0], $old[1], fn () => $this->suffix($old[0], $old[1], $nested), $this->publisher($overrideAccess));
-                $this->paths($old[0], $old[1], $this->site(), false, true, $nested);
-            }
-
-            if ($new !== null) {
-                $locales = DB::table("{$new[0]}_locales")->where('parent_id', $new[1])->pluck('locale');
-                $held = DB::table('uris')->where('site_id', $this->site())->where('uri', '/')->whereIn('locale', $locales)
-                    ->where(fn (Builder $query) => $query->where('type', '!=', $new[0])->orWhere('entry_id', '!=', $new[1]))
-                    ->value('locale');
-
-                if ($held !== null) {
-                    throw ValidationException::withMessages(['front' => "The path / is already taken in {$held}."]);
-                }
-
-                $this->paths($type, $new[1], $this->site(), false, true, $this->snapshotted(1));
-            }
-        }, self::ATTEMPTS);
+        DB::transaction(fn () => $this->paths->setFrontPage(
+            $this->site(),
+            $new,
+            $old,
+            $this->snapshotted(1),
+            fn (string $moved, int $movedId, Closure $write) => $this->filed($moved, $movedId, $write, $this->publisher($overrideAccess)),
+        ), self::ATTEMPTS);
     }
 
     /*
@@ -1072,11 +1025,13 @@ class ContentStore
      | required, and refused as that save would be, Gate included. What comes
      | back is the public's, as a visitor would read it once it is live: no
      | internal field. A field left empty that its property cannot hold is
-     | absent, as a draft reads it.
+     | absent, as a draft reads it. A global edited as a page is previewed
+     | the same way, by its type alone over its one draft.
      */
-    public function preview(string $type, ?int $entry = null, array $changes = [], ?int $draft = null, ?string $locale = null, bool $overrideAccess = false, int $depth = self::DEPTH): Entry
+    /** @return Entry|(GlobalSet&HoldsPage) */
+    public function preview(string $type, ?int $entry = null, array $changes = [], ?int $draft = null, ?string $locale = null, bool $overrideAccess = false, int $depth = self::DEPTH): ContentType
     {
-        $type = $this->entry($type);
+        $type = is_subclass_of($type, HoldsPage::class) && is_subclass_of($type, GlobalSet::class) ? $this->globalSet($type) : $this->entry($type);
         $term = is_subclass_of($type, Taxonomy::class);
 
         if ($draft !== null && ($entry !== null || $term)) {
@@ -1087,6 +1042,7 @@ class ContentStore
             $draft !== null => DB::table(self::DRAFTS)->where('site_id', $this->site())->where('type', $type::handle())->where('id', $draft)->first()
                 ?? throw $this->missing($type, $overrideAccess, "Draft {$draft} of {$type} is not there to preview."),
             $entry !== null && ! $term => $this->draftFor($type, $entry),
+            is_subclass_of($type, GlobalSet::class) => $this->draftFor($type, 0),
             default => null,
         };
 
@@ -1136,7 +1092,7 @@ class ContentStore
 
         if (! is_subclass_of($type, GlobalSet::class)) {
             $built->template = array_key_exists('template', $changes['fields']) ? $changes['fields']['template'] : $row?->template;
-            $built->uri = $row === null ? null : DB::table('uris')->where('type', $type::handle())->where('entry_id', $row->id)->where('locale', $locale)->value('uri');
+            $built->uri = $row === null ? null : $this->paths->uris($type, [(int) $row->id], $locale)[(int) $row->id] ?? null;
         }
 
         foreach ($this->mainstay->fields($type) as $name => $field) {
@@ -1435,80 +1391,6 @@ class ContentStore
     }
 
     /*
-     | Where restoring from the trash finds a locale's path taken, the field
-     | ending that locale's pattern -- a text slug -- takes the first of
-     | `-2`, `-3` giving a free path in every locale built from it: a shared
-     | slug in every locale. Cut short where the suffix would pass the
-     | field's max or a path's 255 characters. A pattern ending otherwise, in
-     | a literal segment or a select whose options a suffix would leave, or a
-     | path another route or locale answers, which no suffix frees, is left
-     | for paths() to refuse, naming it.
-     |
-     | Read with a lock where a plain read answers from a caller's older
-     | snapshot -- `$nested`, as paths() reads -- so a slug another request
-     | has changed since is not suffixed back from the old one.
-     */
-    private function suffix(string $type, int $id, bool $nested): void
-    {
-        if (($patterns = $this->patterns($type)) === null) {
-            return;
-        }
-
-        $handle = $type::handle();
-        $site = $this->site();
-        $fields = $this->mainstay->fields($type);
-        $taken = fn (string $locale, string $uri) => DB::table('uris')->where('site_id', $site)->where('locale', $locale)->where('uri', $uri)->when($nested, fn (Builder $query) => $query->lockForUpdate())->value('id') !== null;
-
-        foreach (array_keys($patterns) as $locale) {
-            $row = DB::table($handle)->where('id', $id)->when($nested, fn (Builder $query) => $query->lockForUpdate())->first();
-            $translations = DB::table("{$handle}_locales")->where('parent_id', $id)->when($nested, fn (Builder $query) => $query->lockForUpdate())->get()->keyBy('locale');
-
-            if (! $translations->has($locale) || ! $taken($locale, $this->built($type, $patterns[$locale], $row, $translations[$locale]))) {
-                continue;
-            }
-
-            $field = preg_match('/'.Route::PLACEHOLDER.'\z/', $patterns[$locale], $last) ? $fields[$last[1]] : null;
-
-            if (! $field instanceof Text && ! $field instanceof Textarea) {
-                continue;
-            }
-
-            $value = ($field->localized ? $translations[$locale] : $row)->{Str::snake($field->name)};
-            /* Every locale whose path this field builds. */
-            $built = $field->localized ? [$locale] : array_values(array_filter($translations->keys()->all(), fn (string $other) => isset($patterns[$other]) && str_contains($patterns[$other], "{{$field->name}}")));
-
-            for ($n = 2; ; $n++) {
-                $room = min($field instanceof Text ? $field->max : PHP_INT_MAX, ...array_map(fn (string $other) => 255 - mb_strlen($this->built($type, $patterns[$other], $row, $translations[$other], [$field->name => ''])), $built)) - strlen("-{$n}");
-                $base = rtrim(mb_substr($value, 0, max($room, 0)), '-');
-
-                if ($room < 1 || $base === '') {
-                    break;
-                }
-
-                $candidate = "{$base}-{$n}";
-                $free = true;
-
-                foreach ($built as $other) {
-                    $uri = $this->built($type, $patterns[$other], $row, $translations[$other], [$field->name => $candidate]);
-
-                    if ($taken($other, $uri) || $this->mainstay->shadow($other, $uri) !== null) {
-                        $free = false;
-
-                        break;
-                    }
-                }
-
-                if ($free) {
-                    ($field->localized ? DB::table("{$handle}_locales")->where('parent_id', $id)->where('locale', $locale) : DB::table($handle)->where('id', $id))
-                        ->update([Str::snake($field->name) => $candidate]);
-
-                    break;
-                }
-            }
-        }
-    }
-
-    /*
      | What a write committed, whether or not the caller may read the type. A
      | public form that may create submissions and not read them would
      | otherwise commit the row and then be told it failed. A caller that may
@@ -1522,7 +1404,7 @@ class ContentStore
         $row = $this->select($type, $locale, ['id' => $id], [], $internal)->first()
             ?? throw new RecordNotFoundException("{$type} {$id} was written and is gone from {$locale}.");
 
-        $this->attach($type, [$row]);
+        $this->attach($type, [$row], locale: $locale);
 
         return $this->hydrate($type, $row, $locale, $internal, $only, $this->resolve([$type => [$row]], $locale, $overrideAccess, self::DEPTH));
     }
@@ -1598,7 +1480,7 @@ class ContentStore
 
             if ($overrideAccess || $this->gate($target)->allows('viewAny', [$target, $target])) {
                 $next[$target] = $this->query($target, $locale)->whereIntegerInRaw("{$target::handle()}.id", array_values($list))->get();
-                $this->attach($target, $next[$target]);
+                $this->attach($target, $next[$target], locale: $locale);
             }
         }
 
@@ -1626,8 +1508,12 @@ class ContentStore
      | under the field's column as the ids it holds in order, so every read,
      | save and check after this takes it as it takes a column. One query per
      | Terms field for all the rows.
+     |
+     | Given the locale it was read in, an entry's rows get the path they
+     | answer to there as `uri` the same way, from one lookup for the rows
+     | together: null where nothing gives them paths.
      */
-    private function attach(string $type, iterable $rows, bool $lock = false): void
+    private function attach(string $type, iterable $rows, bool $lock = false, ?string $locale = null): void
     {
         $rows = collect($rows);
 
@@ -1650,6 +1536,16 @@ class ContentStore
             foreach ($rows as $row) {
                 $row->{Str::snake($name)} = $held->get((int) $row->id, collect())->map(fn (object $pivot) => (int) $pivot->term_id)->values()->all();
             }
+        }
+
+        if ($locale === null || ! is_subclass_of($type, Entry::class)) {
+            return;
+        }
+
+        $uris = $this->paths->uris($type, $rows->map(fn (object $row) => (int) $row->id)->all(), $locale);
+
+        foreach ($rows as $row) {
+            $row->uri = $uris[(int) $row->id] ?? null;
         }
     }
 
@@ -1804,17 +1700,16 @@ class ContentStore
     /*
      | Every read starts here. The row in one locale -- an inner join, so an
      | entry with no row in that locale is not there, which is what no
-     | fallback means -- and the path it answers to there. Both joins match
-     | one row at most, each by a unique index, which is what keeps
-     | paginate's count honest.
+     | fallback means. It matches one row at most, by a unique index, which
+     | is what keeps paginate's count honest.
      |
      | Only the main row's `deleted_at` is asked about. The sibling has one
      | too, for trashing a single translation, and nothing sets it yet. Out
-     | of the trash, or with `$trashed` only in it -- where no path is, since
-     | the trash takes them.
+     | of the trash, or with `$trashed` only in it.
      |
-     | A global has neither a path nor a view of its own, and may name a field
-     | `template`, so its read leaves both out.
+     | A global has no view of its own, and may name a field `template`, so
+     | its read leaves it out. The path an entry answers to is not here:
+     | attach() asks for it, for the rows of a read together.
      */
     private function query(string $type, string $locale, bool $trashed = false): Builder
     {
@@ -1827,17 +1722,11 @@ class ContentStore
             ->join($locales, fn (JoinClause $join) => $join
                 ->on("{$locales}.parent_id", '=', "{$handle}.id")
                 ->where("{$locales}.locale", $locale))
-            ->when($routed, fn (Builder $query) => $query->leftJoin('uris', fn (JoinClause $join) => $join
-                ->on('uris.entry_id', '=', "{$handle}.id")
-                ->on('uris.site_id', '=', "{$handle}.site_id")
-                ->where('uris.type', $handle)
-                ->where('uris.locale', $locale)))
             ->where("{$handle}.site_id", $this->site())
             ->when($trashed, fn (Builder $query) => $query->whereNotNull("{$handle}.deleted_at"), fn (Builder $query) => $query->whereNull("{$handle}.deleted_at"))
             ->select([
                 ...array_map(fn (string $column) => "{$handle}.{$column}", ['id', 'owner_id', 'published_by', ...($routed ? ['template'] : []), 'created_at', 'updated_at', ...array_keys($shared)]),
                 ...array_map(fn (string $column) => "{$locales}.{$column}", array_keys($localized)),
-                ...($routed ? ['uris.uri'] : []),
             ]);
     }
 
@@ -1856,18 +1745,6 @@ class ContentStore
             ->partition(fn (Field $field) => $field->localized)
             ->map->all()
             ->all();
-    }
-
-    /* This site's front page as a handle and an id, read once for this
-       store, or null. */
-    private function front(): ?array
-    {
-        if ($this->front === null) {
-            $row = DB::table('sites')->where('id', $this->site())->first(['front_type', 'front_id']);
-            $this->front = $row?->front_type === null ? false : [$row->front_type, (int) $row->front_id];
-        }
-
-        return $this->front ?: null;
     }
 
     /* The first site, read once for this store. Mainstay makes a store for
@@ -2291,16 +2168,15 @@ class ContentStore
             }
         }
 
-        $routed = $this->placeholders($type);
-        $rules = $messages = [];
+        [$pathRules, $messages] = $this->paths->rules($type);
+        $rules = [];
 
         foreach ($fields as $name => $field) {
             $rules = [...$rules, ...$field->rulesAt($name, $values[$name] ?? null, $draft)];
         }
 
-        foreach ($routed as $name) {
-            $rules[$name][] = 'regex:'.Route::SLUG;
-            $messages["{$name}.regex"] = 'The :attribute field is part of a path: lowercase letters, digits and single hyphens, the way Str::slug() writes one.';
+        foreach ($pathRules as $name => $extra) {
+            $rules[$name] = [...$rules[$name], ...$extra];
         }
 
         /* The entry's own view, one its type lists, since a view is written
@@ -2468,7 +2344,7 @@ class ContentStore
             $this->terms($type, (int) $id, $values, $given, $created, $this->snapshotted(1));
 
             if ($routed) {
-                $this->paths($type, (int) $id, $site, $created, $reads, $this->snapshotted(1));
+                $this->paths->settle($type, (int) $id, $site, $created, $reads, $this->snapshotted(1));
             }
 
             return (int) $id;
@@ -2482,7 +2358,7 @@ class ContentStore
      | every one on a new entry. The upsert settles an insert racing another
      | save's for the same term. Where a plain read answers from a caller's
      | older snapshot -- `$nested`, see snapshotted() -- the rows held are read
-     | with a lock, as paths() reads its own.
+     | with a lock, as the paths read their own.
      */
     private function terms(string $type, int $id, array $values, array $given, bool $created, bool $nested): void
     {
@@ -2517,186 +2393,6 @@ class ContentStore
                 DB::table($table)->upsert($rows, ['term_id', 'entry_type', 'entry_id'], ['position']);
             }
         }
-    }
-
-    /*
-     | Every locale's path, worked out again after every write rather than
-     | only for the locale written: a shared field in the pattern moves them
-     | all. Only what changed is written, each row by its key. A path left as
-     | it was is not touched, and none is deleted to be put back: on MySQL
-     | deleting by entry takes a gap lock on the lookup, and two saves holding
-     | one each deadlock on the other's insert. A new entry has nothing to
-     | compare with, so it only inserts.
-     |
-     | A path another entry holds is refused on the fields that build it,
-     | never suffixed -- an editor looking at a URL they did not choose is the
-     | outcome the route decision rules out. The unique index is what decides,
-     | rather than a look beforehand, so two saves racing for one path cannot
-     | both win. The violation is rethrown at once: Postgres has abandoned the
-     | transaction, and the next statement in it would fail for that instead.
-     |
-     | The refusal names the path only to a caller that may read the type. A
-     | path spells out the fields it is built from, stored ones the call did
-     | not give and other locales' among them, which is why a write hands
-     | such a caller back no path either.
-     |
-     | Where a plain read answers from a caller's older snapshot -- `$nested`,
-     | see snapshotted() -- what paths are built from is read with a lock, so
-     | a slug another request has changed since does not build the path from
-     | the old one, and a path it added is not missed. Anywhere else the reads
-     | stay plain and take no gap locks to deadlock on.
-     */
-    private function paths(string $type, int $id, int $site, bool $created, bool $reads, bool $nested): void
-    {
-        $handle = $type::handle();
-        $wanted = $this->wanted($type, $id, $reads, $nested);
-        $rows = $created ? collect() : DB::table('uris')->where('type', $handle)->where('entry_id', $id)
-            ->when($nested, fn (Builder $query) => $query->lockForUpdate())
-            ->get(['id', 'locale', 'uri']);
-        $held = $rows->keyBy('locale')->only(array_keys($wanted));
-
-        /* The row of a locale whose path went: one the config dropped, or a
-           route the type no longer has. */
-        if (($gone = $rows->pluck('id')->diff($held->pluck('id')))->isNotEmpty()) {
-            DB::table('uris')->whereIn('id', $gone)->delete();
-        }
-
-        foreach ($wanted as $locale => $uri) {
-            $row = $held->get($locale);
-
-            if ($row?->uri === $uri) {
-                continue;
-            }
-
-            try {
-                if ($row === null) {
-                    DB::table('uris')->insert(['site_id' => $site, 'locale' => $locale, 'uri' => $uri, 'type' => $handle, 'entry_id' => $id]);
-                } else {
-                    DB::table('uris')->where('id', $row->id)->update(['uri' => $uri]);
-                }
-            } catch (UniqueConstraintViolationException) {
-                throw ValidationException::withMessages(array_fill_keys($this->blamed($type), $reads
-                    ? "The path {$uri} is already taken in {$locale}."
-                    : 'The path this builds is already taken.'));
-            }
-        }
-    }
-
-    /*
-     | The path each of the entry's locale rows answers to, by locale. None
-     | for a type with no route, or for a row in a locale that has since left
-     | the config and so has no pattern to be given one by.
-     |
-     | @return array<string, string>
-     */
-    private function wanted(string $type, int $id, bool $reads, bool $nested): array
-    {
-        if (($patterns = $this->patterns($type)) === null) {
-            return [];
-        }
-
-        $handle = $type::handle();
-        $row = DB::table($handle)->where('id', $id)->when($nested, fn (Builder $query) => $query->lockForUpdate())->first();
-        $front = $this->front() === [$handle, $id];
-        $wanted = [];
-
-        foreach (DB::table("{$handle}_locales")->where('parent_id', $id)->when($nested, fn (Builder $query) => $query->lockForUpdate())->get() as $translation) {
-            if (! isset($patterns[$translation->locale])) {
-                continue;
-            }
-
-            $uri = $front ? '/' : $this->built($type, $patterns[$translation->locale], $row, $translation);
-
-            /* The column's width, which the drivers other than SQLite enforce
-               with an error nobody reading a form could act on. */
-            if (mb_strlen($uri) > 255) {
-                throw ValidationException::withMessages(array_fill_keys($this->blamed($type), $reads
-                    ? "The path {$uri} is longer than the 255 characters a path can be."
-                    : 'The path this builds is longer than the 255 characters a path can be.'));
-            }
-
-            /* Refused as a taken path is: a visitor asking for it would be
-               answered by something else, and the entry never. */
-            if (($shadow = $this->mainstay->shadow($translation->locale, $uri)) !== null) {
-                throw ValidationException::withMessages(array_fill_keys($this->blamed($type), $reads
-                    ? "The path {$uri} is answered by {$shadow} in {$translation->locale}."
-                    : 'The path this builds is answered by something else.'));
-            }
-
-            $wanted[$translation->locale] = $uri;
-        }
-
-        return $wanted;
-    }
-
-    /* A locale's path from its pattern, each placeholder the field's value
-       on the row or its locale's, or the one `$with` gives it instead. */
-    private function built(string $type, string $pattern, object $row, object $translation, array $with = []): string
-    {
-        $fields = $this->mainstay->fields($type);
-
-        return preg_replace_callback(
-            '/'.Route::PLACEHOLDER.'/',
-            fn (array $name) => $with[$name[1]] ?? ($fields[$name[1]]->localized ? $translation : $row)->{Str::snake($name[1])},
-            $pattern,
-        );
-    }
-
-    /* The fields a refused path is reported on: the ones that build it, or
-       the path itself for a route with none. */
-    private function blamed(string $type): array
-    {
-        return $this->placeholders($type) ?: ['uri'];
-    }
-
-    /*
-     | The type's pattern for each content locale, or null for a type with no
-     | route. A map has to name exactly the configured locales: `nl-NL`
-     | against `nl`, or a locale added to the config and not to the map, is a
-     | path some translation would silently not get.
-     |
-     | @return array<string, string>|null
-     */
-    private function patterns(string $type): ?array
-    {
-        $route = $this->mainstay->route($type);
-        $locales = array_keys($this->mainstay->locales());
-
-        if ($route === null) {
-            return null;
-        }
-
-        $patterns = is_array($route) ? $route : array_fill_keys($locales, $route);
-
-        if (array_diff(array_keys($patterns), $locales) !== [] || array_diff($locales, array_keys($patterns)) !== []) {
-            throw new InvalidArgumentException(sprintf(
-                "%s's #[Route] has patterns for %s, and mainstay.locales holds %s. Give a pattern for every content locale, or one pattern for all of them.",
-                $type,
-                implode(', ', array_keys($route)),
-                implode(', ', $locales),
-            ));
-        }
-
-        /* A pattern every entry would be refused for, named here, once,
-           rather than as a slug that cannot be changed to anything that
-           works. Asked with the pattern as written: a `{slug}` is no locale's
-           prefix and no route's literal segment, so only what answers any
-           value there answers it. */
-        foreach ($patterns as $locale => $pattern) {
-            if (($shadow = $this->mainstay->shadow($locale, $pattern)) !== null) {
-                throw new InvalidArgumentException("{$type}'s #[Route] pattern \"{$pattern}\" puts every {$locale} path under {$shadow}, which answers it instead.");
-            }
-        }
-
-        return $patterns;
-    }
-
-    /* The fields a path is built from, in any locale's pattern. */
-    private function placeholders(string $type): array
-    {
-        preg_match_all('/'.Route::PLACEHOLDER.'/', implode(' ', $this->patterns($type) ?? []), $names);
-
-        return array_values(array_unique($names[1]));
     }
 
     /*

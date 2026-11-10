@@ -1,0 +1,16 @@
+{
+    "name": "mainstay/mcp",
+    "description": "An MCP server for Mainstay: the content API as tools a language model calls.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "laravel/mcp": "^1.1",
+        "mainstay/cms": "self.version"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mainstay\\Mcp\\": "src/"
+        }
+    }
+}

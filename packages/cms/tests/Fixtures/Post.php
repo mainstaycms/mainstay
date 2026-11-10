@@ -4,7 +4,6 @@ namespace Mainstay\Tests\Fixtures;
 
 use Carbon\CarbonImmutable;
 use Mainstay\Content\Entry;
-use Mainstay\Content\Route;
 use Mainstay\Content\Template;
 use Mainstay\Fields\Boolean;
 use Mainstay\Fields\Date;
@@ -13,6 +12,7 @@ use Mainstay\Fields\Number;
 use Mainstay\Fields\Select;
 use Mainstay\Fields\Text;
 use Mainstay\Fields\Textarea;
+use Mainstay\Site\Route;
 
 /*
  | The fixture phase 3 is checked against: a translated title, slug and

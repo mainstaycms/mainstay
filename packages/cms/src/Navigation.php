@@ -2,21 +2,21 @@
 
 namespace Mainstay;
 
+use Closure;
 use Doctrine\Inflector\InflectorFactory;
 use Doctrine\Inflector\Language;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use LogicException;
-use Mainstay\Ai\Connector;
 use Mainstay\Auth\Capabilities;
 use Mainstay\Auth\Gate;
 use Mainstay\Auth\User;
 use Mainstay\Content\GlobalSet;
+use Mainstay\Content\HoldsPage;
 use Mainstay\Content\Icon;
 use Mainstay\Content\Media;
 use Mainstay\Content\Taxonomy;
-use Mainstay\Policies\ConnectorPolicy;
 use Mainstay\Policies\MediaPolicy;
 use Mainstay\Policies\PluginPolicy;
 use ReflectionClass;
@@ -27,11 +27,12 @@ class Navigation
      | The admin's sections, as data for <x-mainstay::sidebar>, built from the
      | registered types rather than written by hand: each entry type and then
      | each taxonomy under Content, the media library, each global under
-     | Globals, each plugin's screens under Plugins, the accounts and roles,
-     | and the AI connectors. A type is offered only to someone who may write
+     | Globals, each global edited as a page under a heading of its own, each
+     | plugin's screens under Plugins, the accounts and
+     | roles. A type is offered only to someone who may write
      | to it -- its list is no use to anyone else -- the library to someone who
-     | may read it, a plugin to someone who may use it, the accounts and the
-     | connectors to someone who may manage them, and a section with nothing
+     | may read it, a plugin to someone who may use it, the accounts to
+     | someone who may manage them, and a section with nothing
      | in it is left out.
      |
      | Links come from route(), so an admin mounted at another path or on a
@@ -50,7 +51,7 @@ class Navigation
             [
                 'label' => 'Content',
                 'items' => [
-                    ...array_map(fn (string $type) => $item($type, self::icon('<path d="M9.5 1.75H4.5a1 1 0 0 0-1 1v10.5a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V4.75z" /><path d="M9.5 1.75V4.75h3" />')), array_values(array_filter($types, fn (string $type) => ! is_subclass_of($type, GlobalSet::class) && ! is_subclass_of($type, Taxonomy::class)))),
+                    ...array_map(fn (string $type) => $item($type, self::icon('<path d="M9.5 1.75H4.5a1 1 0 0 0-1 1v10.5a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V4.75z" /><path d="M9.5 1.75V4.75h3" />')), array_values(array_filter($types, fn (string $type) => ! is_subclass_of($type, GlobalSet::class) && ! is_subclass_of($type, Taxonomy::class) && ! is_subclass_of($type, HoldsPage::class)))),
                     ...array_map(fn (string $type) => $item($type, self::icon('<path d="M8.2 1.75H2.5a.75.75 0 0 0-.75.75v5.7c0 .2.08.39.22.53l5.55 5.55a.75.75 0 0 0 1.06 0l5.2-5.2a.75.75 0 0 0 0-1.06L8.73 1.97a.75.75 0 0 0-.53-.22Z" /><circle cx="5.1" cy="5.1" r=".9" />')), array_values(array_filter($types, fn (string $type) => is_subclass_of($type, Taxonomy::class)))),
                 ],
             ],
@@ -59,8 +60,9 @@ class Navigation
             ],
             [
                 'label' => 'Globals',
-                'items' => array_map(fn (string $type) => $item($type, self::icon('<path d="M1.75 4.75h12.5M1.75 11.25h12.5" /><circle cx="6" cy="4.75" r="1.75" /><circle cx="10" cy="11.25" r="1.75" />')), array_values(array_filter($types, fn (string $type) => is_subclass_of($type, GlobalSet::class)))),
+                'items' => array_map(fn (string $type) => $item($type, self::icon('<path d="M1.75 4.75h12.5M1.75 11.25h12.5" /><circle cx="6" cy="4.75" r="1.75" /><circle cx="10" cy="11.25" r="1.75" />')), array_values(array_filter($types, fn (string $type) => is_subclass_of($type, GlobalSet::class) && ! is_subclass_of($type, HoldsPage::class)))),
             ],
+            ...self::pages($types, $item),
             [
                 'label' => 'Plugins',
                 'items' => array_map(self::plugin(...), array_values(array_filter(array_keys(Capabilities::plugins()), fn (string $plugin) => self::uses($plugin) && self::routed($plugin)))),
@@ -71,12 +73,27 @@ class Navigation
                     ['href' => route('mainstay.roles', absolute: false), 'label' => 'Roles', 'icon' => self::icon('<path d="M8 1.75 2.75 3.75v4c0 3.1 2.2 5.35 5.25 6.5 3.05-1.15 5.25-3.4 5.25-6.5v-4z" />')],
                 ] : [],
             ],
-            [
-                'items' => self::connectors() ? [
-                    ['href' => route('mainstay.connectors', absolute: false), 'label' => 'Connectors', 'icon' => self::icon('<path d="M6 1.75v3M10 1.75v3M4.25 4.75h7.5v2.5a3.75 3.75 0 0 1-7.5 0zM8 11v3.25" />')],
-                ] : [],
-            ],
         ], fn (array $section) => $section['items'] !== []));
+    }
+
+    /*
+     | The types edited as pages, each kind under the heading its type gives:
+     | a global is not a setting then, and an entry type is not content to
+     | write, so Globals and Content do not list them.
+     |
+     | @param  array<string, class-string>  $types
+     | @return list<array{label: string, items: list<array<string, mixed>>}>
+     */
+    private static function pages(array $types, Closure $item): array
+    {
+        $icon = self::icon('<rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" /><path d="M1.75 6.25h12.5" />');
+        $headings = [];
+
+        foreach (array_filter($types, fn (string $type) => is_subclass_of($type, HoldsPage::class)) as $type) {
+            $headings[$type::heading()][] = $item($type, $icon);
+        }
+
+        return array_map(fn (string $heading, array $items) => ['label' => $heading, 'items' => $items], array_keys($headings), $headings);
     }
 
     /*
@@ -96,7 +113,7 @@ class Navigation
         }
 
         foreach (array_filter(app(Mainstay::class)->registered(), self::writes(...)) as $handle => $type) {
-            if (! is_subclass_of($type, GlobalSet::class)) {
+            if (! is_subclass_of($type, GlobalSet::class) && Gate::about($type)->allows('create', [$type, $type])) {
                 $commands[] = ['id' => "new-{$handle}", 'label' => 'New '.Str::lower(self::label($type, plural: false)), 'group' => 'Create', 'href' => route('mainstay.entries.create', $handle, absolute: false)];
             }
         }
@@ -119,11 +136,17 @@ class Navigation
         return Str::headline($plural && ! is_subclass_of($type, GlobalSet::class) ? $english->pluralize($name) : $name);
     }
 
-    /* Whether the signed-in user may write to a type at all: make one of
-       its entries or terms, or change its global. */
+    /* Whether the signed-in user may work in a type at all: make one of its
+       entries or terms, or change its global, or read what only a writer
+       reads. A type whose policy refuses every write -- records the site
+       collects -- is still listed and viewed by whoever edits it. */
     public static function writes(string $type): bool
     {
-        return Gate::about($type)->allows(is_subclass_of($type, GlobalSet::class) ? 'update' : 'create', [$type, $type]);
+        $gate = Gate::about($type);
+
+        return is_subclass_of($type, GlobalSet::class)
+            ? $gate->allows('update', [$type, $type])
+            : $gate->allows('create', [$type, $type]) || $gate->allows('viewInternal', [$type, $type]);
     }
 
     /* Whether the signed-in user may see the media library: the question
@@ -139,13 +162,6 @@ class Navigation
     public static function accounts(): bool
     {
         return Gate::accounts()->allows('viewAny', User::class);
-    }
-
-    /* Whether the signed-in user may see and change the AI providers: the
-       question the Connectors screen and every write to it asks. */
-    public static function connectors(): bool
-    {
-        return Gate::for(Connector::class, ConnectorPolicy::class)->allows('manage', Connector::class);
     }
 
     /* Whether the signed-in user may open a plugin's screens: the question

@@ -4,11 +4,11 @@ namespace Mainstay\Tests\Fixtures\Linked;
 
 use Mainstay\Content\Entry;
 use Mainstay\Content\Media;
-use Mainstay\Content\Route;
 use Mainstay\Fields\Boolean;
 use Mainstay\Fields\Image;
 use Mainstay\Fields\Internal;
 use Mainstay\Fields\Text;
+use Mainstay\Site\Route;
 
 /* What a relation points at: translated, with a note only some readers see
    and an image, so a level of depth has images of its own to load. */

@@ -5,6 +5,7 @@ namespace Mainstay\Tests;
 use Illuminate\Support\Facades\DB;
 use Mainstay\Mainstay;
 use Mainstay\MainstayServiceProvider;
+use Mainstay\Site\SitePlugin;
 use Orchestra\Testbench\TestCase;
 use RuntimeException;
 
@@ -68,6 +69,11 @@ abstract class DatabaseTestCase extends TestCase
                 'trust_server_certificate' => true,
             ]);
         $app['config']->set('mainstay.schema.sync', true);
+
+        /* Core has no paths of its own, and most of what these tests read
+           and write is routed: they run with the site plugin that gives
+           entries some. A test of core alone empties the list. */
+        $app['config']->set('mainstay.plugins', [SitePlugin::class]);
     }
 
     /* Every connection closed before the next test opens its own, since a

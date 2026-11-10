@@ -3,8 +3,8 @@
 namespace Mainstay\Tests\Fixtures;
 
 use Mainstay\Content\Entry;
-use Mainstay\Content\Route;
 use Mainstay\Fields\Text;
+use Mainstay\Site\Route;
 
 /* Every path under `/nl`, which beside a Dutch served there no English one
    can have. */

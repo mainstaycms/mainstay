@@ -5,9 +5,16 @@ includes:
 parameters:
     level: 5
     paths:
+        - packages/ai/src
         - packages/cms/src
+        - packages/forms/src
+        - packages/mcp/src
+        - packages/page-builder/src
+        - packages/parts/src
+        - packages/site/src
         - packages/ui/src
     # Larastan reads a model's columns from the migrations, which live in the
     # package rather than in an app's database/ directory.
     databaseMigrationsPath:
+        - packages/ai/database/migrations
         - packages/cms/database/migrations

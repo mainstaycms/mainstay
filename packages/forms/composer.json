@@ -1,0 +1,16 @@
+{
+    "name": "mainstay/forms",
+    "description": "A form builder for Mainstay: forms built from blocks, submissions kept as entries, mailed to the people who answer them.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "mainstay/cms": "self.version",
+        "mainstay/page-builder": "self.version"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mainstay\\Forms\\": "src/"
+        }
+    }
+}

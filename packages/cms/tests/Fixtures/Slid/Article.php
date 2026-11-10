@@ -2,8 +2,8 @@
 
 namespace Mainstay\Tests\Fixtures\Slid;
 
-use Mainstay\Content\Route;
 use Mainstay\Fields\Blocks;
+use Mainstay\Site\Route;
 use Mainstay\Tests\Fixtures\Article as BaseArticle;
 use Mainstay\Tests\Fixtures\Blocks\Slide;
 

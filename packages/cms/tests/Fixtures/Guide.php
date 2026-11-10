@@ -4,11 +4,11 @@ namespace Mainstay\Tests\Fixtures;
 
 use Mainstay\Content\Document;
 use Mainstay\Content\Entry;
-use Mainstay\Content\Route;
 use Mainstay\Fields\Blocks;
 use Mainstay\Fields\Internal;
 use Mainstay\Fields\RichText;
 use Mainstay\Fields\Text;
+use Mainstay\Site\Route;
 use Mainstay\Tests\Fixtures\Blocks\Callout;
 use Mainstay\Tests\Fixtures\Blocks\Gallery;
 use Mainstay\Tests\Fixtures\Blocks\Panel;

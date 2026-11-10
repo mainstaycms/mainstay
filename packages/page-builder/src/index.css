@@ -1,0 +1,8 @@
+@layer theme, base, components, utilities;
+@import 'tailwindcss/utilities' layer(utilities);
+@reference 'tailwindcss';
+@reference '@mainstay/ui/theme.css';
+
+/* Only the utilities its own views use: the admin's stylesheet, loaded before
+   this one, brings the theme, the reset and the design system's components. */
+@source '../resources/views';
