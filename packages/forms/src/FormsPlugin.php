@@ -17,7 +17,8 @@ use Mainstay\Plugin;
  | blocks, which needs mainstay/page-builder, and what visitors send is kept
  | as submissions and mailed. It has no admin screens of its own, so it asks
  | no capability: who edits a form is what an entry type asks (`edit_forms`),
- | and who reads submissions, `edit_submissions`.
+ | and who reads submissions, `edit_submissions`, which is who sees its
+ | dashboard widget.
  |
  | Two public endpoints take a post, both behind one rate limiter by address.
  */
@@ -50,6 +51,11 @@ class FormsPlugin extends Plugin
      | live in is the same one. The JSON endpoint is in the API's domain,
      | prefix and middleware, and has no token middleware: anyone may post.
      */
+    public function widgets(): array
+    {
+        return [SubmissionsWidget::class];
+    }
+
     public function boot(Application $app): void
     {
         $app->singleton(Forms::class);
