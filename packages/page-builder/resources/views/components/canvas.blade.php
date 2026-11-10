@@ -41,7 +41,7 @@
  | label, the blocks it holds inside it and whether text; `$top` the ones
  | at its top level. An image a block prints is replaced and edited on the page, in
  | the library's dialogs. After a save refused for a block's field, its
- | errors are listed here, naming the block. canvas.ts in packages/editor is
+ | errors are listed here, naming the block. canvas.ts in packages/page-builder is
  | its behaviour; without it the tab holds this message.
 --}}
 <div data-canvas data-canvas-url="{{ $url }}" data-block-url="{{ $block }}" data-sidebar="{{ $sidebar }}" data-header="{{ $header }}" data-blocks="{{ json_encode((object) array_map(fn (array $each) => ['label' => $each['label'], 'inner' => $each['inner'], 'text' => $each['text'] ?? false], $blocks)) }}" data-top="{{ json_encode(array_values($top)) }}" data-invalid="{{ json_encode((object) $invalid) }}" @if ($pictures) data-picker="{{ route('mainstay.media', ['pick' => 1]) }}" data-media="{{ route('mainstay.media') }}" @endif class="relative flex min-h-0 flex-1 flex-col">

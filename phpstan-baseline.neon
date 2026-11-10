@@ -461,3 +461,9 @@ parameters:
 			identifier: argument.type
 			count: 2
 			path: packages/cms/src/Policies/AccountPolicy.php
+
+		-
+			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
+			identifier: argument.type
+			count: 2
+			path: packages/page-builder/src/Http/CanvasController.php

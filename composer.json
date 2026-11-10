@@ -12,6 +12,7 @@
         "mainstay/ai": "@dev",
         "mainstay/cms": "@dev",
         "mainstay/mcp": "@dev",
+        "mainstay/page-builder": "@dev",
         "mainstay/site": "@dev",
         "mainstay/ui": "@dev",
         "orchestra/testbench": "^11.0",
@@ -42,6 +43,13 @@
         },
         {
             "type": "path",
+            "url": "packages/page-builder",
+            "options": {
+                "symlink": true
+            }
+        },
+        {
+            "type": "path",
             "url": "packages/site",
             "options": {
                 "symlink": true
@@ -59,6 +67,7 @@
         "psr-4": {
             "Mainstay\\Ai\\Tests\\": "packages/ai/tests/",
             "Mainstay\\Mcp\\Tests\\": "packages/mcp/tests/",
+            "Mainstay\\PageBuilder\\Tests\\": "packages/page-builder/tests/",
             "Mainstay\\Site\\Tests\\": "packages/site/tests/",
             "Mainstay\\Tests\\": "packages/cms/tests/",
             "Mainstay\\Ui\\Tests\\": "packages/ui/tests/",

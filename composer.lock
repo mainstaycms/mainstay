@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c745796ff9645d7f3dd85af28f01d80e",
+    "content-hash": "e84acf092398c7f6b161dce14fe6caf8",
     "packages": [],
     "packages-dev": [
         {
@@ -4161,6 +4161,34 @@
                 "MIT"
             ],
             "description": "An MCP server for Mainstay: the content API as tools a language model calls.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
+            "name": "mainstay/page-builder",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/page-builder",
+                "reference": "e3ab3ac25750763a292c9468f77146dcf1543922"
+            },
+            "require": {
+                "mainstay/cms": "self.version",
+                "mainstay/site": "self.version",
+                "php": "^8.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mainstay\\PageBuilder\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "The Content tab for Mainstay: the page the site draws, edited in place.",
             "transport-options": {
                 "symlink": true,
                 "relative": true
@@ -12188,6 +12216,7 @@
         "mainstay/ai": 20,
         "mainstay/cms": 20,
         "mainstay/mcp": 20,
+        "mainstay/page-builder": 20,
         "mainstay/site": 20,
         "mainstay/ui": 20
     },

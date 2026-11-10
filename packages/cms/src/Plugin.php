@@ -3,6 +3,7 @@
 namespace Mainstay;
 
 use Illuminate\Contracts\Foundation\Application;
+use Mainstay\Admin\EntryTab;
 use Mainstay\Content\ContentType;
 
 /*
@@ -48,6 +49,23 @@ abstract class Plugin
     public function routes(): ?string
     {
         return null;
+    }
+
+    /** @return list<class-string<EntryTab>|EntryTab> the tabs it adds to an entry's form, beside Details */
+    public function entryTabs(): array
+    {
+        return [];
+    }
+
+    /*
+     | Scripts and stylesheets the admin loads after its own, as paths in the
+     | directory the host publishes the plugin's files to, `public/vendor/<handle>`.
+     |
+     | @return list<string>
+     */
+    public function assets(): array
+    {
+        return [];
     }
 
     /** @return array<class-string, list<class-string|callable>> each event it listens to and its listeners, as Laravel's `$listen` */

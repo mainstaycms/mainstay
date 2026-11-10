@@ -1,4 +1,4 @@
-import { canvases, editors } from '@mainstay/editor'
+import { editors } from '@mainstay/editor'
 import { mount } from '@mainstay/ui/behaviour'
 import './index.css'
 
@@ -11,7 +11,3 @@ import './index.css'
  */
 mount()
 editors()
-canvases(document, (root) => {
-  mount(root)
-  editors(root)
-})

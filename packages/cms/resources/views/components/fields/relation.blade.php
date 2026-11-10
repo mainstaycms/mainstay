@@ -6,7 +6,7 @@
     $many = $field->many();
     $input = $many ? $name.'[]' : $name;
     $control = 'rounded-control px-1.5 py-0.5 text-xs text-muted hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-accent';
-    /* A block's relation searches by its block's handle: see block-fields. */
+    /* A block's relation searches by its block's handle: see the page builder's block-fields. */
     $search ??= route('mainstay.relations', [request()->route('type'), $name, 'locale' => $locale]);
 @endphp
 

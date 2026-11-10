@@ -12,6 +12,7 @@
             <directory>packages/ai/tests</directory>
             <directory>packages/cms/tests</directory>
             <directory>packages/mcp/tests</directory>
+            <directory>packages/page-builder/tests</directory>
             <directory>packages/site/tests</directory>
             <directory>packages/ui/tests</directory>
         </testsuite>
@@ -21,6 +22,7 @@
             <directory>packages/ai/src</directory>
             <directory>packages/cms/src</directory>
             <directory>packages/mcp/src</directory>
+            <directory>packages/page-builder/src</directory>
             <directory>packages/site/src</directory>
             <directory>packages/ui/src</directory>
         </include>

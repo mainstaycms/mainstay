@@ -6,6 +6,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
+use Mainstay\Admin\EntryTab;
 use Mainstay\Auth\Accounts;
 use Mainstay\Auth\Capabilities;
 use Mainstay\Auth\Tokens;
@@ -225,6 +226,38 @@ class Mainstay
     public function plugins(): array
     {
         return $this->plugins;
+    }
+
+    /** @return list<EntryTab> every plugin's tabs for an entry's form of `$type` */
+    public function entryTabs(string $type): array
+    {
+        $tabs = [];
+
+        foreach ($this->plugins as $plugin) {
+            foreach ($plugin->entryTabs() as $tab) {
+                $tab = is_string($tab) ? app($tab) : $tab;
+
+                if ($tab->applies($type)) {
+                    $tabs[] = $tab;
+                }
+            }
+        }
+
+        return $tabs;
+    }
+
+    /** @return list<string> the scripts and stylesheets of every plugin, as public paths */
+    public function assets(): array
+    {
+        $assets = [];
+
+        foreach ($this->plugins as $handle => $plugin) {
+            foreach ($plugin->assets() as $asset) {
+                $assets[] = "vendor/{$handle}/{$asset}";
+            }
+        }
+
+        return $assets;
     }
 
     /*

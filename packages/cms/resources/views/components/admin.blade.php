@@ -2,6 +2,7 @@
 
 @php
     $user = \Mainstay\Auth\Gate::user();
+    $assets = collect(\Mainstay\Facades\Mainstay::assets())->groupBy(fn (string $path) => str_ends_with($path, '.css') ? 'styles' : 'scripts');
     $site = array_values(\Mainstay\Facades\Mainstay::locales())[0];
 @endphp
 
@@ -15,6 +16,9 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title ? $title.' · ' : '' }}Mainstay</title>
     <link rel="stylesheet" href="{{ asset('vendor/mainstay/mainstay.css') }}?v={{ \Mainstay\Mainstay::VERSION }}">
+    @foreach ($assets['styles'] ?? [] as $path)
+        <link rel="stylesheet" href="{{ asset($path) }}?v={{ \Mainstay\Mainstay::VERSION }}">
+    @endforeach
 </head>
 {{-- Marked once a save has written what a form posted, so the browser
      drops its copy of that form: see form-copy.ts. --}}
@@ -52,5 +56,9 @@
     @stack('dialogs')
 
     <script type="module" src="{{ asset('vendor/mainstay/mainstay.js') }}?v={{ \Mainstay\Mainstay::VERSION }}"></script>
+    {{-- A plugin's behaviour, after the admin's own. --}}
+    @foreach ($assets['scripts'] ?? [] as $path)
+        <script type="module" src="{{ asset($path) }}?v={{ \Mainstay\Mainstay::VERSION }}"></script>
+    @endforeach
 </body>
 </html>

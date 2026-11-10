@@ -1,0 +1,16 @@
+{
+    "name": "mainstay/page-builder",
+    "description": "The Content tab for Mainstay: the page the site draws, edited in place.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "mainstay/cms": "self.version",
+        "mainstay/site": "self.version"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mainstay\\PageBuilder\\": "src/"
+        }
+    }
+}

@@ -51,10 +51,11 @@ Mainstay owns its tables inside your app. "Headless" describes the consumer, not
   production's migrations still need.
 - **One query layer.** Templates, seeders, the admin and the API read and write through
   `Mainstay::find()`, `create()`, `update()` and `delete()`, and every call asks Laravel's Gate first.
-- **A page builder.** Every entry has content: text and the blocks its type allows, each block a PHP
-  class drawn by its own Blade view. The admin's Content tab is the page as your site draws it, with
-  text typed in place, blocks added, dragged and nested, and each block's fields and images edited in
-  dialogs beside it.
+- **A page builder, a plugin (`mainstay/page-builder`).** Every entry has content: text and the blocks
+  its type allows, each block a PHP class drawn by its own Blade view, edited as rich text and raw data
+  in Details. With the plugin, and `mainstay/site` to give the type a page, the admin's Content tab is
+  the page as your site draws it, with text typed in place, blocks added, dragged and nested, and each
+  block's fields and images edited in dialogs beside it.
 - **Served by Laravel.** With the `mainstay/site` plugin, an entry is served at the path its
   `#[Route]` builds, through a Blade template, after any route your app declares itself. No Node on
   the server. Core alone gives entries no path.
@@ -125,7 +126,10 @@ php artisan vendor:publish --tag=mainstay-assets
 ```
 
 The admin is then at `/admin`, behind a sign-in of its own, and the content API at `/api/mainstay`.
-That is all the package serves. Public pages are the `mainstay/site` plugin: require it and name
+That is all the package serves. The Content tab is the `mainstay/page-builder` plugin: require it with
+`mainstay/site`, name `Mainstay\PageBuilder\PageBuilderPlugin` in `config('mainstay.plugins')`, and
+publish its script and stylesheet again with the same `mainstay-assets` tag, which copies them to
+`public/vendor/page_builder`. Without it, Details edits the content. Public pages are the `mainstay/site` plugin: require it and name
 `Mainstay\Site\SitePlugin` in `config('mainstay.plugins')`, and every other path an entry holds is
 answered by its catch-all, after any route your app declares itself, behind the middleware of
 `mainstay.site.middleware` (`web` unless you say otherwise). The two paths, their middleware, an
@@ -295,6 +299,12 @@ plugin's item in the sidebar. A screen's view is drawn in `<x-mainstay::admin>`,
 // routes/admin.php
 Route::get('/', [RedirectController::class, 'index'])->name('index');
 ```
+
+A plugin adds a tab to an entry's form by returning classes implementing `Mainstay\Admin\EntryTab`
+from `entryTabs()`: the view of its panel, which types it applies to, and optionally a toolbar for the
+end of the tab bar and an aside in the publishing rail's place while the tab is open. `assets()` lists
+the scripts and stylesheets, relative to `public/vendor/<handle>`, that every admin screen loads after
+Mainstay's own; the plugin publishes them under the `mainstay-assets` tag.
 
 `Saved`, `Published`, `Deleted` and `Restored`, in `Mainstay\Events`, carry the type and id of live
 content written, heard once the write commits and never when it rolls back. Your app listens to them

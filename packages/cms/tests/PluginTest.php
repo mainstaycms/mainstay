@@ -96,6 +96,23 @@ class PluginTest extends DatabaseTestCase
     }
 
     #[Test]
+    public function a_plugin_adds_a_tab_to_the_forms_it_applies_to_and_its_files_to_every_screen(): void
+    {
+        $this->signIn($this->user(role: 'administrator'));
+
+        $redirect = $this->get(route('mainstay.entries.create', 'seo_redirect'))->assertOk()
+            ->assertSee('id="notes-tab"', escape: false)
+            ->assertSee('data-notes-panel', escape: false)
+            ->assertSee('data-notes-toolbar', escape: false)
+            ->assertSee('data-notes-aside', escape: false)
+            ->assertSee('vendor/seo/seo.css?v=', escape: false)
+            ->assertSee('vendor/seo/seo.js?v=', escape: false);
+        $this->assertStringContainsString('seo_redirect /said', html_entity_decode(strip_tags($redirect->getContent())));
+
+        $this->get(route('mainstay.entries', 'seo_settings'))->assertOk()->assertDontSee('data-tabs', escape: false)->assertSee('vendor/seo/seo.js?v=', escape: false);
+    }
+
+    #[Test]
     public function a_plugin_config_names_brings_its_types_block_field_and_views(): void
     {
         $this->assertSame(['seo'], array_keys(Mainstay::plugins()));

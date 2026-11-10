@@ -1,3 +1,4 @@
+import { contentSchema, kit } from '@mainstay/editor'
 import { baseKeymap, chainCommands } from 'prosemirror-commands'
 import { history, isHistoryTransaction, redo, undo } from 'prosemirror-history'
 import { keymap } from 'prosemirror-keymap'
@@ -6,8 +7,6 @@ import { wrapRangeInList } from 'prosemirror-schema-list'
 import { AllSelection, type Command, EditorState, NodeSelection, Plugin, Selection, TextSelection, type Transaction } from 'prosemirror-state'
 import { Decoration, DecorationSet, type DecorationAttrs, EditorView, type NodeViewConstructor } from 'prosemirror-view'
 import prosemirror from 'prosemirror-view/style/prosemirror.css?raw'
-import { kit } from './editor'
-import { contentSchema } from './schema'
 
 /*
  | The Content tab: the page the site draws from the form as it stands, in a

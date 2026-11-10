@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Facade;
  * @method static array capabilities()
  * @method static void loadPlugins(array $plugins)
  * @method static array plugins()
+ * @method static array entryTabs(string $type)
+ * @method static array assets()
  * @method static void editorStyles(array $stylesheets, string $class = '')
  * @method static array|null editorStyle()
  * @method static \Illuminate\Support\HtmlString field(\Mainstay\Content\Block $item, string $name)

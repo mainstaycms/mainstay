@@ -6,4 +6,4 @@
 --}}
 <input type="hidden" name="id" value="{{ $block->id }}">
 <input type="hidden" name="type" value="{{ $block::handle() }}">
-<x-mainstay::block-fields :block="$block" prefix="data" :messages="$messages" />
+<x-page_builder::block-fields :block="$block" prefix="data" :messages="$messages" />
