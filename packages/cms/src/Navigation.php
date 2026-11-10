@@ -51,7 +51,7 @@ class Navigation
             [
                 'label' => 'Content',
                 'items' => [
-                    ...array_map(fn (string $type) => $item($type, self::icon('<path d="M9.5 1.75H4.5a1 1 0 0 0-1 1v10.5a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V4.75z" /><path d="M9.5 1.75V4.75h3" />')), array_values(array_filter($types, fn (string $type) => ! is_subclass_of($type, GlobalSet::class) && ! is_subclass_of($type, Taxonomy::class)))),
+                    ...array_map(fn (string $type) => $item($type, self::icon('<path d="M9.5 1.75H4.5a1 1 0 0 0-1 1v10.5a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V4.75z" /><path d="M9.5 1.75V4.75h3" />')), array_values(array_filter($types, fn (string $type) => ! is_subclass_of($type, GlobalSet::class) && ! is_subclass_of($type, Taxonomy::class) && ! is_subclass_of($type, HoldsPage::class)))),
                     ...array_map(fn (string $type) => $item($type, self::icon('<path d="M8.2 1.75H2.5a.75.75 0 0 0-.75.75v5.7c0 .2.08.39.22.53l5.55 5.55a.75.75 0 0 0 1.06 0l5.2-5.2a.75.75 0 0 0 0-1.06L8.73 1.97a.75.75 0 0 0-.53-.22Z" /><circle cx="5.1" cy="5.1" r=".9" />')), array_values(array_filter($types, fn (string $type) => is_subclass_of($type, Taxonomy::class)))),
                 ],
             ],
@@ -77,8 +77,9 @@ class Navigation
     }
 
     /*
-     | The globals edited as pages, each kind under the heading its type gives:
-     | they are not settings, so Globals does not list them.
+     | The types edited as pages, each kind under the heading its type gives:
+     | a global is not a setting then, and an entry type is not content to
+     | write, so Globals and Content do not list them.
      |
      | @param  array<string, class-string>  $types
      | @return list<array{label: string, items: list<array<string, mixed>>}>
@@ -112,7 +113,7 @@ class Navigation
         }
 
         foreach (array_filter(app(Mainstay::class)->registered(), self::writes(...)) as $handle => $type) {
-            if (! is_subclass_of($type, GlobalSet::class)) {
+            if (! is_subclass_of($type, GlobalSet::class) && Gate::about($type)->allows('create', [$type, $type])) {
                 $commands[] = ['id' => "new-{$handle}", 'label' => 'New '.Str::lower(self::label($type, plural: false)), 'group' => 'Create', 'href' => route('mainstay.entries.create', $handle, absolute: false)];
             }
         }
@@ -135,11 +136,17 @@ class Navigation
         return Str::headline($plural && ! is_subclass_of($type, GlobalSet::class) ? $english->pluralize($name) : $name);
     }
 
-    /* Whether the signed-in user may write to a type at all: make one of
-       its entries or terms, or change its global. */
+    /* Whether the signed-in user may work in a type at all: make one of its
+       entries or terms, or change its global, or read what only a writer
+       reads. A type whose policy refuses every write -- records the site
+       collects -- is still listed and viewed by whoever edits it. */
     public static function writes(string $type): bool
     {
-        return Gate::about($type)->allows(is_subclass_of($type, GlobalSet::class) ? 'update' : 'create', [$type, $type]);
+        $gate = Gate::about($type);
+
+        return is_subclass_of($type, GlobalSet::class)
+            ? $gate->allows('update', [$type, $type])
+            : $gate->allows('create', [$type, $type]) || $gate->allows('viewInternal', [$type, $type]);
     }
 
     /* Whether the signed-in user may see the media library: the question

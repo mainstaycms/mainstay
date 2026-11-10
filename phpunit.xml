@@ -11,6 +11,7 @@
         <testsuite name="Mainstay">
             <directory>packages/ai/tests</directory>
             <directory>packages/cms/tests</directory>
+            <directory>packages/forms/tests</directory>
             <directory>packages/mcp/tests</directory>
             <directory>packages/page-builder/tests</directory>
             <directory>packages/parts/tests</directory>
@@ -22,6 +23,7 @@
         <include>
             <directory>packages/ai/src</directory>
             <directory>packages/cms/src</directory>
+            <directory>packages/forms/src</directory>
             <directory>packages/mcp/src</directory>
             <directory>packages/page-builder/src</directory>
             <directory>packages/parts/src</directory>

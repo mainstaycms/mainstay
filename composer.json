@@ -11,6 +11,7 @@
         "laravel/pint": "^1.18",
         "mainstay/ai": "@dev",
         "mainstay/cms": "@dev",
+        "mainstay/forms": "@dev",
         "mainstay/mcp": "@dev",
         "mainstay/page-builder": "@dev",
         "mainstay/parts": "@dev",
@@ -31,6 +32,13 @@
         {
             "type": "path",
             "url": "packages/cms",
+            "options": {
+                "symlink": true
+            }
+        },
+        {
+            "type": "path",
+            "url": "packages/forms",
             "options": {
                 "symlink": true
             }
@@ -74,6 +82,7 @@
     "autoload-dev": {
         "psr-4": {
             "Mainstay\\Ai\\Tests\\": "packages/ai/tests/",
+            "Mainstay\\Forms\\Tests\\": "packages/forms/tests/",
             "Mainstay\\Mcp\\Tests\\": "packages/mcp/tests/",
             "Mainstay\\PageBuilder\\Tests\\": "packages/page-builder/tests/",
             "Mainstay\\Parts\\Tests\\": "packages/parts/tests/",

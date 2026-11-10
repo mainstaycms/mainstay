@@ -1031,7 +1031,7 @@ class ContentStore
     /** @return Entry|(GlobalSet&HoldsPage) */
     public function preview(string $type, ?int $entry = null, array $changes = [], ?int $draft = null, ?string $locale = null, bool $overrideAccess = false, int $depth = self::DEPTH): ContentType
     {
-        $type = is_subclass_of($type, HoldsPage::class) ? $this->globalSet($type) : $this->entry($type);
+        $type = is_subclass_of($type, HoldsPage::class) && is_subclass_of($type, GlobalSet::class) ? $this->globalSet($type) : $this->entry($type);
         $term = is_subclass_of($type, Taxonomy::class);
 
         if ($draft !== null && ($entry !== null || $term)) {

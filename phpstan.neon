@@ -7,6 +7,7 @@ parameters:
     paths:
         - packages/ai/src
         - packages/cms/src
+        - packages/forms/src
         - packages/mcp/src
         - packages/page-builder/src
         - packages/parts/src

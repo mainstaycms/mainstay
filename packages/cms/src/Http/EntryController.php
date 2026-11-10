@@ -67,10 +67,22 @@ class EntryController
         $class = $this->type($type, entries: true);
         [$shown, $draft, $elsewhere] = $this->read($request, $class, fn (string $locale) => [
             $this->mainstay->findById($class, $id, locale: $locale, depth: 1),
-            is_subclass_of($class, Taxonomy::class) ? null : $this->mainstay->drafts()->of($class, $id, locale: $locale, depth: 1),
+            is_subclass_of($class, Taxonomy::class) ? null : $this->draftOf($class, $id, $locale),
         ]);
 
         return $this->form($request, $class, $shown, $draft, $elsewhere, route('mainstay.entries.update', [$type, $id]), $id);
+    }
+
+    /* The draft of an entry for someone who may edit it. A type whose
+       policy refuses every write has none to show: its entries are opened to
+       be read. */
+    private function draftOf(string $class, int $id, string $locale): ?Draft
+    {
+        try {
+            return $this->mainstay->drafts()->of($class, $id, locale: $locale, depth: 1);
+        } catch (AuthorizationException $refused) {
+            return Gate::about($class)->allows('create', [$class, $class]) ? throw $refused : null;
+        }
     }
 
     /* An entry not published yet, which only its draft holds. */
@@ -521,6 +533,7 @@ class EntryController
             'class' => $class,
             'label' => Navigation::label($class),
             'trashed' => $trashed,
+            'creates' => $gate->allows('create', [$class, $class]),
             'drafts' => $drafts,
             'locale' => $locale,
             'shaped' => EntryList::shape(array_values($rows), $view),

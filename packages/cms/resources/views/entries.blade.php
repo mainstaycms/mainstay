@@ -53,7 +53,9 @@
 
         @unless ($trashed)
             <a href="{{ $localized(route('mainstay.entries.trash', $handle)) }}" class="rounded-control px-2 py-1 text-sm text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Trash</a>
-            <a href="{{ $localized(route('mainstay.entries.create', $handle)) }}" class="inline-flex items-center rounded-control bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">New {{ strtolower(\Mainstay\Navigation::label($class, plural: false)) }}</a>
+            @if ($creates)
+                <a href="{{ $localized(route('mainstay.entries.create', $handle)) }}" class="inline-flex items-center rounded-control bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">New {{ strtolower(\Mainstay\Navigation::label($class, plural: false)) }}</a>
+            @endif
         @endunless
     </x-slot:actions>
 

@@ -15,6 +15,7 @@ use Mainstay\Content\ContentType;
 use Mainstay\Content\Entry;
 use Mainstay\Content\GlobalSet;
 use Mainstay\Content\HoldsPage;
+use Mainstay\Content\Taxonomy;
 use Mainstay\Content\Template;
 use Mainstay\Database\ContentStore;
 use Mainstay\Database\Drafts;
@@ -768,7 +769,7 @@ class Mainstay
      | An entry's blocks go in its content, the list its class names with
      | #[Blocks([...])]; a block's names the blocks it holds inside it. That
      | is all the attribute takes. A type with no page to edit a block on --
-     | no #[Route], and not a global edited as a page -- holds text alone.
+     | no #[Route], and not a type edited as a page -- holds text alone.
      | Content is Entry's, and the edit screen is built on it, so a type
      | redeclares it only as content. A global edited as a page declares it
      | too, and has no route for it to be a page of.
@@ -779,8 +780,12 @@ class Mainstay
         $holdsPage = is_subclass_of($type, HoldsPage::class);
         $owns = $entry || $holdsPage;
 
-        if ($holdsPage && ! is_subclass_of($type, GlobalSet::class)) {
-            throw new InvalidArgumentException("{$type} is edited as a page and is not a global: an entry's page is its #[Route]'s.");
+        if ($holdsPage && is_subclass_of($type, Taxonomy::class)) {
+            throw new InvalidArgumentException("{$type} is edited as a page and is a taxonomy: only a global or an entry type is.");
+        }
+
+        if ($holdsPage && ! $entry && ! is_subclass_of($type, GlobalSet::class)) {
+            throw new InvalidArgumentException("{$type} is edited as a page and is not a global or an entry type.");
         }
 
         if ($holdsPage && app(Paths::class)->routed($type)) {

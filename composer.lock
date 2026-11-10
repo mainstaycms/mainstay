@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8ac88d8dd7d49cb104ba0b7cd30d1358",
+    "content-hash": "bc263c90fdfbde382fede3e30d9477a5",
     "packages": [],
     "packages-dev": [
         {
@@ -4133,6 +4133,34 @@
                 "headless",
                 "laravel"
             ],
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
+            "name": "mainstay/forms",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/forms",
+                "reference": "06dd6dce936991c6a80a0fbc9cca81b4c47dd84d"
+            },
+            "require": {
+                "mainstay/cms": "self.version",
+                "mainstay/page-builder": "self.version",
+                "php": "^8.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mainstay\\Forms\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "A form builder for Mainstay: forms built from blocks, submissions kept as entries, mailed to the people who answer them.",
             "transport-options": {
                 "symlink": true,
                 "relative": true
@@ -12244,6 +12272,7 @@
     "stability-flags": {
         "mainstay/ai": 20,
         "mainstay/cms": 20,
+        "mainstay/forms": 20,
         "mainstay/mcp": 20,
         "mainstay/page-builder": 20,
         "mainstay/parts": 20,

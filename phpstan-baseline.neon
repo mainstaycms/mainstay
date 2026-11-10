@@ -465,5 +465,23 @@ parameters:
 		-
 			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
 			identifier: argument.type
+			count: 1
+			path: packages/forms/src/Forms.php
+
+		-
+			message: '#^Parameter \$text of class Illuminate\\Mail\\Mailables\\Content constructor expects view\-string\|null, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: packages/forms/src/SubmissionReceived.php
+
+		-
+			message: '#^Parameter \$view of class Illuminate\\Mail\\Mailables\\Content constructor expects view\-string\|null, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: packages/forms/src/SubmissionReceived.php
+
+		-
+			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
+			identifier: argument.type
 			count: 3
 			path: packages/page-builder/src/Http/CanvasController.php

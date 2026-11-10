@@ -158,6 +158,32 @@ published as a global is, so who may edit and publish it is what a global asks (
 in the site's `Mainstay::editorStyles()`, its blocks edited in place. A view prints it, in the request's
 locale, with `@part(Footer::class)`.
 
+Forms are the `mainstay/forms` plugin. Require it (it needs `mainstay/page-builder`), name
+`Mainstay\Forms\FormsPlugin` in `config('mainstay.plugins')` and run `php artisan mainstay:sync`. You declare
+nothing: the plugin ships two types, `Form` and `Submission`, and the blocks a form is built from: text input,
+email input, textarea, select (its options one to a line), checkbox and submit button, each with a name, a
+label and whether it is required. Add a form in the admin under Forms and build it on the Content tab, with
+ordinary text between the fields. A form is mailed to its `recipients` (comma-separated), and thanks the
+visitor with its `message` or sends them on to its `redirect` address. Its rules come from its blocks, a name is
+used once per form, and a form needs to be published to take a post; the same goes for a draft-only or trashed one.
+
+Print a form on a page with `@form($form)` (or `Mainstay\Forms\Forms::print()`), or let editors drop the Form
+block into a type's content by listing `Mainstay\Forms\Blocks\FormBlock::class` in its `#[Blocks([...])]`. A form
+that is not live prints nothing. The markup is unstyled, for your stylesheet.
+
+```php
+#[Blocks([Hero::class, FormBlock::class])]
+class Page extends Entry {}
+```
+
+A post is kept as a `Submission` first, then mailed with Laravel's mailer; a mail that fails is reported and the
+visitor still sees success. Submissions are read and deleted in the admin and the API and never written by hand
+(`SubmissionPolicy`). Two endpoints take a post, both rate limited by address with the `mainstay-forms` limiter
+(30 a minute, `mainstay.forms.limit`): `POST /mainstay/forms/{id}` from a page, in the site's middleware
+(`mainstay.site.middleware`, `web`) with its CSRF token, redirecting back with the errors and what was typed, and
+`POST {api prefix}/forms/{id}/submissions`, open without a token, answering 201 with the confirmation or 422 with the
+errors; `?locale=` picks the language. No spam protection beyond the limiter, file uploads or export yet.
+
 Nothing on the web makes the first account. Make it on the server, and invite the rest from the
 admin's Users:
 

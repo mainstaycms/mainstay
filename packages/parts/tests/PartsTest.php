@@ -12,6 +12,7 @@ use Mainstay\Auth\Role;
 use Mainstay\Auth\User;
 use Mainstay\Content\Media;
 use Mainstay\Facades\Mainstay;
+use Mainstay\Http\Form;
 use Mainstay\PageBuilder\PageBuilderPlugin;
 use Mainstay\Parts\Parts;
 use Mainstay\Parts\PartsPlugin;
@@ -19,6 +20,8 @@ use Mainstay\Parts\Tests\Fixtures\Addressed;
 use Mainstay\Parts\Tests\Fixtures\Footer;
 use Mainstay\Parts\Tests\Fixtures\Marked;
 use Mainstay\Parts\Tests\Fixtures\Menu;
+use Mainstay\Parts\Tests\Fixtures\Note;
+use Mainstay\Parts\Tests\Fixtures\Tagged;
 use Mainstay\Site\SitePlugin;
 use Mainstay\Tests\DatabaseTestCase;
 use Mainstay\Tests\Fixtures\Broken\BlockedSettings;
@@ -49,7 +52,7 @@ class PartsTest extends DatabaseTestCase
     {
         parent::setUp();
 
-        Mainstay::types([Footer::class, Menu::class, SiteSettings::class]);
+        Mainstay::types([Footer::class, Menu::class, Note::class, SiteSettings::class]);
         $this->artisan('mainstay:sync')->assertSuccessful();
         $this->signIn($this->user(role: 'administrator'));
     }
@@ -211,7 +214,8 @@ class PartsTest extends DatabaseTestCase
             BlockedSettings::class => 'names blocks with #[Blocks], and only an entry type\'s content and a block hold them.',
             Contented::class => 'is a content field, and content is an entry\'s own, its $content.',
             Pageless::class => 'has no #[Route]: with no page there is nowhere to edit a block on',
-            Marked::class => 'is edited as a page and is not a global',
+            Marked::class => 'is edited as a page and has a #[Route]',
+            Tagged::class => 'is edited as a page and is a taxonomy',
             Addressed::class => 'is edited as a page and has a #[Route]',
         ] as $type => $message) {
             $this->assertThrows(fn () => Mainstay::fields($type), InvalidArgumentException::class, $message);
@@ -319,5 +323,22 @@ class PartsTest extends DatabaseTestCase
 
         $this->signIn($this->user());
         $this->post(route('mainstay.canvas.global', 'footer'), $content)->assertForbidden();
+    }
+
+    #[Test]
+    public function an_entry_with_no_route_is_edited_as_a_page_under_a_heading_of_its_own(): void
+    {
+        $this->assertSame(['brand'], array_keys(Form::blocks(Note::class)));
+        $this->assertSame(['Notes'], $this->sidebar()['Notes']);
+        $this->assertArrayNotHasKey('Content', $this->sidebar());
+
+        $note = Mainstay::create(Note::class, ['title' => 'Aside'], locale: 'en', overrideAccess: true);
+
+        $this->get(route('mainstay.entries.edit', ['note', $note->id]))->assertOk()
+            ->assertSee('data-canvas-url="'.route('mainstay.canvas.entry', ['note', $note->id]).'"', escape: false)
+            ->assertSee('data-insert="block:brand"', escape: false);
+        $this->post(route('mainstay.canvas.entry', ['note', $note->id]), ['content' => json_encode(self::doc(self::brand('Acme')))])->assertOk()
+            ->assertSee('<main class="">', escape: false);
+        $this->post(route('mainstay.canvas.create', 'note'), ['content' => json_encode(self::doc(self::paragraph('Typed')))])->assertOk();
     }
 }
