@@ -1020,6 +1020,73 @@ Consequences:
 - A plugin's driver closure runs inside laravel/ai's manager, wrapped so it keeps the plugin's
   `$this`.
 
+## The core is bare, and what a site adds beyond it is a plugin
+
+*2026-11-10*
+
+Core holds what every site needs to store and serve content as data: content types and fields, schema
+sync, the query layer with its drafts, revisions, trash, locales and owners, the media library,
+accounts, roles and tokens, the JSON API and the admin. Everything else is a plugin in this
+monorepo, a Composer package of its own that is split to a read-only repository on a tag, as Payload
+keeps a bare core and ships its form builder, SEO and redirects as plugins. A host lists the plugin
+classes it wants in `config('mainstay.plugins')`; nothing is discovered. Six exist: `ai` (the
+Connectors screen over laravel/ai), `mcp` (the MCP server), `site` (public pages and every entry's
+path), `page-builder` (the Content tab), `parts` (template parts) and `forms` (a form builder).
+
+`Plugin` grew only what the first extraction needed: `migrations()` and `tables()` for a plugin that
+brings tables, `boot()` for what Laravel keeps no declarative home for, `entryTabs()` and `assets()`
+for a plugin that adds to the entry form. `providers()` left it for `ai`, whose providers are now a
+`DeclaresProviders` interface. `routes()` stays for screens with a sidebar item and a `use_<handle>`
+capability. A plugin whose routes are JSON endpoints registers them in `boot()` under the admin's or
+the API's own domain, prefix and middleware and asks no capability of its own, as `page-builder`,
+`mcp` and the JSON endpoint of `forms` do; a public page route, the catch-all of `site` and the form
+post of `forms`, runs the middleware of `mainstay.site.middleware`.
+
+**Paths are a seam.** Building, storing and looking up an entry's path was woven through the save,
+restore and delete transactions, so `ContentStore` now calls `Mainstay\Database\Paths`, whose null
+implementation gives an entry no path. The `site` plugin binds `UriPaths` over it and owns the `uris`
+table, `#[Route]` (now `Mainstay\Site\Route`), the `-2` suffix on restore, the front page and the
+resolution of a host and prefix to a locale. A read fills `Entry::$uri` with one batched lookup per
+type and batch, where it used to join. Access checks, revision filing and the transactions stay in
+`ContentStore`, which asks the seam; the checks are core's, the paths are the plugin's.
+
+**Rich text stays in core, and so does the data model of a page.** An editor plugin was planned and
+dropped: `Document` is the type of `Entry::$content`, so an `editor` plugin would be a plugin core
+depends on, which depends on core. `Document`, `Block`, `Blocks`, the `Content` field, `@field` and
+`@inner`, and the rich text editor stay. Only the Content tab, the canvas that edits a page in
+place, left, as `page-builder`, through an `EntryTab` that the entry form renders without knowing
+what is in it. Its canvas has a JavaScript bundle of its own, which duplicates the ProseMirror code
+the admin's bundle carries; the two share the DOM and nothing else.
+
+**`HoldsPage`** marks a type edited as a page though it has no route, which is what `#[Blocks]` and
+a content field need. A global that holds it is a template part, an entry with no route that holds it
+is a form; core knows the marker and its heading for the sidebar, and neither word. Such a type
+is listed under its heading, not among the globals or Content, and the canvas draws its content
+alone in a frame carrying the site's editor stylesheets, as there is no page view to render.
+
+A part is a global that holds content, so it is stored once per site and drafted, published and
+revisioned as a global is. A form is an entry whose content is its fields, as blocks edited in the
+canvas, so the form builder is the page builder; a submission is an entry type that nobody creates or edits, kept
+so by a policy on the type that denies create, update, publish and assign, so the admin and the API
+agree; it can be read and deleted. Two public endpoints take a
+submission behind a rate limiter, store it and then mail it, and a mail failure is reported and
+never loses the submission.
+
+**What this costs.**
+
+- A type whose policy denies `create` and allows `viewInternal` is now listed and opened, every write refused
+  by the policy, where it was hidden from everyone. A custom policy that allows `viewInternal` to everyone therefore
+  shows the type to every signed-in account, as the API already did.
+- Core's own path tests run with the `site` plugin loaded, by default in `DatabaseTestCase`, since
+  they assert paths. A test of core alone names no plugins.
+- The API's `/path`, the front page's route and buttons, `Entry::url()` and `Entry::$uri` stay in core
+  and call the seam, and the MCP tool `get-entry-by-path` calls it from the `mcp` plugin, because the
+  admin and the API have no extension point for a plugin to contribute them yet. `template` and `#[Template]` stay as well.
+- A plugin listed before `site` that reflects a routed type in its `boot()` sees the null `Paths`.
+- A host takes each plugin as a package of its own, lists it, and republishes the assets of the
+  plugins that ship any. Nothing about this is released yet: the split workflow names them, the six
+  plugins' repositories do not exist, and `mainstay-site` still runs on the 0.1 release of core alone.
+
 ## Deferred
 
 Questions raised and deliberately left open. The reasoning is recorded so it does not have to be

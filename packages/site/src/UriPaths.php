@@ -17,8 +17,8 @@ use ReflectionClass;
 
 /*
  | The `uris` table: one path to one entry, per site and locale, which every
- | save writes from the type's #[Route], every read joins and every lookup
- | asks. Rows are deleted rather than soft-deleted, so a trashed entry's path
+ | save writes from the type's #[Route], every read looks up in one batch and every
+ | lookup asks. Rows are deleted rather than soft-deleted, so a trashed entry's path
  | stops resolving in the same request.
  |
  | Nothing is kept past the call: the front page is read as it is asked for,

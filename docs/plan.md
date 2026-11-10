@@ -1872,12 +1872,14 @@ draws them, arrive here as a list a host adds to in its service provider, each a
 
 ## Phase 16 — Template parts
 
+Built as the `parts` plugin: see phase 17.
+
 What WordPress calls template parts and what it calls options are two things here. A global stays
 settings, plain fields, as the site's `Layout` is. A part is a piece of the layout built from blocks --
 a navigation, a footer -- declared as `class Footer extends Part`, naming the blocks it allows on the
 class with `#[Blocks([...])]` as a type does. It has content built in, as an entry has, and no address:
 it is stored once per site, localized, drafted and published as a global is, and a view prints it with
-`{{ Mainstay::part(Footer::class) }}`. The admin lists parts under a heading of their own, apart from
+`@part(Footer::class)`. The admin lists parts under a heading of their own, apart from
 the globals. A part's edit screen draws it alone, in a frame with the site's stylesheets as the rich
 text editor's is, its blocks drawn by their views and edited in place as 12c does; a style that hangs on
 where the layout puts the part can look different there. 12a refuses `#[Blocks]` on a type with no
@@ -1886,6 +1888,43 @@ refused.
 
 The site's `Layout` gives its menu and its footer line to parts: a navigation holding a Navigation block
 the site writes, as it writes its own Image block, and a footer.
+
+## Phase 17 — Core and plugins
+
+Core had grown the AI connectors, the MCP server, public pages, the Content tab and, next in line,
+template parts and a form builder. The aim is a core as bare as Payload's, with the rest in
+packages of the monorepo that a host lists in `config('mainstay.plugins')`. `decisions.md` has the
+reasons; this is the order they went in, each step verified on its own before the next.
+
+1. **`Plugin` grows** `migrations()`, `tables()` and `boot()`; `providers()` leaves it.
+2. **`packages/ai`**: the Connectors screen, its table and the laravel/ai dependency. The screen is
+   at `/admin/ai` behind `use_ai`.
+3. **`packages/mcp`**: the MCP server and its tools, under the API's domain, prefix and token guard.
+4. **`packages/site`**, in two stages. First the catch-all route and `RenderController`, listing the
+   plugin being the switch `mainstay.site.enabled` was. Then the paths: core calls
+   `Mainstay\Database\Paths`, the plugin binds `UriPaths`, and the `uris` table, `#[Route]`, the
+   suffix on restore, the front page and the locale resolution move with it.
+5. **The editor plugin is dropped.** `Document` is `Entry::$content`'s type, so rich text stays.
+6. **`packages/page-builder`**: the Content tab only, through the new `EntryTab`,
+   `Plugin::entryTabs()` and `Plugin::assets()`, with a JavaScript bundle of its own.
+7. **`packages/parts`**: phase 16. `HoldsPage` is the core marker for a type edited as a page with
+   no route.
+8. **`packages/forms`**: a form is an entry whose content is its fields as blocks, built in the
+   page builder; submissions are an entry type nobody creates or edits; two public endpoints, rate limited. `HoldsPage`
+   widens to an entry type with no route.
+
+Still to do:
+
+- **Release.** `.github/workflows/split.yml` names the six plugins beside cms and ui; their read-only repositories must
+  exist in the organisation, and each needs registering with Packagist before a tag splits to it.
+- **`mainstay-site`** moves from `mainstay/cms` 0.1 alone to cms plus `site` and `page-builder`, with
+  `Mainstay\Site\Route` in its types and the plugins listed in `config/mainstay.php`. It uses neither
+  ai, mcp, parts nor forms.
+- **Extension points for what stayed.** The API's `/path`, the front page's route and buttons, and `template`
+  still sit in core and call the seam, as the MCP tool `get-entry-by-path` does from `mcp`. They move when the
+  admin and the API let a plugin add a route, an action or a tool.
+- **The checks on other drivers.** Every step ran on SQLite; the Postgres, MySQL and SQL Server
+  suites have still to run on the branch.
 
 ## Not in this plan
 

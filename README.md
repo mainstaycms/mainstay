@@ -471,11 +471,13 @@ migration for whatever it reports.
 Mainstay is built in phases, each ending at something that works. Phases 1 to 13 are done: content
 types and schema sync, reading and writing from PHP, public rendering, rich text and blocks, media,
 relations and taxonomies, drafts and revisions, identity, the admin, accounts, the page builder, and
-the API with its tokens and MCP server. AI connectors came after them. Next:
+the API with its tokens and MCP server. AI connectors came after them, and then the split of core
+from its plugins: `ai`, `mcp`, `site`, `page-builder`, `parts` for template parts and `forms` for a
+form builder. Next:
 
 - **The second locale and the second site.**
 - **Onboarding.**
-- **Template parts** -- a site's header, menu and footer built with blocks.
+- **Releasing the plugins**, and `mainstay-site` running on them.
 
 [`docs/plan.md`](docs/plan.md) has every phase in detail, and [`docs/decisions.md`](docs/decisions.md)
 the reasons behind them.
