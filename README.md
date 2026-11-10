@@ -142,6 +142,10 @@ optional dedicated domain and where each content language is served are configur
 php artisan vendor:publish --tag=mainstay-config
 ```
 
+The page builder adds a *Pages in the builder* dashboard widget, the five entries changed last, and the site
+plugin a *Site* one, the front page and each type's live entries with an address. Each is for whoever may edit
+and read such a type, and no one else sees or lists it.
+
 Template parts are the `mainstay/parts` plugin. A global holds settings, plain fields; a part is a piece of
 the layout built from blocks, a navigation or a footer. Require it with `mainstay/page-builder` and
 `mainstay/site`, name `Mainstay\Parts\PartsPlugin` in `config('mainstay.plugins')`, and declare parts like
@@ -156,7 +160,8 @@ A part has content, as an entry does, and no address: it is stored once per site
 published as a global is, so who may edit and publish it is what a global asks (`edit_footer`,
 `publish_footer`). The admin lists it under Parts, apart from the globals, and its edit screen draws it alone
 in the site's `Mainstay::editorStyles()`, its blocks edited in place. A view prints it, in the request's
-locale, with `@part(Footer::class)`.
+locale, with `@part(Footer::class)`. It adds a *Template parts* dashboard widget, each part you may edit as
+published, changed, draft or empty, for whoever may edit one.
 
 Forms are the `mainstay/forms` plugin. Require it (it needs `mainstay/page-builder`), name
 `Mainstay\Forms\FormsPlugin` in `config('mainstay.plugins')` and run `php artisan mainstay:sync`. You declare
@@ -182,7 +187,8 @@ visitor still sees success. Submissions are read and deleted in the admin and th
 (30 a minute, `mainstay.forms.limit`): `POST /mainstay/forms/{id}` from a page, in the site's middleware
 (`mainstay.site.middleware`, `web`) with its CSRF token, redirecting back with the errors and what was typed, and
 `POST {api prefix}/forms/{id}/submissions`, open without a token, answering 201 with the confirmation or 422 with the
-errors; `?locale=` picks the language. No spam protection beyond the limiter, file uploads or export yet.
+errors; `?locale=` picks the language. The plugin adds a *Submissions* dashboard widget, the total and the
+newest, for whoever holds `edit_submissions`. No spam protection beyond the limiter, file uploads or export yet.
 
 Nothing on the web makes the first account. Make it on the server, and invite the rest from the
 admin's Users:
@@ -277,7 +283,7 @@ The type's template gets the entry, and printing its content draws its text and 
 
 ### Write a plugin
 
-A plugin is a package's types, blocks, field types, admin screens, listeners and AI providers, on
+A plugin is a package's types, blocks, field types, admin screens, dashboard widgets, listeners and AI providers, on
 one class. Only
 the plugins `config/mainstay.php` names load: installing a package switches nothing on, and nothing is
 switched on from the admin.
@@ -359,6 +365,78 @@ A plugin runs as your application does, with its access: Mainstay keeps what it 
 another's name, not what its code does, so install one as you would any dependency. A listener running
 in the request throws after the content has committed; make one that can fail a queued listener.
 
+### Dashboard widgets
+
+The admin's front page is a grid of widgets, and each user chooses which to show under **Screen options**,
+at its top right. A widget is a class extending `Mainstay\Admin\Widget` that draws a Blade view.
+Core has one, *At a glance*, which counts the entries and media the user may read. Yours is a handle,
+a title and a view:
+
+```php
+namespace App\Dashboard;
+
+use App\Models\Order;
+use Mainstay\Admin\Widget;
+use Mainstay\Auth\User;
+
+class LatestOrders extends Widget
+{
+    public static function handle(): string
+    {
+        return 'latest_orders'; // lowercase letters, digits and underscores
+    }
+
+    public function title(): string
+    {
+        return 'Latest orders';
+    }
+
+    public function view(): string
+    {
+        return 'dashboard.latest-orders';
+    }
+
+    public function data(User $user): array
+    {
+        return ['orders' => Order::query()->latest()->limit(5)->get()];
+    }
+
+    public function visibleTo(User $user): bool
+    {
+        return $user->holds('manage_orders');
+    }
+}
+```
+
+```blade
+{{-- resources/views/dashboard/latest-orders.blade.php --}}
+<ul>
+    @foreach ($orders as $order)
+        <li>{{ $order->reference }}</li>
+    @endforeach
+</ul>
+```
+
+Name it in a service provider, as you name types:
+
+```php
+Mainstay::widgets([App\Dashboard\LatestOrders::class]);
+```
+
+A plugin returns its own from `Plugin::widgets()`. Each is made by the container, so a constructor may
+ask for what it needs, and a handle another widget has is refused. Nothing in the view is caught: an error in
+`data()` or the view is the dashboard's.
+
+`visibleTo()` is where a widget checks the capability that makes it useful. Someone it returns false for
+never sees the widget or its checkbox, and cannot switch it on by posting its handle. Beyond that a widget
+may override `columns()` (`2` spans the full row, `1` is the default) and `enabledByDefault()` (`false`
+leaves it off until a user ticks it).
+
+Screen options are saved per account, as a map of handle to on or off under `dashboard.widgets` in the
+new `preferences` JSON column of `mainstay_users`, which `php artisan migrate` adds. A widget a user has
+never chosen follows `enabledByDefault()`. Your own code reads and writes the same column with
+`$user->preference('dashboard.widgets')` and `$user->setPreference('editor.density', 'compact')`.
+
 ### Over HTTP and MCP
 
 The API is at `/api/mainstay` and answers JSON. A read with no token sees only the types marked
@@ -405,7 +483,9 @@ mainstay:typescript` writes `/schema` out as TypeScript declarations, to
 
 With the `mainstay/mcp` plugin (name `Mainstay\Mcp\McpPlugin` in `config('mainstay.plugins')`), the same operations are an MCP server at `/api/mainstay/mcp`, for a client that speaks Streamable
 HTTP: `find-entries`, `get-entry`, `save-draft`, `publish-draft` and the rest, behind the same token.
-Give an agent a token that edits and does not publish, and it writes drafts for a person to put live.
+Give an agent a token that edits and does not publish, and it writes drafts for a person to put live. The plugin
+adds an *MCP server* dashboard widget with the endpoint, the tool count and a link to API tokens, which every
+account sees as every account may make tokens.
 
 ### Connect an AI provider
 
@@ -415,7 +495,8 @@ every provider it speaks is one a site can connect. Require it and name `Mainsta
 OpenRouter, Ollama and the rest. The admin's **Ai Connectors** screen, open to whoever holds
 `use_ai`, has a card per provider -- what it does, where its key comes from, Test -- and
 chooses the provider each kind of work goes to: text, images, speech, transcription, embeddings,
-reranking and classification.
+reranking and classification. It adds an *AI connectors* dashboard widget, how many providers have a key and
+where each kind of work goes, for whoever holds `use_ai`; a key is never shown.
 
 A key in the environment, under the name laravel/ai's config reads (`ANTHROPIC_API_KEY`,
 `OPENAI_API_KEY`), wins. Without one, the screen saves a key encrypted with `APP_KEY` and never shows
