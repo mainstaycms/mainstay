@@ -18,7 +18,7 @@ class McpPlugin extends Plugin
 {
     public static function handle(): string
     {
-        return 'mcp';
+        return 'mcp_server';
     }
 
     /*
