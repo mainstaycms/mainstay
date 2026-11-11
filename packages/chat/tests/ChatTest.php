@@ -9,6 +9,7 @@ use Illuminate\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Laravel\Ai\Exceptions\ProviderConnectionException;
@@ -289,13 +290,13 @@ class ChatTest extends DatabaseTestCase
         $this->events($response);
 
         $this->getJson(route('mainstay.plugins.chat.show', $conversation))->assertOk()->assertJsonPath('messages.0.content', 'Hi there');
-        $this->get(route('mainstay.plugins.chat.index'))->assertSee('Hi there');
+        $this->getJson(route('mainstay.plugins.chat.conversations'))->assertJsonPath('conversations.0.id', $conversation)->assertJsonPath('conversations.0.title', fn ($title) => $title !== '');
 
         $this->signIn();
         $this->getJson(route('mainstay.plugins.chat.show', $conversation))->assertNotFound();
         $this->say('Continue', $conversation)->assertNotFound();
         $this->decide($conversation, ['toolu_1' => true])->assertNotFound();
-        $this->get(route('mainstay.plugins.chat.index'))->assertDontSee('Hi there');
+        $this->getJson(route('mainstay.plugins.chat.conversations'))->assertJsonPath('conversations', []);
 
         $this->flushSession();
         $this->actingAs($ada, 'mainstay');
@@ -321,15 +322,7 @@ class ChatTest extends DatabaseTestCase
         DB::table('agent_conversation_messages')->insert(['id' => '0198a000-0000-7000-8000-000000000004', 'conversation_id' => $id, 'participant_type' => $type, 'participant_id' => $user->id, 'agent' => 'App\\Ai\\SupportBot', 'role' => 'user', 'content' => 'Hello', 'attachments' => '[]', 'steps' => '[]', 'usage' => '[]', 'meta' => '[]', 'status' => 'completed', 'created_at' => now(), 'updated_at' => now()]);
 
         $this->getJson(route('mainstay.plugins.chat.show', $id))->assertNotFound();
-        $this->get(route('mainstay.plugins.chat.index'))->assertOk()->assertDontSee('Support bot talk');
-    }
-
-    #[Test]
-    public function a_conversation_query_that_is_not_a_string_is_ignored(): void
-    {
-        $this->signIn();
-
-        $this->get(route('mainstay.plugins.chat.index').'?conversation[]=x')->assertOk()->assertSee('data-open=""', false);
+        $this->getJson(route('mainstay.plugins.chat.conversations'))->assertOk()->assertJsonPath('conversations', []);
     }
 
     #[Test]
@@ -348,28 +341,51 @@ class ChatTest extends DatabaseTestCase
     }
 
     #[Test]
-    public function the_screen_is_for_whoever_holds_use_chat(): void
+    public function the_chat_is_for_whoever_holds_use_chat_and_is_a_dialog_not_a_screen(): void
     {
         $this->assertContains('use_chat', Mainstay::capabilities());
+        $this->assertFalse(Route::has('mainstay.plugins.chat.index'));
 
         $this->signIn(['edit_essays']);
-        $this->get(route('mainstay.plugins.chat.index'))->assertNotFound();
+        $this->getJson(route('mainstay.plugins.chat.conversations'))->assertNotFound();
+        $this->say('Hi')->assertNotFound();
+        $this->get(route('mainstay.admin'))->assertOk()->assertDontSee('chat-dialog');
 
         $this->signIn(['use_chat']);
-        $this->get(route('mainstay.plugins.chat.index'))->assertOk()->assertSee('data-chat', false)->assertSee('Chat');
+        $this->getJson(route('mainstay.plugins.chat.conversations'))->assertOk();
+        $this->get(route('mainstay.admin'))->assertOk()->assertSee('data-dialog-open="chat-dialog"', false)->assertSee('id="chat-dialog"', false)->assertSee('data-chat', false)->assertSee('"dialog":"chat-dialog"', false);
+        $this->get(route('mainstay.account'))->assertSee('id="chat-dialog"', false);
+        $this->get(route('mainstay.admin'))->assertDontSee('href="/admin/chat"', false);
     }
 
     #[Test]
-    public function without_a_text_connector_the_screen_says_so_and_links_only_for_whoever_manages_them(): void
+    public function the_roles_grid_lists_chat(): void
+    {
+        $this->signIn(['manage_users']);
+
+        $this->get(route('mainstay.roles.create'))->assertOk()->assertSeeInOrder(['Plugins', 'Chat', 'value="use_chat"'], false);
+    }
+
+    #[Test]
+    public function without_a_text_connector_the_conversations_say_so_and_the_dialog_links_only_for_whoever_manages_them(): void
     {
         config(['ai.providers.anthropic.key' => null]);
 
         $this->signIn(['use_chat']);
-        $this->get(route('mainstay.plugins.chat.index'))->assertOk()->assertSee('No AI provider is connected')->assertDontSee('data-chat', false)->assertDontSee(route('mainstay.plugins.ai.index'));
+        $this->getJson(route('mainstay.plugins.chat.conversations'))->assertOk()->assertJsonPath('ready', false);
+        $this->get(route('mainstay.admin'))->assertSee('No AI provider is connected')->assertDontSee(route('mainstay.plugins.ai.index'));
         $this->say('Hi')->assertStatus(409);
 
         $this->signIn(['use_chat', 'use_ai']);
-        $this->get(route('mainstay.plugins.chat.index'))->assertSee(route('mainstay.plugins.ai.index'));
+        $this->get(route('mainstay.admin'))->assertSee(route('mainstay.plugins.ai.index'));
+    }
+
+    #[Test]
+    public function a_connected_provider_is_ready(): void
+    {
+        $this->signIn(['use_chat']);
+
+        $this->getJson(route('mainstay.plugins.chat.conversations'))->assertJsonPath('ready', true);
     }
 
     #[Test]

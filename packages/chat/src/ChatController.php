@@ -5,9 +5,9 @@ namespace Mainstay\Chat;
 use Generator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
 use Laravel\Ai\Approvals\Decisions;
 use Laravel\Ai\Exceptions\ApprovalMismatchException;
+use Laravel\Ai\Models\Conversation;
 use Laravel\Ai\Responses\StreamableAgentResponse;
 use Laravel\Ai\Streaming\Events\Error;
 use Mainstay\Ai\AiConnectors;
@@ -18,7 +18,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 /*
- | The chat screen and the two requests that stream: a message, and the
+ | The chat's conversations and the two requests that stream: a message, and the
  | decision on what the model asked to write. The model's tools run as the
  | person signed in, who the admin's middleware has put on the request.
  */
@@ -26,13 +26,11 @@ class ChatController
 {
     public const CONVERSATION_HEADER = 'X-Conversation-Id';
 
-    public function index(Request $request): View
+    public function conversations(): JsonResponse
     {
-        return view('chat::index', [
+        return response()->json([
             'ready' => app(TextConnector::class)->ready(),
-            'canConnect' => Navigation::uses(AiConnectors::class),
-            'conversations' => Conversations::of(Gate::user()),
-            'open' => is_string($open = $request->query('conversation')) ? $open : null,
+            'conversations' => Conversations::of(Gate::user())->map(fn (Conversation $conversation) => $conversation->only(['id', 'title']))->values(),
         ]);
     }
 

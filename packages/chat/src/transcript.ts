@@ -47,7 +47,7 @@ export class Transcript {
 
   user(text: string): void {
     this.text = null
-    this.root.append(element('p', 'ml-auto max-w-[80%] whitespace-pre-wrap rounded-control bg-surface px-3 py-2 text-sm', text))
+    this.root.append(element('p', 'ml-auto max-w-[80%] whitespace-pre-wrap break-words rounded-control bg-surface px-3 py-2 text-sm', text))
   }
 
   append(delta: string): void {
