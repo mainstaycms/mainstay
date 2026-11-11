@@ -30,6 +30,11 @@ class SiteWidget extends Widget
         return 'Site';
     }
 
+    public function description(): string
+    {
+        return 'The page served at the front of the site, and how many live entries each addressable type has.';
+    }
+
     public function view(): string
     {
         return 'site::widgets.site';

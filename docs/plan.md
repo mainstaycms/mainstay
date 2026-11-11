@@ -1946,7 +1946,8 @@ order, each step verified before the next.
    seam is to take.
 
 Seams: `Widget::visibleTo()` is the capability check, so a widget nobody may use is never listed;
-`enabledByDefault()` and `columns()` are the only presentation a widget has.
+`enabledByDefault()` and `description()` are the only presentation a widget has: the dashboard sizes each
+card by its content, so a widget declares no size.
 
 ## Not in this plan
 

@@ -3,13 +3,21 @@
 namespace Mainstay\Tests;
 
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 use Mainstay\Admin\Widgets\AtAGlance;
+use Mainstay\Ai\ConnectorsWidget;
 use Mainstay\Auth\Role;
 use Mainstay\Auth\User;
 use Mainstay\Content\Media;
 use Mainstay\Facades\Mainstay;
+use Mainstay\Forms\SubmissionsWidget;
+use Mainstay\Http\Authenticate;
+use Mainstay\Mcp\McpWidget;
+use Mainstay\PageBuilder\PagesWidget;
+use Mainstay\Parts\PartsWidget;
+use Mainstay\Site\SiteWidget;
 use Mainstay\Tests\Fixtures\Plugins\AbstractWidget;
 use Mainstay\Tests\Fixtures\Plugins\BadHandle;
 use Mainstay\Tests\Fixtures\Plugins\Dashed;
@@ -21,6 +29,7 @@ use Mainstay\Tests\Fixtures\Plugins\HostNote;
 use Mainstay\Tests\Fixtures\Policies\ClosedPolicy;
 use Mainstay\Tests\Fixtures\Post;
 use PHPUnit\Framework\Attributes\Test;
+use ReflectionClass;
 use stdClass;
 
 /*
@@ -91,6 +100,26 @@ class DashboardTest extends DatabaseTestCase
         $this->get(route('mainstay.admin'))->assertOk()
             ->assertSee('id="widget-dashed_metrics"', false)
             ->assertSee('Hello Ada 2');
+    }
+
+    #[Test]
+    public function screen_options_are_in_the_top_bar_and_only_on_the_dashboard(): void
+    {
+        $this->signIn($this->user(['use_dashed']));
+
+        $dashboard = $this->get(route('mainstay.admin'))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('#<header.*data-dialog-open="screen-options".*</header>#s', $dashboard);
+        $this->assertStringContainsString('id="screen-options"', $dashboard);
+        $this->assertStringContainsString('Counts the dashed things.', $dashboard);
+        $this->assertStringNotContainsString('max-w-5xl', $dashboard);
+        $this->assertStringContainsString('role="switch"', $dashboard);
+        $this->assertStringNotContainsString('border-b border-border px-4 py-3', $dashboard);
+        $this->assertStringNotContainsString('rounded-control border border-border bg-surface', $dashboard);
+        $this->assertStringContainsString('max-sm:sr-only">Screen options', $dashboard);
+        $this->assertStringContainsString('max-sm:sr-only">Visit website', $dashboard);
+        $this->assertDoesNotMatchRegularExpression('#<h2 id="widget-[^"]*-title" class="[^"]*border-b#', $dashboard);
+
+        $this->get(route('mainstay.account'))->assertOk()->assertDontSee('Screen options');
     }
 
     #[Test]
@@ -168,13 +197,38 @@ class DashboardTest extends DatabaseTestCase
     }
 
     #[Test]
-    public function a_widget_that_spans_two_columns_takes_the_whole_row(): void
+    public function the_cards_flow_in_columns_and_screen_options_describe_each_widget(): void
     {
         $this->signIn($this->user(['use_dashed']));
-        $page = $this->get(route('mainstay.admin'))->assertOk();
+        $page = $this->get(route('mainstay.admin'))->assertOk()
+            ->assertSee('Counts the dashed things.')
+            ->assertSee('columns-1', false)
+            ->assertSee('break-inside-avoid', false);
 
-        $this->assertMatchesRegularExpression('/aria-labelledby="widget-dashed_wide-title" class="[^"]*md:col-span-2/', $page->getContent());
-        $this->assertDoesNotMatchRegularExpression('/aria-labelledby="widget-host_note-title" class="[^"]*md:col-span-2/', $page->getContent());
+        $this->assertStringNotContainsString('col-span-2', $page->getContent());
+    }
+
+    #[Test]
+    public function any_screen_can_fill_the_options_slot_and_one_without_it_has_no_button(): void
+    {
+        $this->signIn($this->user());
+        Route::middleware(Authenticate::class)->group(function () {
+            Route::get('/admin-with-options', fn () => view('dashed::with-options'));
+            Route::get('/admin-without-options', fn () => view('dashed::without-options'));
+        });
+
+        $this->get('/admin-with-options')->assertOk()
+            ->assertSee('data-dialog-open="screen-options"', false)
+            ->assertSee('Per page');
+        $this->get('/admin-without-options')->assertOk()->assertDontSee('screen-options');
+    }
+
+    #[Test]
+    public function every_shipped_widget_describes_itself(): void
+    {
+        foreach ([AtAGlance::class, ConnectorsWidget::class, McpWidget::class, SiteWidget::class, PagesWidget::class, PartsWidget::class, SubmissionsWidget::class] as $class) {
+            $this->assertNotSame('', (new ReflectionClass($class))->newInstanceWithoutConstructor()->description(), $class);
+        }
     }
 
     #[Test]

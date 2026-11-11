@@ -20,7 +20,9 @@ abstract class Widget
        it is a plugin's handle's format and no widget shares one. */
     abstract public static function handle(): string;
 
-    /* The card's heading, and its checkbox's label in Screen options. */
+    /* The card's heading, and the title of its toggle in Screen options. The
+       dashboard sizes each card by its content, so a widget has no size to
+       declare. */
     abstract public function title(): string;
 
     /* The view the card is drawn with, given `data()`. */
@@ -40,11 +42,11 @@ abstract class Widget
         return true;
     }
 
-    /* How many of the dashboard's two columns it spans: 1, or 2 for the full
-       row. */
-    public function columns(): int
+    /* A sentence for Screen options saying what the card shows, so a user
+       knows what they are switching on. */
+    public function description(): string
     {
-        return 1;
+        return '';
     }
 
     /* Whether it is on for a user who has not chosen. */

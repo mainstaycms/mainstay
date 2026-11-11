@@ -32,6 +32,11 @@ class PagesWidget extends Widget
         return 'Pages in the builder';
     }
 
+    public function description(): string
+    {
+        return 'The pages most recently changed in the page builder, with their status.';
+    }
+
     public function view(): string
     {
         return 'page_builder::widgets.pages';

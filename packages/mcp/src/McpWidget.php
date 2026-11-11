@@ -23,6 +23,11 @@ class McpWidget extends Widget
         return 'MCP server';
     }
 
+    public function description(): string
+    {
+        return 'The address a language model connects to, how many tools it can use, and where to make its token.';
+    }
+
     public function view(): string
     {
         return 'mcp_server::widgets.server';

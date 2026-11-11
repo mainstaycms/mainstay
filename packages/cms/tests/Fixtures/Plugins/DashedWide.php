@@ -4,7 +4,7 @@ namespace Mainstay\Tests\Fixtures\Plugins;
 
 use Mainstay\Admin\Widget;
 
-/* A widget that takes the whole row. */
+/* A widget with a body wider than the others. */
 class DashedWide extends Widget
 {
     public static function handle(): string
@@ -20,10 +20,5 @@ class DashedWide extends Widget
     public function view(): string
     {
         return 'dashed::widgets.wide';
-    }
-
-    public function columns(): int
-    {
-        return 2;
     }
 }

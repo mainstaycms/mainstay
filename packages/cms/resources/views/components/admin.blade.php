@@ -1,4 +1,4 @@
-@props(['title' => null, 'breadcrumb' => [], 'actions' => null])
+@props(['title' => null, 'breadcrumb' => [], 'actions' => null, 'options' => null])
 
 @php
     $user = \Mainstay\Auth\Gate::user();
@@ -31,6 +31,17 @@
                 :name="$user->name"
                 :email="$user->email"
             >
+                {{-- Screen options hold whatever the current screen lets a user
+                     choose; a screen with none gets no button. --}}
+                @if ($options)
+                    <x-slot:tools>
+                        <button type="button" data-dialog-open="screen-options" class="flex h-6 items-center whitespace-nowrap rounded-control px-1.5 text-xs text-muted hover:bg-canvas hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                            {{-- Icon only below sm, so the user menu keeps its room in a narrow bar. --}}
+                            <x-mainstay::icon class="size-4 sm:hidden"><path d="M2 4.5h12M2 11.5h12" /><circle cx="6" cy="4.5" r="1.5" fill="var(--color-surface)" /><circle cx="10.5" cy="11.5" r="1.5" fill="var(--color-surface)" /></x-mainstay::icon>
+                            <span class="max-sm:sr-only">Screen options</span>
+                        </button>
+                    </x-slot:tools>
+                @endif
                 <x-mainstay::dropdown-item as="a" :href="route('mainstay.account')">Account settings</x-mainstay::dropdown-item>
                 <x-mainstay::dropdown-item as="a" :href="route('mainstay.tokens')">API tokens</x-mainstay::dropdown-item>
                 <form method="POST" action="{{ route('mainstay.logout') }}" data-sign-out>
@@ -50,6 +61,10 @@
 
         {{ $slot }}
     </x-mainstay::shell>
+
+    @if ($options)
+        <x-mainstay::dialog id="screen-options" label="Screen options" wide plain class="rounded-none!">{{ $options }}</x-mainstay::dialog>
+    @endif
 
     {{-- Dialogs a field draws, out here where no form holds them, so each
          can have a form of its own. --}}
