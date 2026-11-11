@@ -2,8 +2,11 @@
 
 namespace Mainstay\Chat\Tests;
 
+use Closure;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\TestResponse;
 use Laravel\Ai\Models\Conversation;
@@ -31,6 +34,7 @@ use Mainstay\Tests\Fixtures\Linked\Genre;
 use Mainstay\Tests\Fixtures\Linked\Person;
 use Mainstay\Tests\Fixtures\Linked\Story;
 use Mainstay\Tests\Fixtures\Signed\Banner;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
 /*
@@ -371,5 +375,106 @@ class ChatTest extends DatabaseTestCase
 
         $this->get(route('mainstay.plugins.ai.index'))->assertNotFound();
         $this->assertSame('Hello.', implode('', array_column($this->ofType($this->events($this->say('Hi')), 'text_delta'), 'delta')));
+    }
+
+    /** @return array<string, array{Closure, string}> */
+    public static function providerFailures(): array
+    {
+        $body = ['type' => 'error', 'error' => ['type' => 'authentication_error', 'message' => 'invalid x-api-key sk-test-leaked']];
+
+        return [
+            'a rejected key' => [fn () => Http::response($body, 401), 'The provider rejected the request (401).'],
+            'a forbidden key' => [fn () => Http::response($body, 403), 'The provider rejected the request (403).'],
+            'a rate limit' => [fn () => Http::response($body, 429), 'The provider is limiting requests.'],
+            'a spent account' => [fn () => Http::response($body, 402), 'The provider account is out of credit or quota.'],
+            'a server error' => [fn () => Http::response($body, 500), 'The provider is unavailable right now.'],
+            'an overloaded provider' => [fn () => Http::response($body, 503), 'The provider is unavailable right now.'],
+            'a connection that fails' => [fn () => throw new ConnectionException('cURL error 28: timed out sending sk-test-leaked'), 'Could not reach the provider.'],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('providerFailures')]
+    public function a_provider_that_fails_ends_the_stream_with_an_error_event_and_is_reported(Closure $failure, string $message): void
+    {
+        Exceptions::fake();
+        $this->signIn(['use_chat']);
+        Http::fake(['api.anthropic.com/*' => $failure]);
+
+        $response = $this->say('Hi there');
+        $events = $this->events($response);
+
+        $this->assertSame('error', end($events)['type']);
+        $this->assertStringStartsWith($message, end($events)['message']);
+        $this->assertStringEndsWith("data: [DONE]\n\n", $response->streamedContent());
+        $this->assertStringNotContainsString('sk-test', $response->streamedContent());
+        Exceptions::assertReportedCount(1);
+    }
+
+    #[Test]
+    public function a_rejected_key_points_to_the_connectors_screen_only_for_whoever_manages_them(): void
+    {
+        Exceptions::fake();
+        Http::fake(['api.anthropic.com/*' => Http::response([], 401)]);
+
+        $this->signIn(['use_chat']);
+        $this->assertStringNotContainsString('Connectors', $this->events($this->say('Hi'))[0]['message']);
+
+        $this->signIn(['use_chat', 'use_ai']);
+        $this->assertStringContainsString('Check the key on the Connectors screen.', $this->events($this->say('Hi'))[0]['message']);
+    }
+
+    #[Test]
+    public function a_first_turn_that_fails_leaves_no_conversation_and_a_retry_starts_one(): void
+    {
+        Exceptions::fake();
+        $this->signIn();
+        Http::fake(['api.anthropic.com/*' => Http::sequence()->pushStatus(500)->push($this->turn('Back.'), 200, ['Content-Type' => 'text/event-stream'])]);
+
+        $events = $this->events($this->say('Hi there'));
+
+        $this->assertFalse(end($events)['conversation_kept']);
+        $this->assertSame(0, Conversation::query()->count());
+
+        $retried = $this->say('Hi there');
+        $this->assertSame('Back.', implode('', array_column($this->ofType($this->events($retried), 'text_delta'), 'delta')));
+        $this->getJson(route('mainstay.plugins.chat.show', $this->conversation($retried)))->assertOk();
+    }
+
+    #[Test]
+    public function a_turn_that_fails_after_its_first_step_keeps_the_conversation_and_continues_in_it(): void
+    {
+        Exceptions::fake();
+        $this->signIn();
+        $id = $this->essay();
+        Http::fake(['api.anthropic.com/*' => Http::sequence()
+            ->push($this->turn('Looking.', ['toolu_1' => ['save-draft', ['type' => 'essay', 'entry' => $id, 'data' => ['title' => 'Drafted']]]]), 200, ['Content-Type' => 'text/event-stream'])
+            ->pushStatus(500)
+            ->push($this->turn('Back.'), 200, ['Content-Type' => 'text/event-stream'])]);
+
+        $failed = $this->say('Retitle the essay');
+        $events = $this->events($failed);
+
+        $this->assertTrue(end($events)['conversation_kept']);
+        $this->assertSame(1, DB::table('mainstay_drafts')->count());
+
+        $continued = $this->say('Go on', $this->conversation($failed));
+        $this->assertSame('Back.', implode('', array_column($this->ofType($this->events($continued), 'text_delta'), 'delta')));
+    }
+
+    #[Test]
+    public function an_error_the_provider_streams_is_replaced_by_ours(): void
+    {
+        Exceptions::fake();
+        $this->signIn();
+        $error = ['type' => 'error', 'error' => ['type' => 'overloaded_error', 'message' => 'Overloaded for sk-test-leaked']];
+        Http::fake(['api.anthropic.com/*' => Http::response("event: error\ndata: ".json_encode($error)."\n\n", 200, ['Content-Type' => 'text/event-stream'])]);
+
+        $response = $this->say('Hi there');
+        $events = $this->events($response);
+
+        $this->assertSame('The chat could not finish its answer. Try again.', end($events)['message']);
+        $this->assertSame([], $this->ofType($events, 'overloaded_error'));
+        $this->assertStringNotContainsString('sk-test', $response->streamedContent());
     }
 }
