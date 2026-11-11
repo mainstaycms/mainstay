@@ -56,6 +56,13 @@ function mountChat(root: HTMLElement): void {
     }
   }
 
+  // A turn that failed before anything was stored leaves no conversation behind for the id the response named.
+  function forget(id: string): void {
+    conversation = null
+    history.replaceState(null, '', location.pathname)
+    list.querySelector(`[data-conversation="${id}"]`)?.parentElement?.remove()
+  }
+
   async function stream(response: Response, title: string): Promise<void> {
     if (!response.ok || response.body === null) {
       fail(((await response.json().catch(() => null)) as { message?: string } | null)?.message ?? `The request failed (${response.status}).`)
@@ -90,9 +97,16 @@ function mountChat(root: HTMLElement): void {
             transcript.needsApproval(approval.id, approval.tool, approval.arguments)
           }
           break
-        case 'error':
-          fail((event as { message: string }).message)
+        case 'error': {
+          const failure = event as { message: string; conversation_kept: boolean }
+          fail(failure.message)
+
+          if (id !== null && !failure.conversation_kept) {
+            forget(id)
+          }
+
           break
+        }
       }
     }
   }

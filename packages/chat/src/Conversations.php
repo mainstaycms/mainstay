@@ -26,6 +26,11 @@ class Conversations
         return self::ownedBy($user)->whereKey($id)->firstOrFail();
     }
 
+    public static function has(User $user, string $id): bool
+    {
+        return self::ownedBy($user)->whereKey($id)->exists();
+    }
+
     /** @return list<array{id: string, role: string, content: string|null, tool_calls: list<array<string, mixed>>}> */
     public static function transcript(Conversation $conversation): array
     {

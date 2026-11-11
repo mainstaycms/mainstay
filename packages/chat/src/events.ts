@@ -4,7 +4,7 @@ export type StreamEvent =
   | { type: 'tool_call'; tool_id: string; tool_name: string; arguments: Record<string, unknown> }
   | { type: 'tool_result'; tool_id: string; result: string; denied?: boolean; successful?: boolean }
   | { type: 'tool_approval_request'; approvals: { id: string; tool: string; arguments: Record<string, unknown> }[] }
-  | { type: 'error'; message: string }
+  | { type: 'error'; message: string; conversation_kept: boolean }
   | { type: string }
 
 const DONE = '[DONE]'
