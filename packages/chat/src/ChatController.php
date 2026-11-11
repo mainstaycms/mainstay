@@ -96,7 +96,7 @@ class ChatController
                 }
             }
         } catch (Throwable $failure) {
-            report($failure);
+            report(ProviderFailed::from($failure, $conversation, $user->getKey()));
 
             // A turn that died before its first step is not stored, so the page must not keep the id the header gave it.
             yield 'data: '.json_encode([
