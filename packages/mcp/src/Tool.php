@@ -8,6 +8,7 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Database\RecordNotFoundException;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Validation\ValidationException;
+use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Tool as McpTool;
@@ -27,6 +28,8 @@ use Mainstay\Database\BadQuery;
 abstract class Tool extends McpTool
 {
     public function __construct(protected Operations $operations, private Schema $schema) {}
+
+    abstract public function handle(Request $request): Response|ResponseFactory;
 
     protected function answer(Closure $operation): Response|ResponseFactory
     {

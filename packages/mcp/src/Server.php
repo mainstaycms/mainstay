@@ -23,7 +23,8 @@ use Mainstay\Mainstay;
     TEXT)]
 class Server extends McpServer
 {
-    protected array $tools = [
+    /* Public so that another front end for the same operations, the admin's chat, offers the tools this server does. */
+    public const TOOLS = [
         Tools\ListTypes::class,
         Tools\DescribeType::class,
         Tools\FindEntries::class,
@@ -39,4 +40,6 @@ class Server extends McpServer
         Tools\TrashEntry::class,
         Tools\SaveGlobal::class,
     ];
+
+    protected array $tools = self::TOOLS;
 }
