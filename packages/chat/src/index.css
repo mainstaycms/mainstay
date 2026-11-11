@@ -9,3 +9,4 @@
 @source '../resources/views';
 @source './transcript.ts';
 @source './main.ts';
+@source './markdown.ts';

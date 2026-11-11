@@ -1,3 +1,5 @@
+import { renderMarkdown } from './markdown'
+
 export type Decide = (toolId: string, approved: boolean) => void
 
 type Arguments = Record<string, unknown>
@@ -25,9 +27,11 @@ function summary(args: Arguments): string {
 
 // The chat's messages, the model's tool calls as compact rows and the
 // approvals it waits on. Every text goes in as text, never as markup: it is a
-// model's, or a site's content.
+// model's, or a site's content. The model's answer is rendered as markdown by
+// a renderer that builds only safe nodes.
 export class Transcript {
   private text: HTMLElement | null = null
+  private answer = ''
   private readonly tools = new Map<string, HTMLDetailsElement>()
 
   constructor(
@@ -48,11 +52,13 @@ export class Transcript {
 
   append(delta: string): void {
     if (this.text === null) {
-      this.text = element('p', 'max-w-[80%] whitespace-pre-wrap text-sm')
+      this.text = element('div', 'max-w-[80%] break-words text-sm')
+      this.answer = ''
       this.root.append(this.text)
     }
 
-    this.text.textContent += delta
+    this.answer += delta
+    renderMarkdown(this.answer, this.text)
   }
 
   toolCall(id: string, name: string, args: Arguments): void {

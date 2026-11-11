@@ -82,3 +82,38 @@ test('a turn that failed after it was stored keeps its conversation', async () =
 
   expect(sentBody(1).conversation).toBe(CONVERSATION)
 })
+
+test('a streamed answer shows as markdown, with raw html left as text', async () => {
+  mount()
+  vi.mocked(fetch).mockResolvedValueOnce(events({ type: 'text_delta', delta: '# Title\n\n- **one**\n- two <img src=x onerror=alert(1)>\n\n' }, { type: 'text_delta', delta: '[docs](javascript:alert(1)) and [ok](https://example.com)' }))
+  await import('./main')
+
+  await send('Hi')
+
+  const transcript = document.querySelector('[data-transcript]')!
+  expect(transcript.querySelector('h1')!.textContent).toBe('Title')
+  expect(transcript.querySelector('li strong')!.textContent).toBe('one')
+  expect(transcript.querySelector('img')).toBeNull()
+  expect(transcript.textContent).toContain('<img src=x onerror=alert(1)>')
+  expect(Array.from(transcript.querySelectorAll('a')).map((anchor) => anchor.getAttribute('href'))).toEqual(['https://example.com/'])
+})
+
+test('a saved conversation renders its answers as markdown and its questions as text', async () => {
+  mount().dataset.open = CONVERSATION
+  vi.mocked(fetch).mockResolvedValueOnce(
+    Response.json({
+      messages: [
+        { role: 'user', content: 'a **question**', tool_calls: [] },
+        { role: 'assistant', content: 'An `answer` with\n\n```\ncode\n```', tool_calls: [] },
+      ],
+    }),
+  )
+  await import('./main')
+
+  await vi.waitFor(() => expect(document.querySelector('[data-transcript] code')).not.toBeNull())
+
+  const transcript = document.querySelector('[data-transcript]')!
+  expect(transcript.querySelectorAll('code')).toHaveLength(2)
+  expect(transcript.querySelectorAll('strong')).toHaveLength(0)
+  expect(transcript.textContent).toContain('a **question**')
+})

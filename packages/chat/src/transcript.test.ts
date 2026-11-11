@@ -47,3 +47,38 @@ test('text streams into one paragraph until a tool call interrupts it', () => {
 
   expect(Array.from(root.querySelectorAll('p')).map((paragraph) => paragraph.textContent)).toEqual(['Hello', 'Done'])
 })
+
+test('an answer is rendered as markdown again on each delta, half a marker showing as typed', () => {
+  const { root, transcript } = open()
+
+  transcript.append('Some **bo')
+  expect(root.textContent).toBe('Some **bo')
+  expect(root.querySelector('strong')).toBeNull()
+
+  transcript.append('ld** text\n\n```\nco')
+  expect(root.querySelector('strong')!.textContent).toBe('bold')
+  expect(root.querySelector('pre code')!.textContent).toBe('co')
+
+  transcript.append('de\n```')
+  expect(root.querySelector('pre code')!.textContent).toBe('code')
+  expect(root.children).toHaveLength(1)
+})
+
+test('what a user wrote stays plain text', () => {
+  const { root, transcript } = open()
+
+  transcript.user('**not bold** <b>x</b>')
+
+  expect(root.textContent).toBe('**not bold** <b>x</b>')
+  expect(root.querySelector('strong, b')).toBeNull()
+})
+
+test('a tool call ends the answer, and the next text renders on its own', () => {
+  const { root, transcript } = open()
+
+  transcript.append('**one**')
+  transcript.toolCall('call_3', 'list-types', {})
+  transcript.append('**two**')
+
+  expect(Array.from(root.querySelectorAll('strong')).map((strong) => strong.textContent)).toEqual(['one', 'two'])
+})
