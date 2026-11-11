@@ -1,0 +1,17 @@
+{
+    "name": "mainstay/chat",
+    "description": "A chat in the Mainstay admin where a language model edits content through the same tools as the MCP server.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "mainstay/ai": "self.version",
+        "mainstay/cms": "self.version",
+        "mainstay/mcp": "self.version"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mainstay\\Chat\\": "src/"
+        }
+    }
+}
