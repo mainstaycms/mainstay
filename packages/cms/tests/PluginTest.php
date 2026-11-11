@@ -7,10 +7,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 use LogicException;
+use Mainstay\Admin\TabOrder;
 use Mainstay\Auth\Capabilities;
 use Mainstay\Auth\Gate;
 use Mainstay\Auth\Role;
 use Mainstay\Auth\User;
+use Mainstay\Content\Tabs;
 use Mainstay\Events\Deleted;
 use Mainstay\Events\Published;
 use Mainstay\Events\Restored;
@@ -24,6 +26,7 @@ use Mainstay\Tests\Fixtures\Plugins\Named;
 use Mainstay\Tests\Fixtures\Plugins\NamedToo;
 use Mainstay\Tests\Fixtures\Plugins\Seo;
 use Mainstay\Tests\Fixtures\Plugins\SeoFaq;
+use Mainstay\Tests\Fixtures\Plugins\SeoFirst;
 use Mainstay\Tests\Fixtures\Plugins\SeoRedirect;
 use Mainstay\Tests\Fixtures\Plugins\SeoSettings;
 use Mainstay\Tests\Fixtures\Plugins\Unfinished;
@@ -110,6 +113,27 @@ class PluginTest extends DatabaseTestCase
         $this->assertStringContainsString('seo_redirect /said', html_entity_decode(strip_tags($redirect->getContent())));
 
         $this->get(route('mainstay.entries', 'seo_settings'))->assertOk()->assertDontSee('data-tabs', escape: false)->assertSee('vendor/seo/seo.js?v=', escape: false);
+    }
+
+    #[Test]
+    public function an_entry_forms_tabs_are_alphabetical_unless_the_type_names_the_ones_to_put_first(): void
+    {
+        $labels = ['details' => 'Details', 'seo' => 'SEO', 'content' => 'Content', 'notes' => 'élan'];
+
+        $this->assertSame(['content', 'details', 'notes', 'seo'], array_keys(TabOrder::of(SeoRedirect::class, $labels)), 'Case and accents do not decide.');
+        $this->assertSame(['seo', 'details', 'content', 'notes'], array_keys(TabOrder::of(SeoFirst::class, $labels)), 'Those named first, in the order named, then the rest alphabetical.');
+        $this->assertThrows(fn () => TabOrder::of(SeoFirst::class, ['details' => 'Details']), InvalidArgumentException::class, "puts the tab 'seo' first, and its form has none");
+        $this->assertThrows(fn () => new Tabs, InvalidArgumentException::class, '#[Tabs] names the tabs to put first');
+    }
+
+    #[Test]
+    public function the_form_draws_a_plugins_tab_among_the_alphabetical_ones_with_ids_unchanged(): void
+    {
+        $this->signIn($this->user(role: 'administrator'));
+
+        $html = $this->get(route('mainstay.entries.create', 'seo_redirect'))->assertOk()->getContent();
+
+        $this->assertLessThan(strpos($html, 'id="notes-tab"'), strpos($html, 'id="details-tab"'));
     }
 
     #[Test]

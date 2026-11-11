@@ -252,12 +252,14 @@ class PartsTest extends DatabaseTestCase
     #[Test]
     public function the_edit_screen_has_the_content_tab_and_a_global_that_is_no_part_has_none(): void
     {
-        $this->get(route('mainstay.entries', 'footer'))->assertOk()
+        $form = $this->get(route('mainstay.entries', 'footer'))->assertOk();
+        $form
             ->assertSee('id="content-tab"', escape: false)
             ->assertSee('data-canvas-url="'.route('mainstay.canvas.global', 'footer').'"', escape: false)
             ->assertSee('data-insert="block:brand"', escape: false)
             ->assertSee('data-insert="block:legal"', escape: false)
             ->assertSee('Raw content');
+        $this->assertLessThan(strpos($form->getContent(), 'id="details-tab"'), strpos($form->getContent(), 'id="content-tab"'), 'Alphabetical: Content before Details.');
         $this->get(route('mainstay.entries', 'menu'))->assertOk()->assertDontSee('data-insert="block:brand"', escape: false);
         $this->get(route('mainstay.entries', 'site_settings'))->assertOk()->assertDontSee('data-tabs', escape: false)->assertDontSee('data-canvas', escape: false);
     }

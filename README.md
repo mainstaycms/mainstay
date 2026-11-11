@@ -361,6 +361,16 @@ end of the tab bar and an aside in the publishing rail's place while the tab is 
 the scripts and stylesheets, relative to `public/vendor/<handle>`, that every admin screen loads after
 Mainstay's own; the plugin publishes them under the `mainstay-assets` tag.
 
+An entry's form, a template part's included, draws its tabs -- Details, the Content tab, and any a plugin
+adds -- alphabetically by label, and opens on the first, so Content comes before Details. `#[Tabs]` on
+a content type or a part puts the tabs it names first, by id, in that order, and the rest follow
+alphabetically; an id the form has no tab for is an error. A tab's id is the same either way:
+
+```php
+#[Tabs('details', 'content')]
+class Page extends Entry {}
+```
+
 `Saved`, `Published`, `Deleted` and `Restored`, in `Mainstay\Events`, carry the type and id of live
 content written, heard once the write commits and never when it rolls back. Your app listens to them
 with `Event::listen` as a plugin does.

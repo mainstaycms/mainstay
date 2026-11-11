@@ -90,13 +90,15 @@
                 @endif
             </div>
 
-            {{-- A plugin adds its tabs beside Details, which is every field
-                 and opens first -- and again after a save a field refused.
+            {{-- A plugin adds its tabs beside Details, which is every field.
+                 The bar is alphabetical unless the type's #[Tabs] says, and
+                 opens on its first tab -- and on Details after a save a field
+                 refused.
                  A tab's toolbar sits at the end of the tabs' bar while it is
                  open; its script shows and hides it. --}}
             @if ($tabs !== [])
                 <div class="relative shrink-0">
-                    <x-mainstay::tabs name="entry" label="Edit" :tabs="['details' => 'Details', ...collect($tabs)->mapWithKeys(fn ($each) => [$each['tab']->handle() => $each['tab']->label()])->all()]" :data-tabs-open="$errors->isNotEmpty() ? 'details' : null" />
+                    <x-mainstay::tabs name="entry" label="Edit" :tabs="\Mainstay\Admin\TabOrder::of($class, ['details' => 'Details', ...collect($tabs)->mapWithKeys(fn ($each) => [$each['tab']->handle() => $each['tab']->label()])->all()])" :data-tabs-open="$errors->isNotEmpty() ? 'details' : null" />
                     @foreach ($tabs as $each)
                         @if ($each['tab']->toolbar())
                             @include($each['tab']->toolbar(), $each['data'])
