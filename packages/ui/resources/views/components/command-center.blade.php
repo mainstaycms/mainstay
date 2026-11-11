@@ -56,7 +56,7 @@
      | modifier regardless, so a wrong guess costs a misleading badge rather
      | than a broken shortcut.
     --}}
-    <kbd data-command-shortcut class="pointer-events-none absolute right-1.5 top-1/2 h-4.5 -translate-y-1/2 rounded-control border border-border px-1.5 text-center font-sans text-[0.6875rem] leading-4.5 text-muted">Ctrl K</kbd>
+    <kbd data-command-shortcut class="pointer-events-none max-sm:hidden absolute right-1.5 top-1/2 h-4.5 -translate-y-1/2 rounded-control border border-border px-1.5 text-center font-sans text-[0.6875rem] leading-4.5 text-muted">Ctrl K</kbd>
 
     <p data-command-empty hidden class="{{ $panel }} px-3 py-2 text-sm text-muted">No matches</p>
 

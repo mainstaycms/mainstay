@@ -15,7 +15,7 @@
         @if ($website)
             <nav aria-label="Main" class="flex items-center">
                 <x-mainstay::menu-item compact :href="$website" target="_blank" rel="noreferrer" class="gap-1.5">
-                    Visit website
+                    <span class="max-sm:sr-only">Visit website</span>
                     {{-- The icon is decorative, so on its own it tells a screen
                          reader nothing about the new tab it is warning sighted
                          users about. --}}
@@ -28,7 +28,9 @@
 
     <x-mainstay::command-center :commands="$commands" class="w-full max-w-sm" />
 
-    <div class="flex flex-1 justify-end">
+    {{-- What only some screens have, beside the user menu: Screen options. --}}
+    <div class="flex flex-1 items-center justify-end gap-2">
+        {{ $tools ?? '' }}
         <x-mainstay::user-menu :name="$name" :email="$email">{{ $slot }}</x-mainstay::user-menu>
     </div>
 </header>
