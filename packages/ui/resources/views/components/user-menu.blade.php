@@ -10,7 +10,7 @@
 <x-mainstay::dropdown align="end" trigger-class="h-6 px-1.5 text-xs font-medium text-ink hover:bg-canvas" {{ $attributes }}>
     <x-slot:label>
         <span aria-hidden="true" class="flex size-5 items-center justify-center rounded-full bg-accent text-[0.6875rem] font-semibold text-accent-ink">{{ $initials }}</span>
-        <span class="max-w-40 truncate">{{ $name }}</span>
+        <span class="max-w-40 truncate max-sm:sr-only">{{ $name }}</span>
     </x-slot:label>
 
     {{-- Widens the panel past its min-w-48 and gives the truncating email

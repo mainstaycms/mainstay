@@ -5,6 +5,7 @@ namespace Mainstay\Forms;
 use Mainstay\Content\Document;
 use Mainstay\Content\Entry;
 use Mainstay\Content\HoldsPage;
+use Mainstay\Content\Icon;
 use Mainstay\Content\PublicRead;
 use Mainstay\Fields\Blocks;
 use Mainstay\Fields\Internal;
@@ -29,6 +30,7 @@ use Mainstay\Forms\Fields\Redirect;
  | for who is mailed. A submitter is sent on to `redirect` when it is set, and
  | otherwise shown `message`.
  */
+#[Icon('list')]
 #[PublicRead]
 #[Blocks([TextInput::class, EmailInput::class, Textarea::class, Select::class, Checkbox::class, SubmitButton::class])]
 class Form extends Entry implements HoldsPage

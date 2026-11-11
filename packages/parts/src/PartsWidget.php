@@ -27,6 +27,11 @@ class PartsWidget extends Widget
         return 'Template parts';
     }
 
+    public function description(): string
+    {
+        return 'Each template part, such as the header or footer, and whether it is published, changed, a draft or empty.';
+    }
+
     public function view(): string
     {
         return 'parts::widgets.parts';

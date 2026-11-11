@@ -24,6 +24,11 @@ class ConnectorsWidget extends Widget
         return 'AI connectors';
     }
 
+    public function description(): string
+    {
+        return 'Which AI providers have a key, and which provider each kind of work goes to.';
+    }
+
     public function view(): string
     {
         return 'ai::widgets.connectors';

@@ -18,6 +18,11 @@ class DashedMetrics extends Widget
         return 'Dashed metrics';
     }
 
+    public function description(): string
+    {
+        return 'Counts the dashed things.';
+    }
+
     public function view(): string
     {
         return 'dashed::widgets.metrics';

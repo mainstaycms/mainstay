@@ -230,6 +230,10 @@ Mainstay::types([Page::class]);
 
 With `MAINSTAY_SCHEMA_SYNC=true` in development's `.env`, `php artisan mainstay:sync` makes its table.
 
+A content type or a part carries `#[Icon]` too, which is its item in the admin's sidebar in place of its
+kind's icon: `#[Icon('newspaper')]` on an `Article`. Inside a sidebar group -- Content, Globals, a part's
+heading, Plugins -- the items are alphabetical by label.
+
 ### Write a block
 
 A block is a class with fields, as a content type is, drawn by a Blade view named after it. `@field`
@@ -357,6 +361,16 @@ end of the tab bar and an aside in the publishing rail's place while the tab is 
 the scripts and stylesheets, relative to `public/vendor/<handle>`, that every admin screen loads after
 Mainstay's own; the plugin publishes them under the `mainstay-assets` tag.
 
+An entry's form, a template part's included, draws its tabs -- Details, the Content tab, and any a plugin
+adds -- alphabetically by label, and opens on the first, so Content comes before Details. `#[Tabs]` on
+a content type or a part puts the tabs it names first, by id, in that order, and the rest follow
+alphabetically; an id the form has no tab for is an error. A tab's id is the same either way:
+
+```php
+#[Tabs('details', 'content')]
+class Page extends Entry {}
+```
+
 `Saved`, `Published`, `Deleted` and `Restored`, in `Mainstay\Events`, carry the type and id of live
 content written, heard once the write commits and never when it rolls back. Your app listens to them
 with `Event::listen` as a plugin does.
@@ -367,10 +381,10 @@ in the request throws after the content has committed; make one that can fail a 
 
 ### Dashboard widgets
 
-The admin's front page is a grid of widgets, and each user chooses which to show under **Screen options**,
-at its top right. A widget is a class extending `Mainstay\Admin\Widget` that draws a Blade view.
+The admin's front page is a masonry of widgets, flowing down one, two or three columns by screen width, each
+as tall as its content, and each user chooses which to show under **Screen options**, a dialog opened from the top bar. A widget is a class extending `Mainstay\Admin\Widget` that draws a Blade view.
 Core has one, *At a glance*, which counts the entries and media the user may read. Yours is a handle,
-a title and a view:
+a title and a view, and a one-sentence `description()` that Screen options shows under the title:
 
 ```php
 namespace App\Dashboard;
@@ -389,6 +403,11 @@ class LatestOrders extends Widget
     public function title(): string
     {
         return 'Latest orders';
+    }
+
+    public function description(): string
+    {
+        return 'The five newest orders, with their status.';
     }
 
     public function view(): string
@@ -429,13 +448,27 @@ ask for what it needs, and a handle another widget has is refused. Nothing in th
 
 `visibleTo()` is where a widget checks the capability that makes it useful. Someone it returns false for
 never sees the widget or its checkbox, and cannot switch it on by posting its handle. Beyond that a widget
-may override `columns()` (`2` spans the full row, `1` is the default) and `enabledByDefault()` (`false`
+may override `enabledByDefault()` (`false`
 leaves it off until a user ticks it).
 
 Screen options are saved per account, as a map of handle to on or off under `dashboard.widgets` in the
 new `preferences` JSON column of `mainstay_users`, which `php artisan migrate` adds. A widget a user has
 never chosen follows `enabledByDefault()`. Your own code reads and writes the same column with
 `$user->preference('dashboard.widgets')` and `$user->setPreference('editor.density', 'compact')`.
+
+Screen options are not the dashboard's alone: any admin screen can offer its own. A screen's Blade view fills
+the layout's `options` slot, with a form that saves what the user chooses, and the layout adds the button to
+the top bar and draws the slot in a dialog. A screen that fills nothing has no button, so only the current
+screen's options are ever shown:
+
+```blade
+<x-mainstay::admin :breadcrumb="[['label' => 'Orders']]">
+    <x-slot:options>
+        <form method="post" action="{{ route('orders.screen') }}">@csrf ...</form>
+    </x-slot:options>
+    ...
+</x-mainstay::admin>
+```
 
 ### Over HTTP and MCP
 

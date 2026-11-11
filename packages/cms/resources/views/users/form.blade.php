@@ -30,7 +30,7 @@
 
     <form id="account-form" method="post" action="{{ $account === null ? route('mainstay.users.store') : route('mainstay.users.update', $account->id) }}" data-dirty-form class="h-full overflow-y-auto">
         @csrf
-        <fieldset @disabled(! $changes) class="mx-auto max-w-3xl space-y-6 px-6 py-8">
+        <fieldset @disabled(! $changes) class="space-y-6 px-6 py-8">
             <x-mainstay::notices :messages="$errors->all()" />
 
             @if ($invited)

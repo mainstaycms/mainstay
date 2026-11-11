@@ -13,7 +13,8 @@ use InvalidArgumentException;
  | as every icon in the admin is, or an SVG file of the site's,
  | `#[Icon(file: 'icons/hero.svg')]`, under resources/ unless the path is
  | absolute, drawn with its own colours. A block with none is drawn with
- | `block`. On a plugin's class, it is the plugin's item in the sidebar.
+ | `block`. On a plugin's class, it is the plugin's item in the sidebar, and on a
+ | content type's, the type's.
  |
  | A file is drawn as an image of itself rather than inlined: the admin draws
  | each icon more than once, and an inlined copy's ids -- a gradient's, a clip

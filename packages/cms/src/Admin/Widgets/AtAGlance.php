@@ -30,6 +30,11 @@ class AtAGlance extends Widget
         return 'At a glance';
     }
 
+    public function description(): string
+    {
+        return 'How many entries each content type has, and how many media files, linking to their lists.';
+    }
+
     public function view(): string
     {
         return 'mainstay::widgets.at-a-glance';

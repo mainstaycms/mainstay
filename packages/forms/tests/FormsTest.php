@@ -13,6 +13,7 @@ use Illuminate\Testing\TestResponse;
 use Illuminate\Validation\ValidationException;
 use Mainstay\Auth\Role;
 use Mainstay\Auth\User;
+use Mainstay\Content\Icon;
 use Mainstay\Facades\Mainstay;
 use Mainstay\Forms\Form;
 use Mainstay\Forms\FormRules;
@@ -25,6 +26,7 @@ use Mainstay\Http\AuthenticateToken;
 use Mainstay\PageBuilder\PageBuilderPlugin;
 use Mainstay\Tests\DatabaseTestCase;
 use PHPUnit\Framework\Attributes\Test;
+use ReflectionClass;
 use RuntimeException;
 
 /*
@@ -135,6 +137,14 @@ class FormsTest extends DatabaseTestCase
         $this->assertSame(['text_input', 'email_input', 'textarea', 'select', 'checkbox', 'submit_button'], array_map(fn ($block) => $block::handle(), $form->content->blocks()));
         $this->assertStringContainsString('<p>Write to us.</p>', $form->content->toHtml());
         $this->assertSame('desk@example.com, boss@example.com', $form->recipients);
+    }
+
+    #[Test]
+    public function forms_and_submissions_declare_icons_for_the_sidebar(): void
+    {
+        foreach ([Form::class => 'list', Submission::class => 'mail'] as $type => $name) {
+            $this->assertSame($name, (new ReflectionClass($type))->getAttributes(Icon::class)[0]->newInstance()->name);
+        }
     }
 
     #[Test]

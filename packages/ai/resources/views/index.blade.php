@@ -21,7 +21,7 @@
     </x-slot:actions>
 
     <div class="h-full overflow-y-auto">
-        <div class="mx-auto max-w-4xl space-y-6 px-6 py-8">
+        <div class="space-y-6 px-6 py-8">
             <x-mainstay::notices :messages="$errors->all()" />
 
             <section aria-labelledby="providers-heading" class="space-y-3">

@@ -29,7 +29,7 @@
 
     <form id="role-form" method="post" action="{{ $role->exists ? route('mainstay.roles.update', $role->id) : route('mainstay.roles.store') }}" data-dirty-form class="h-full overflow-y-auto">
         @csrf
-        <fieldset @disabled(! $changes) class="mx-auto max-w-4xl space-y-6 px-6 py-8">
+        <fieldset @disabled(! $changes) class="space-y-6 px-6 py-8">
             <x-mainstay::notices :messages="$errors->all()" />
 
             <x-mainstay::field-group label="Role">

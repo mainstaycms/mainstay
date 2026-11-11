@@ -34,6 +34,11 @@ class SubmissionsWidget extends Widget
         return 'Submissions';
     }
 
+    public function description(): string
+    {
+        return 'How many form submissions there are, and the newest ones.';
+    }
+
     public function view(): string
     {
         return 'forms::widgets.submissions';

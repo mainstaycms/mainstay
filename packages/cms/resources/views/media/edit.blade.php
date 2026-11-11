@@ -26,7 +26,7 @@
 
     <form id="media-form" method="post" action="{{ route('mainstay.media.update', $media->id) }}" data-dirty-form class="h-full overflow-y-auto">
         @csrf
-        <fieldset @disabled(! $updates) class="mx-auto max-w-3xl space-y-6 px-6 py-8">
+        <fieldset @disabled(! $updates) class="space-y-6 px-6 py-8">
             <x-mainstay::notices :messages="$errors->all()" />
             @include('mainstay::media.fields')
         </fieldset>

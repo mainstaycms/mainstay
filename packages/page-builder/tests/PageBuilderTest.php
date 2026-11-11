@@ -138,10 +138,12 @@ class PageBuilderTest extends DatabaseTestCase
     #[Test]
     public function the_content_tab_and_its_script_are_on_a_routed_types_form_and_the_endpoints_refuse_whoever_may_not_write(): void
     {
-        $this->get(route('mainstay.entries.create', 'post'))->assertOk()
+        $form = $this->get(route('mainstay.entries.create', 'post'))->assertOk();
+        $form
             ->assertSee('id="content-tab"', escape: false)
             ->assertSee('vendor/page_builder/page-builder.js?v=', escape: false)
             ->assertSee('vendor/page_builder/page-builder.css?v=', escape: false);
+        $this->assertLessThan(strpos($form->getContent(), 'id="details-tab"'), strpos($form->getContent(), 'id="content-tab"'), 'Alphabetical: Content before Details.');
 
         $this->signIn($this->user(['edit_posts']));
         $this->post(route('mainstay.canvas.create', 'spread'), ['title' => 'Mine'])->assertForbidden();
