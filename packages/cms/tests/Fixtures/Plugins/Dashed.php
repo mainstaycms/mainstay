@@ -13,6 +13,11 @@ class Dashed extends Plugin
         return 'dashed';
     }
 
+    public static function label(): string
+    {
+        return 'Dashed';
+    }
+
     public function types(): array
     {
         return [Post::class];

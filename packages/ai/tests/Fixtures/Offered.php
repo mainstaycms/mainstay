@@ -16,6 +16,11 @@ class Offered extends Plugin implements DeclaresProviders
         return 'offered';
     }
 
+    public static function label(): string
+    {
+        return 'Offered';
+    }
+
     public function providers(): array
     {
         return static::$providers;

@@ -27,6 +27,11 @@ class PageBuilderPlugin extends Plugin
         return 'page_builder';
     }
 
+    public static function label(): string
+    {
+        return 'Page builder';
+    }
+
     public function views(): ?string
     {
         return __DIR__.'/../resources/views';

@@ -268,7 +268,7 @@ class ConnectorTest extends DatabaseTestCase
             ->assertDontSee('id="default-images"', false);
 
         $this->signIn(['manage_users']);
-        $this->get(route('mainstay.roles.create'))->assertOk()->assertSeeInOrder(['Plugins', 'Ai Connectors', 'value="use_ai"'], false);
+        $this->get(route('mainstay.roles.create'))->assertOk()->assertSeeInOrder(['Plugins', 'Connectors', 'value="use_ai"'], false);
     }
 
     #[Test]

@@ -19,6 +19,11 @@ class Seo extends Plugin
         return 'seo';
     }
 
+    public static function label(): string
+    {
+        return 'Search engines';
+    }
+
     public function types(): array
     {
         return [SeoRedirect::class, SeoSettings::class];

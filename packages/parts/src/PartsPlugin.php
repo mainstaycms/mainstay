@@ -20,6 +20,11 @@ class PartsPlugin extends Plugin
         return 'parts';
     }
 
+    public static function label(): string
+    {
+        return 'Template parts';
+    }
+
     public function views(): ?string
     {
         return __DIR__.'/../resources/views';

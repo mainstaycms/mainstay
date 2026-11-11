@@ -5,6 +5,7 @@ namespace Mainstay\Tests;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use LogicException;
 use Mainstay\Admin\TabOrder;
@@ -60,6 +61,7 @@ class PluginTest extends DatabaseTestCase
 
         Heard::$events = [];
         Named::$handle = 'named';
+        Named::$label = 'Named';
         $this->artisan('mainstay:sync')->assertSuccessful();
     }
 
@@ -162,6 +164,12 @@ class PluginTest extends DatabaseTestCase
         $this->refused(fn () => (new Registry)->loadPlugins([42]), 'int is not a Mainstay plugin');
         $this->refused(fn () => (new Registry)->loadPlugins([Unfinished::class]), Unfinished::class.' is abstract');
 
+        foreach (['', '  '] as $blank) {
+            Named::$label = $blank;
+            $this->refused(fn () => (new Registry)->loadPlugins([Named::class]), Named::class.' has a blank label()');
+        }
+        Named::$label = 'Named';
+
         Named::$handle = 'Seo-Tools';
         $this->refused(fn () => (new Registry)->loadPlugins([Named::class]), "a plugin's handle is lowercase letters, digits and underscores");
 
@@ -187,6 +195,17 @@ class PluginTest extends DatabaseTestCase
     }
 
     #[Test]
+    public function a_plugins_sidebar_item_carries_the_label_it_declares_and_not_its_class_name(): void
+    {
+        request()->attributes->set(Gate::USER, $this->user(['use_seo']));
+
+        $items = collect(Navigation::sections())->firstWhere('label', 'Plugins')['items'];
+
+        $this->assertSame(['Search engines'], array_column($items, 'label'));
+        $this->assertNotSame(Str::headline(class_basename(Seo::class)), $items[0]['label']);
+    }
+
+    #[Test]
     public function a_plugins_screens_answer_inside_the_sign_in_to_whoever_holds_its_capability(): void
     {
         $this->assertSame('/admin/seo', route('mainstay.plugins.seo.index', absolute: false));
@@ -198,7 +217,7 @@ class PluginTest extends DatabaseTestCase
 
         $this->signIn($this->user(['use_seo']));
         $this->get('/admin/seo')->assertOk()->assertSee('Every redirect');
-        $this->get(route('mainstay.admin'))->assertOk()->assertSee('href="/admin/seo"', false)->assertSee('Seo');
+        $this->get(route('mainstay.admin'))->assertOk()->assertSee('href="/admin/seo"', false)->assertSee('Search engines');
 
         $this->signIn($this->user(role: 'administrator'));
         $this->get('/admin/seo')->assertOk();
@@ -254,7 +273,7 @@ class PluginTest extends DatabaseTestCase
         $this->assertContains('use_seo', Mainstay::capabilities());
 
         $this->signIn($this->user(role: 'administrator'));
-        $this->get(route('mainstay.roles.create'))->assertOk()->assertSeeInOrder(['Plugins', 'Use', 'Seo', 'value="use_seo"'], false);
+        $this->get(route('mainstay.roles.create'))->assertOk()->assertSeeInOrder(['Plugins', 'Use', 'Search engines', 'value="use_seo"'], false);
 
         $manager = $this->user([Capabilities::USERS]);
         $this->app['request']->attributes->set(Gate::USER, $manager);

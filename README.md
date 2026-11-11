@@ -312,6 +312,11 @@ class Seo extends Plugin
         return 'seo';
     }
 
+    public static function label(): string
+    {
+        return 'SEO';
+    }
+
     public function types(): array
     {
         return [SeoRedirect::class, SeoSettings::class];
@@ -334,7 +339,8 @@ class Seo extends Plugin
 }
 ```
 
-The handle names everything the plugin takes: its views are `seo::`, its screens are under
+The label is its name in the sidebar and in the roles grid. It has no default, since a class's name is
+not a label, and a blank one is refused as Mainstay boots. The handle names everything the plugin takes: its views are `seo::`, its screens are under
 `/admin/seo` and its capability is `use_seo`. A handle one of the admin's screens, a view namespace, a
 type or another plugin has already is refused as Mainstay boots.
 

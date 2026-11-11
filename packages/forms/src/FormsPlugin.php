@@ -34,6 +34,11 @@ class FormsPlugin extends Plugin
         return 'forms';
     }
 
+    public static function label(): string
+    {
+        return 'Forms';
+    }
+
     public function types(): array
     {
         return [Form::class, Submission::class];

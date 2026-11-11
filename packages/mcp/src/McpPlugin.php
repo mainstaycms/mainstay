@@ -22,6 +22,11 @@ class McpPlugin extends Plugin
         return 'mcp_server';
     }
 
+    public static function label(): string
+    {
+        return 'MCP server';
+    }
+
     public function views(): ?string
     {
         return __DIR__.'/../resources/views';
