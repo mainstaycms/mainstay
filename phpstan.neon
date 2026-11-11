@@ -6,6 +6,7 @@ parameters:
     level: 5
     paths:
         - packages/ai/src
+        - packages/chat/src
         - packages/cms/src
         - packages/forms/src
         - packages/mcp/src

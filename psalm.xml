@@ -12,6 +12,7 @@
 >
     <projectFiles>
         <directory name="packages/ai/src"/>
+        <directory name="packages/chat/src"/>
         <directory name="packages/cms/src"/>
         <directory name="packages/forms/src"/>
         <directory name="packages/mcp/src"/>

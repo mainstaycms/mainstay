@@ -2,6 +2,7 @@ packages:
   - packages/ui
   - packages/editor
   - packages/page-builder
+  - packages/chat
   - packages/cms/resources/js
 
 # Storybook's Vite builder needs esbuild's platform binary, which arrives via

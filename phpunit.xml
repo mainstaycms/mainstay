@@ -10,6 +10,7 @@
     <testsuites>
         <testsuite name="Mainstay">
             <directory>packages/ai/tests</directory>
+            <directory>packages/chat/tests</directory>
             <directory>packages/cms/tests</directory>
             <directory>packages/forms/tests</directory>
             <directory>packages/mcp/tests</directory>
@@ -22,6 +23,7 @@
     <source>
         <include>
             <directory>packages/ai/src</directory>
+            <directory>packages/chat/src</directory>
             <directory>packages/cms/src</directory>
             <directory>packages/forms/src</directory>
             <directory>packages/mcp/src</directory>

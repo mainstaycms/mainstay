@@ -10,6 +10,7 @@
         "larastan/larastan": "^3.14",
         "laravel/pint": "^1.18",
         "mainstay/ai": "@dev",
+        "mainstay/chat": "@dev",
         "mainstay/cms": "@dev",
         "mainstay/forms": "@dev",
         "mainstay/mcp": "@dev",
@@ -25,6 +26,13 @@
         {
             "type": "path",
             "url": "packages/ai",
+            "options": {
+                "symlink": true
+            }
+        },
+        {
+            "type": "path",
+            "url": "packages/chat",
             "options": {
                 "symlink": true
             }
@@ -82,6 +90,7 @@
     "autoload-dev": {
         "psr-4": {
             "Mainstay\\Ai\\Tests\\": "packages/ai/tests/",
+            "Mainstay\\Chat\\Tests\\": "packages/chat/tests/",
             "Mainstay\\Forms\\Tests\\": "packages/forms/tests/",
             "Mainstay\\Mcp\\Tests\\": "packages/mcp/tests/",
             "Mainstay\\PageBuilder\\Tests\\": "packages/page-builder/tests/",
