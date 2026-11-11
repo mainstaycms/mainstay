@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "bc263c90fdfbde382fede3e30d9477a5",
+    "content-hash": "b7743dba00bb4cba83b48f6221207d5a",
     "packages": [],
     "packages-dev": [
         {
@@ -4081,6 +4081,35 @@
                 "MIT"
             ],
             "description": "AI providers for Mainstay: keys, defaults and a Connectors screen over laravel/ai.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
+            "name": "mainstay/chat",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/chat",
+                "reference": "140fca1e5b4b4b452ad93bf30e2189ec6336f759"
+            },
+            "require": {
+                "mainstay/ai": "self.version",
+                "mainstay/cms": "self.version",
+                "mainstay/mcp": "self.version",
+                "php": "^8.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mainstay\\Chat\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "A chat in the Mainstay admin where a language model edits content through the same tools as the MCP server.",
             "transport-options": {
                 "symlink": true,
                 "relative": true
@@ -12271,6 +12300,7 @@
     "minimum-stability": "dev",
     "stability-flags": {
         "mainstay/ai": 20,
+        "mainstay/chat": 20,
         "mainstay/cms": 20,
         "mainstay/forms": 20,
         "mainstay/mcp": 20,

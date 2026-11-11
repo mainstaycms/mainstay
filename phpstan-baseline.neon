@@ -13,6 +13,12 @@ parameters:
 			path: packages/ai/src/ConnectorController.php
 
 		-
+			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: packages/chat/src/ChatController.php
+
+		-
 			message: '#^Only iterables can be unpacked, string given\.$#'
 			identifier: arrayUnpacking.nonIterable
 			count: 1
