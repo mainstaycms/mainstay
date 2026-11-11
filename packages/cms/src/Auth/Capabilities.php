@@ -64,7 +64,7 @@ final class Capabilities
      | Each plugin with admin screens and the capability they answer to,
      | `use_<handle>`: the one list its routes, the sidebar, the roles grid and
      | the names a role may hold all read, so none of them can disagree. A
-     | plugin without screens has nothing for one to open. No type's name
+     | plugin with neither screens nor tools has nothing for one to open. No type's name
      | starts `use_`, so none collides.
      |
      | @return array<class-string<Plugin>, string>
@@ -74,7 +74,7 @@ final class Capabilities
         $names = [];
 
         foreach (app(Mainstay::class)->plugins() as $handle => $plugin) {
-            if ($plugin->routes() !== null) {
+            if ($plugin->routes() !== null || $plugin->tools() !== null) {
                 $names[$plugin::class] = "use_{$handle}";
             }
         }

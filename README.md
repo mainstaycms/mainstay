@@ -367,6 +367,13 @@ end of the tab bar and an aside in the publishing rail's place while the tab is 
 the scripts and stylesheets, relative to `public/vendor/<handle>`, that every admin screen loads after
 Mainstay's own; the plugin publishes them under the `mainstay-assets` tag.
 
+`tools()` returns the name of a view drawn on every admin screen, for someone holding `use_<handle>` and
+for no one else: in the top bar beside the user menu, where it draws its button, and it
+`@push('dialogs')` the dialog the button opens. The dialog's id is `<handle>-dialog`, which is how the
+command center lists the tool under Open and opens it. The view is given `$label`, the plugin's
+`label()`. A plugin with `tools()` is one with screens even without `routes()`, and needs no route
+named `index`, so no sidebar item.
+
 An entry's form, a template part's included, draws its tabs -- Details, the Content tab, and any a plugin
 adds -- alphabetically by label, and opens on the first, so Content comes before Details. `#[Tabs]` on
 a content type or a part puts the tabs it names first, by id, in that order, and the rest follow
