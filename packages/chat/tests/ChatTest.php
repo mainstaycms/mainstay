@@ -4,11 +4,14 @@ namespace Mainstay\Chat\Tests;
 
 use Closure;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Laravel\Ai\Exceptions\ProviderConnectionException;
 use Laravel\Ai\Models\Conversation;
 use Laravel\Ai\Tools\Request as ToolRequest;
 use LogicException;
@@ -45,6 +48,8 @@ use PHPUnit\Framework\Attributes\Test;
  */
 class ChatTest extends DatabaseTestCase
 {
+    private const PROMPT = 'Quarterly numbers are confidential';
+
     private const GATED = ['create-entry', 'update-entry', 'save-global', 'publish-draft', 'trash-entry'];
 
     private int $made = 0;
@@ -409,6 +414,59 @@ class ChatTest extends DatabaseTestCase
         $this->assertStringEndsWith("data: [DONE]\n\n", $response->streamedContent());
         $this->assertStringNotContainsString('sk-test', $response->streamedContent());
         Exceptions::assertReportedCount(1);
+    }
+
+    /** @return array<string, array{Closure, class-string, int|null}> */
+    public static function failuresThatEchoWhatWasSent(): array
+    {
+        $echo = ['type' => 'error', 'error' => ['message' => 'invalid x-api-key sk-test-leaked for: '.self::PROMPT]];
+
+        return [
+            'a rejected key' => [fn () => Http::response($echo, 401), RequestException::class, 401],
+            'a server error' => [fn () => Http::response($echo, 500), RequestException::class, 500],
+            'a connection that fails' => [fn () => throw new ConnectionException('timed out sending sk-test-leaked and '.self::PROMPT), ProviderConnectionException::class, null],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('failuresThatEchoWhatWasSent')]
+    public function a_failure_is_logged_with_what_it_was_but_never_what_the_provider_echoed(Closure $failure, string $failureClass, ?int $status): void
+    {
+        $log = tempnam(sys_get_temp_dir(), 'chat-log');
+        config(['logging.default' => 'single', 'logging.channels.single.path' => $log]);
+        $user = $this->signIn(['use_chat']);
+        Http::fake(['api.anthropic.com/*' => $failure]);
+
+        $response = $this->say(self::PROMPT);
+        $conversation = $this->conversation($response);
+        $this->events($response);
+        $logged = file_get_contents($log);
+        unlink($log);
+
+        $this->assertStringNotContainsString('sk-test', $logged);
+        $this->assertStringNotContainsString(self::PROMPT, $logged);
+        $this->assertStringNotContainsString('sk-test', $response->streamedContent());
+        $this->assertStringContainsString('The chat provider failed.', $logged);
+        $this->assertStringContainsString(json_encode($failureClass), $logged);
+        $this->assertStringContainsString('"status":'.json_encode($status), $logged);
+        $this->assertStringContainsString('"conversation":"'.$conversation.'"', $logged);
+        $this->assertStringContainsString('"user":'.$user->getKey(), $logged);
+    }
+
+    #[Test]
+    public function the_stream_is_sent_unbuffered_and_untranscoded_with_the_conversation_it_belongs_to(): void
+    {
+        $this->signIn(['use_chat']);
+        $this->provider([$this->turn('Hello.')]);
+
+        $response = $this->say('Hi');
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'text/event-stream; charset=utf-8');
+        $this->assertTrue($response->headers->hasCacheControlDirective('no-cache'));
+        $this->assertTrue($response->headers->hasCacheControlDirective('no-transform'));
+        $response->assertHeader('X-Accel-Buffering', 'no');
+        $this->assertTrue(Str::isUuid($this->conversation($response)));
     }
 
     #[Test]
