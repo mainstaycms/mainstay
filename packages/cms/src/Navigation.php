@@ -25,7 +25,7 @@ class Navigation
 {
     /*
      | The admin's sections, as data for <x-mainstay::sidebar>, built from the
-     | registered types rather than written by hand: each entry type and then
+     | registered types rather than written by hand: each entry type and
      | each taxonomy under Content, the media library, each global under
      | Globals, each global edited as a page under a heading of its own, each
      | plugin's screens under Plugins, the accounts and
@@ -33,7 +33,7 @@ class Navigation
      | to it -- its list is no use to anyone else -- the library to someone who
      | may read it, a plugin to someone who may use it, the accounts to
      | someone who may manage them, and a section with nothing
-     | in it is left out.
+     | in it is left out. Inside a group the items are alphabetical.
      |
      | Links come from route(), so an admin mounted at another path or on a
      | subdirectory's app gets its own.
@@ -41,9 +41,9 @@ class Navigation
     public static function sections(): array
     {
         $types = array_filter(app(Mainstay::class)->registered(), self::writes(...));
-        $item = fn (string $type, string $icon) => ['href' => route('mainstay.entries', $type::handle(), absolute: false), 'label' => self::label($type), 'icon' => $icon];
+        $item = fn (string $type, string $icon) => ['href' => route('mainstay.entries', $type::handle(), absolute: false), 'label' => self::label($type), 'icon' => self::declaredIcon($type)?->toHtml() ?? $icon];
 
-        return array_values(array_filter([
+        $sections = array_values(array_filter([
             [
                 /* No group name: the root of the panel is not a category of anything. */
                 'items' => [['href' => route('mainstay.admin', absolute: false), 'exact' => true, 'label' => 'Dashboard', 'icon' => self::icon('<path d="M3.25 1.75h9.5a1.5 1.5 0 0 1 1.5 1.5v9.5a1.5 1.5 0 0 1-1.5 1.5h-9.5a1.5 1.5 0 0 1-1.5-1.5v-9.5a1.5 1.5 0 0 1 1.5-1.5zM5.25 10.75V7.5M8 10.75V5.25M10.75 10.75V8.75" />')]],
@@ -74,6 +74,24 @@ class Navigation
                 ] : [],
             ],
         ], fn (array $section) => $section['items'] !== []));
+
+        return array_map(fn (array $section) => isset($section['label']) ? [...$section, 'items' => self::alphabetical($section['items'])] : $section, $sections);
+    }
+
+    /*
+     | A group's items by label, case and accents aside, so the sidebar reads
+     | the same whatever order types and plugins were registered in. The
+     | groups with no name -- the dashboard, media, accounts -- are fixed and
+     | never come here.
+     |
+     | @param  list<array<string, mixed>>  $items
+     | @return list<array<string, mixed>>
+     */
+    private static function alphabetical(array $items): array
+    {
+        usort($items, fn (array $a, array $b) => Str::lower(Str::ascii($a['label'])) <=> Str::lower(Str::ascii($b['label'])));
+
+        return $items;
     }
 
     /*
@@ -211,6 +229,12 @@ class Navigation
         $icon = (new ReflectionClass($plugin))->getAttributes(Icon::class)[0] ?? null;
 
         return ['href' => route('mainstay.plugins.'.$plugin::handle().'.index', absolute: false), 'label' => self::label($plugin, plural: false), 'icon' => ($icon?->newInstance() ?? new Icon('block'))->toHtml()];
+    }
+
+    /* A type's own #[Icon], which wins over the one its kind is drawn with. */
+    private static function declaredIcon(string $type): ?Icon
+    {
+        return ((new ReflectionClass($type))->getAttributes(Icon::class)[0] ?? null)?->newInstance();
     }
 
     /* Through the same component every other icon goes through, rather than a

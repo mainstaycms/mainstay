@@ -30,6 +30,7 @@ use Mainstay\Tests\Fixtures\Blocks\Slide;
 use Mainstay\Tests\Fixtures\Broken\Account;
 use Mainstay\Tests\Fixtures\Broken\Login;
 use Mainstay\Tests\Fixtures\Guide;
+use Mainstay\Tests\Fixtures\Iconed;
 use Mainstay\Tests\Fixtures\Leaflet;
 use Mainstay\Tests\Fixtures\Linked\Genre;
 use Mainstay\Tests\Fixtures\Linked\Person;
@@ -69,7 +70,7 @@ class AdminTest extends DatabaseTestCase
     {
         parent::setUp();
 
-        $this->declare(Post::class, Note::class, Flyer::class, Topic::class, Banner::class, Guide::class, Person::class, Story::class, Genre::class, Pictured::class, Leaflet::class, Spread::class);
+        $this->declare(Post::class, Note::class, Flyer::class, Topic::class, Banner::class, Guide::class, Person::class, Story::class, Genre::class, Pictured::class, Leaflet::class, Spread::class, Iconed::class);
         $this->artisan('mainstay:sync')->assertSuccessful();
         $this->signIn($this->user(role: 'administrator'));
     }
@@ -105,6 +106,30 @@ class AdminTest extends DatabaseTestCase
     private function values(array $fields = []): array
     {
         return ['title' => 'Hello', 'slug' => 'hello', 'status' => 'live', 'publishedAt' => '2026-10-07T14:30:00+02:00', 'featured' => '0', 'readingMinutes' => '4', 'template' => 'post', ...$fields];
+    }
+
+    #[Test]
+    public function the_items_of_a_sidebar_group_are_alphabetical_whatever_order_the_types_were_registered_in(): void
+    {
+        $this->signIn($this->user(['edit_posts', 'edit_notes']));
+
+        $page = $this->get(route('mainstay.admin'))->assertOk()->getContent();
+        preg_match('#<h2[^>]*>\s*Content\s*</h2>\s*<ul[^>]*>(.*?)</ul>#s', $page, $content);
+        preg_match_all('#<li.*?</li>#s', $content[1], $items);
+        $labels = array_map(fn (string $item) => trim(preg_replace('/\s+/', ' ', strip_tags($item))), $items[0]);
+
+        $this->assertSame(['Notes', 'Posts'], $labels, 'Registered as Post then Note.');
+    }
+
+    #[Test]
+    public function a_content_type_declaring_an_icon_is_drawn_with_it_in_the_sidebar_and_one_without_keeps_its_kinds(): void
+    {
+        $this->signIn($this->user(['edit_iconeds', 'edit_notes']));
+        $page = $this->get(route('mainstay.admin'))->assertOk()->getContent();
+        $itemOf = fn (string $handle) => substr($page, (int) strpos($page, 'href="/admin/'.$handle.'"'), 1000);
+
+        $this->assertStringContainsString((new Icon('newspaper'))->toHtml(), $itemOf('iconed'));
+        $this->assertStringNotContainsString((new Icon('newspaper'))->toHtml(), $itemOf('note'));
     }
 
     #[Test]

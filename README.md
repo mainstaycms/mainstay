@@ -230,6 +230,10 @@ Mainstay::types([Page::class]);
 
 With `MAINSTAY_SCHEMA_SYNC=true` in development's `.env`, `php artisan mainstay:sync` makes its table.
 
+A content type or a part carries `#[Icon]` too, which is its item in the admin's sidebar in place of its
+kind's icon: `#[Icon('newspaper')]` on an `Article`. Inside a sidebar group -- Content, Globals, a part's
+heading, Plugins -- the items are alphabetical by label.
+
 ### Write a block
 
 A block is a class with fields, as a content type is, drawn by a Blade view named after it. `@field`

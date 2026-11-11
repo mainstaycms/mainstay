@@ -4,6 +4,7 @@ namespace Mainstay\Forms;
 
 use Illuminate\Database\Eloquent\Attributes\UsePolicy;
 use Mainstay\Content\Entry;
+use Mainstay\Content\Icon;
 use Mainstay\Fields\Relation;
 use Mainstay\Fields\Text;
 use Mainstay\Forms\Fields\Answers;
@@ -13,6 +14,7 @@ use Mainstay\Forms\Fields\Answers;
  | the API reads it, and written by the public endpoints alone -- nobody makes
  | or changes one by hand, which SubmissionPolicy says.
  */
+#[Icon('mail')]
 #[UsePolicy(SubmissionPolicy::class)]
 class Submission extends Entry
 {
