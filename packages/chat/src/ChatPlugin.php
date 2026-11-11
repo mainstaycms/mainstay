@@ -41,6 +41,11 @@ class ChatPlugin extends Plugin
         return __DIR__.'/../resources/views';
     }
 
+    public function tools(): ?string
+    {
+        return 'chat::tools';
+    }
+
     public function routes(): ?string
     {
         return __DIR__.'/../routes/admin.php';

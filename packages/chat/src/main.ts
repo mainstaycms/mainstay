@@ -6,31 +6,88 @@ type StoredToolCall = { id: string; name: string; arguments: Record<string, unkn
 type StoredMessage = { role: string; content: string | null; tool_calls: StoredToolCall[] }
 
 const CONVERSATION_HEADER = 'X-Conversation-Id'
+const CONVERSATION_KEY = 'mainstay.chat.conversation'
+const OPEN_KEY = 'mainstay.chat.open'
+const CONVERSATION_PATTERN = /^[0-9a-f-]{36}$/i
+
+// Per-viewer conveniences only: storage can be absent or throw, and the chat works without it.
+function stored(key: string): string | null {
+  try {
+    return sessionStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function store(key: string, value: string | null): void {
+  try {
+    if (value === null) {
+      sessionStorage.removeItem(key)
+    } else {
+      sessionStorage.setItem(key, value)
+    }
+  } catch {
+    // Without storage the dialog just starts closed and empty on the next page.
+  }
+}
 
 function csrfToken(): string {
   return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? ''
 }
 
-// The chat screen: one conversation open at a time, its answer streamed in,
+// The chat dialog: one conversation open at a time, its answer streamed in,
 // and what the model asks to write held for the person's Approve or Reject.
-function mountChat(root: HTMLElement): void {
+// A run still streaming when the dialog closes keeps running; its answer is
+// in the transcript when the dialog opens again.
+function mountChat(dialog: HTMLDialogElement, root: HTMLElement): void {
   const composer = root.querySelector<HTMLFormElement>('[data-composer]')!
   const message = composer.querySelector<HTMLTextAreaElement>('textarea')!
   const send = composer.querySelector<HTMLButtonElement>('button')!
   const failure = root.querySelector<HTMLElement>('[data-error]')!
   const list = root.querySelector<HTMLElement>('[data-conversations]')!
-  const empty = root.querySelector<HTMLElement>('[data-empty]')!
+  const emptyText = root.querySelector<HTMLElement>('[data-empty]')!.textContent ?? ''
+  const unconnected = root.querySelector<HTMLElement>('[data-unconnected]')!
+  const conversationList = root.querySelector<HTMLElement>('[data-list]')!
+  const listToggle = root.querySelector<HTMLButtonElement>('[data-toggle-list]')!
+  const newChat = root.querySelector<HTMLButtonElement>('[data-new-chat]')!
+  const pane = root.querySelector<HTMLElement>('[data-conversation-pane]')!
   const urls = (id: string, template: string | undefined) => (template ?? '').replace('__id__', id)
 
-  // Only an id, since it goes into a URL: the query string is anyone's to write.
-  let conversation = /^[0-9a-f-]{36}$/i.test(root.dataset.open ?? '') ? root.dataset.open! : null
+  // Only an id, since it goes into a URL: storage is anyone's to write.
+  const storedConversation = stored(CONVERSATION_KEY)
+  let conversation = CONVERSATION_PATTERN.test(storedConversation ?? '') ? storedConversation : null
+  let loaded = false
+  let streaming = false
   const decisions = new Map<string, boolean>()
   const pending = new Set<string>()
-  const transcript = new Transcript(root.querySelector<HTMLElement>('[data-transcript]')!, (toolId, approved) => decide(toolId, approved))
+  const transcriptElement = root.querySelector<HTMLElement>('[data-transcript]')!
+  const transcript = new Transcript(transcriptElement, (toolId, approved) => decide(toolId, approved))
+
+  // The newest line stays in view as it streams, until the person scrolls up to read.
+  let followsEnd = true
+  const NEAR_END = 40
+  transcriptElement.addEventListener('scroll', () => {
+    followsEnd = transcriptElement.scrollHeight - transcriptElement.scrollTop - transcriptElement.clientHeight < NEAR_END
+  })
+  new MutationObserver(() => {
+    if (followsEnd) {
+      transcriptElement.scrollTop = transcriptElement.scrollHeight
+    }
+  }).observe(transcriptElement, { childList: true, subtree: true, characterData: true })
 
   function busy(working: boolean): void {
     send.disabled = working
     message.disabled = working
+  }
+
+  // Switching conversation mid-answer would draw the answer in the wrong one.
+  function setStreaming(running: boolean): void {
+    streaming = running
+    newChat.disabled = running
+
+    for (const item of list.querySelectorAll<HTMLButtonElement>('[data-conversation]')) {
+      item.disabled = running
+    }
   }
 
   function fail(text: string): void {
@@ -38,28 +95,43 @@ function mountChat(root: HTMLElement): void {
     failure.hidden = false
   }
 
-  function remember(id: string, title: string): void {
+  function select(id: string | null): void {
     conversation = id
-    history.replaceState(null, '', `?conversation=${id}`)
+    store(CONVERSATION_KEY, id)
 
-    if (list.querySelector(`[data-conversation="${id}"]`) === null) {
-      const item = document.createElement('li')
-      item.className = 'border-t border-border'
-      const link = document.createElement('a')
-      link.href = `?conversation=${id}`
-      link.dataset.conversation = id
-      link.className = 'block truncate px-5 py-3 text-sm hover:bg-surface aria-[current=true]:bg-surface aria-[current=true]:font-medium'
-      link.ariaCurrent = 'true'
-      link.textContent = title
-      item.append(link)
-      list.prepend(item)
+    for (const item of list.querySelectorAll<HTMLElement>('[data-conversation]')) {
+      if (item.dataset.conversation === id) {
+        item.setAttribute('aria-current', 'true')
+      } else {
+        item.removeAttribute('aria-current')
+      }
     }
+  }
+
+  function addToList(id: string, title: string): void {
+    const item = document.createElement('li')
+    item.className = 'border-t border-border'
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.dataset.conversation = id
+    button.className = 'block w-full truncate px-5 py-3 text-left text-sm hover:bg-surface focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent aria-[current=true]:bg-surface aria-[current=true]:font-medium disabled:opacity-50'
+    button.textContent = title
+    item.append(button)
+    list.prepend(item)
+    root.querySelector<HTMLElement>('[data-no-conversations]')!.hidden = true
+  }
+
+  function remember(id: string, title: string): void {
+    if (list.querySelector(`[data-conversation="${id}"]`) === null) {
+      addToList(id, title)
+    }
+
+    select(id)
   }
 
   // A turn that failed before anything was stored leaves no conversation behind for the id the response named.
   function forget(id: string): void {
-    conversation = null
-    history.replaceState(null, '', location.pathname)
+    select(null)
     list.querySelector(`[data-conversation="${id}"]`)?.parentElement?.remove()
   }
 
@@ -122,12 +194,14 @@ function mountChat(root: HTMLElement): void {
   async function run(request: () => Promise<Response>, title: string): Promise<void> {
     failure.hidden = true
     busy(true)
+    setStreaming(true)
 
     try {
       await stream(await request(), title)
     } catch (error) {
       fail(error instanceof Error ? error.message : 'The connection broke.')
     } finally {
+      setStreaming(false)
       busy(transcript.waiting)
     }
   }
@@ -177,7 +251,7 @@ function mountChat(root: HTMLElement): void {
       return
     }
 
-    empty.remove()
+    root.querySelector('[data-empty]')?.remove()
     transcript.user(text)
     message.value = ''
     void run(() => post(root.dataset.send ?? '', { message: text, conversation }), text)
@@ -189,20 +263,130 @@ function mountChat(root: HTMLElement): void {
     }
   })
 
-  if (conversation !== null) {
-    empty.remove()
-    void fetch(urls(conversation, root.dataset.show), { headers: { Accept: 'application/json' } })
-      .then((response) => (response.ok ? (response.json() as Promise<{ messages: StoredMessage[] }>) : Promise.reject(new Error('That conversation is not there.'))))
-      .then((stored) => {
-        show(stored.messages)
-        busy(transcript.waiting)
-      })
-      .catch((error: Error) => fail(error.message))
+  function reset(): void {
+    followsEnd = true
+    transcript.clear()
+    pending.clear()
+    decisions.clear()
+    failure.hidden = true
+    busy(false)
+  }
+
+  async function open(id: string): Promise<void> {
+    reset()
+    select(id)
+    conversationList.removeAttribute('data-open')
+
+    try {
+      const response = await fetch(urls(id, root.dataset.show), { headers: { Accept: 'application/json' } })
+
+      if (!response.ok) {
+        throw new Error('That conversation is not there.')
+      }
+
+      show(((await response.json()) as { messages: StoredMessage[] }).messages)
+      busy(transcript.waiting)
+    } catch (error) {
+      select(null)
+      fail(error instanceof Error ? error.message : 'The connection broke.')
+    }
+  }
+
+  function startNew(): void {
+    reset()
+    select(null)
+    conversationList.removeAttribute('data-open')
+    const hint = document.createElement('p')
+    hint.dataset.empty = ''
+    hint.className = 'text-sm text-muted'
+    hint.textContent = emptyText
+    root.querySelector('[data-transcript]')!.append(hint)
+    message.focus()
+  }
+
+  async function load(): Promise<void> {
+    loaded = true
+
+    try {
+      const response = await fetch(root.dataset.conversationsUrl ?? '', { headers: { Accept: 'application/json' } })
+
+      if (!response.ok) {
+        throw new Error(`The conversations did not load (${response.status}).`)
+      }
+
+      const listing = (await response.json()) as { ready: boolean; conversations: { id: string; title: string }[] }
+      unconnected.hidden = listing.ready
+      pane.hidden = !listing.ready
+      conversationList.hidden = !listing.ready
+      root.querySelector<HTMLElement>('[data-no-conversations]')!.hidden = listing.conversations.length > 0
+
+      for (const { id, title } of listing.conversations.reverse()) {
+        addToList(id, title)
+      }
+
+      if (conversation !== null && listing.ready) {
+        await open(conversation)
+      }
+    } catch (error) {
+      loaded = false
+      fail(error instanceof Error ? error.message : 'The connection broke.')
+    }
+  }
+
+  // Whatever opens the dialog -- its button, the command center, the shortcut -- ends here.
+  function opened(): void {
+    store(OPEN_KEY, '1')
+
+    if (!loaded) {
+      void load()
+    }
+
+    message.focus()
+  }
+
+  list.addEventListener('click', (event) => {
+    const id = (event.target as Element).closest<HTMLElement>('[data-conversation]')?.dataset.conversation
+
+    if (id !== undefined && !streaming) {
+      void open(id)
+    }
+  })
+
+  newChat.addEventListener('click', startNew)
+
+  listToggle.addEventListener('click', () => {
+    listToggle.setAttribute('aria-expanded', String(conversationList.toggleAttribute('data-open')))
+  })
+
+  new MutationObserver(() => (dialog.open ? opened() : store(OPEN_KEY, null))).observe(dialog, { attributes: true, attributeFilter: ['open'] })
+
+  const opener = document.querySelector<HTMLElement>('[data-chat-open]')
+
+  if (opener !== null && /Mac|iPhone|iPad/.test(navigator.userAgent)) {
+    opener.title = opener.title.replace('Ctrl', '⌘')
+  }
+
+  // Ctrl or Command and a full stop: free in browsers, and not the command center's K.
+  document.addEventListener('keydown', (event) => {
+    if (event.key === '.' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault()
+
+      if (dialog.open) {
+        dialog.close()
+      } else {
+        dialog.showModal()
+      }
+    }
+  })
+
+  if (stored(OPEN_KEY) === '1') {
+    dialog.showModal()
   }
 }
 
-const root = document.querySelector<HTMLElement>('[data-chat]')
+const dialog = document.querySelector<HTMLDialogElement>('#chat-dialog')
+const root = dialog?.querySelector<HTMLElement>('[data-chat]')
 
-if (root !== null) {
-  mountChat(root)
+if (dialog && root) {
+  mountChat(dialog, root)
 }

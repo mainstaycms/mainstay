@@ -73,6 +73,14 @@ test('what a user wrote stays plain text', () => {
   expect(root.querySelector('strong, b')).toBeNull()
 })
 
+test('a long unbroken word in what a user wrote wraps instead of clipping', () => {
+  const { root, transcript } = open()
+
+  transcript.user('x'.repeat(500))
+
+  expect(root.querySelector('p')!.classList.contains('break-words')).toBe(true)
+})
+
 test('a tool call ends the answer, and the next text renders on its own', () => {
   const { root, transcript } = open()
 
