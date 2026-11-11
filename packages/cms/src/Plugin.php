@@ -27,6 +27,13 @@ abstract class Plugin
      */
     abstract public static function handle(): string;
 
+    /*
+     | Its name in the admin: its item in the sidebar and its row in the roles
+     | grid. Declared rather than made from the class's name, which is an
+     | author's choice of identifier and not a label, and has no default.
+     */
+    abstract public static function label(): string;
+
     /** @return list<class-string<ContentType>> its types, registered as the host's are */
     public function types(): array
     {

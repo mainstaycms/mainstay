@@ -93,7 +93,7 @@ class RoleController
                 ['label' => 'Media', 'verbs' => ['Upload', "Edit others'"], 'rows' => [['label' => 'The library', 'names' => Capabilities::MEDIA]]],
                 ['label' => 'Accounts', 'verbs' => ['Manage accounts and roles'], 'rows' => [['label' => 'Every account', 'names' => [Capabilities::USERS]]]],
                 ...($plugins === [] ? [] : [
-                    ['label' => 'Plugins', 'verbs' => ['Use'], 'rows' => array_map(fn (string $plugin, string $name) => ['label' => Navigation::label($plugin, plural: false), 'names' => [$name]], array_keys($plugins), $plugins)],
+                    ['label' => 'Plugins', 'verbs' => ['Use'], 'rows' => array_map(fn (string $plugin, string $name) => ['label' => $plugin::label(), 'names' => [$name]], array_keys($plugins), $plugins)],
                 ]),
             ],
             'stale' => array_values(array_diff($role->capabilities, $this->mainstay->capabilities(), ['*'])),

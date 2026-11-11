@@ -222,13 +222,13 @@ class Navigation
         throw new LogicException("{$plugin} has screens and no route named index, which is its item in the admin's sidebar. Name its first screen's route index.");
     }
 
-    /* A plugin's item: its screen named `index`, under its class's name and
-       its #[Icon]. */
+    /* A plugin's item: its screen named `index`, under its label() and its
+       #[Icon]. */
     private static function plugin(string $plugin): array
     {
         $icon = (new ReflectionClass($plugin))->getAttributes(Icon::class)[0] ?? null;
 
-        return ['href' => route('mainstay.plugins.'.$plugin::handle().'.index', absolute: false), 'label' => self::label($plugin, plural: false), 'icon' => ($icon?->newInstance() ?? new Icon('block'))->toHtml()];
+        return ['href' => route('mainstay.plugins.'.$plugin::handle().'.index', absolute: false), 'label' => $plugin::label(), 'icon' => ($icon?->newInstance() ?? new Icon('block'))->toHtml()];
     }
 
     /* A type's own #[Icon], which wins over the one its kind is drawn with. */

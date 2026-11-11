@@ -213,6 +213,10 @@ class Mainstay
                 throw new InvalidArgumentException("{$plugin} is called \"{$handle}\", and a plugin's handle is lowercase letters, digits and underscores, starting with a letter.");
             }
 
+            if (trim($plugin::label()) === '') {
+                throw new InvalidArgumentException("{$plugin} has a blank label(), which names it in the admin's sidebar and in the roles grid. Return its name.");
+            }
+
             if (isset($this->plugins[$handle])) {
                 throw new InvalidArgumentException("Two plugins are called \"{$handle}\": ".$this->plugins[$handle]::class." and {$plugin}.");
             }
