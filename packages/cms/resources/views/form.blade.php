@@ -76,7 +76,7 @@
 
         <div class="flex min-h-0 min-w-0 flex-1 flex-col">
             {{-- Over the tabs, and taking no room there while it says nothing. --}}
-            <div class="mx-auto w-full max-w-3xl shrink-0 space-y-2 px-6 {{ $tabs !== [] ? 'has-[>:not([hidden])]:py-3' : 'pt-8' }}">
+            <div class="w-full shrink-0 space-y-2 px-6 {{ $tabs !== [] ? 'has-[>:not([hidden])]:py-3' : 'pt-8' }}">
                 <div data-copy-offer hidden role="status" class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-control border border-border bg-surface px-3 py-2 text-sm">
                     <span class="mr-auto">You have unsaved changes from <time data-copy-time></time>.</span>
                     <x-mainstay::button type="button" data-copy-restore>Restore</x-mainstay::button>
@@ -106,7 +106,7 @@
             @endif
 
             <x-mainstay::tab-panel id="details" class="min-h-0 flex-1 overflow-y-auto">
-                <div class="mx-auto max-w-3xl space-y-6 px-6 pt-6 pb-8">
+                <div class="space-y-6 px-6 pt-6 pb-8">
                     <x-mainstay::field-group :label="$global ? $label : \Mainstay\Navigation::label($class, plural: false)">
                         @foreach ($fields as $name => $field)
                             <x-dynamic-component

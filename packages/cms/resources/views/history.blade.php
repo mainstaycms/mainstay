@@ -14,7 +14,7 @@
     :breadcrumb="$live instanceof \Mainstay\Content\GlobalSet || $live === null ? [['label' => $label, 'href' => $form], ['label' => 'History']] : [['label' => $label, 'href' => route('mainstay.entries', $handle)], ['label' => $title, 'href' => $form], ['label' => 'History']]"
 >
     <div class="h-full overflow-y-auto">
-        <div class="mx-auto max-w-3xl space-y-4 px-6 py-8">
+        <div class="space-y-4 px-6 py-8">
             <x-mainstay::notices :messages="$errors->all()" />
 
             <ol class="overflow-hidden rounded-control border border-border bg-canvas">

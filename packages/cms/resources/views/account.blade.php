@@ -10,7 +10,7 @@
 
     <form id="settings-form" method="post" action="{{ route('mainstay.account.update') }}" data-dirty-form class="h-full overflow-y-auto">
         @csrf
-        <div class="mx-auto max-w-3xl space-y-6 px-6 py-8">
+        <div class="space-y-6 px-6 py-8">
             <x-mainstay::notices :messages="$errors->all()" />
 
             <x-mainstay::field-group label="Account">
