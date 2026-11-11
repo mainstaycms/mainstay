@@ -52,9 +52,22 @@ abstract class Plugin
      | A routes file of its admin screens, loaded under `/<handle>` inside the
      | admin's sign-in and CSRF check, named `mainstay.plugins.<handle>.*`, and
      | answered only to someone holding `use_<handle>`. The one named `index` is
-     | its sidebar item.
+     | its sidebar item, and a plugin with `tools()` need not have one.
      */
     public function routes(): ?string
+    {
+        return null;
+    }
+
+    /*
+     | A view drawn on every admin page for someone holding `use_<handle>`, and
+     | on no other: in the top bar beside the user menu, where it draws its
+     | button, and it `@push('dialogs')` the dialog that button opens. That
+     | dialog's id is `<handle>-dialog`, so that the command center can open it
+     | too. It is given `$label`, the plugin's label(). Having it makes a
+     | plugin one with screens, whether or not it has routes.
+     */
+    public function tools(): ?string
     {
         return null;
     }

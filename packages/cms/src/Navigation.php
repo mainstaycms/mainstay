@@ -136,6 +136,10 @@ class Navigation
             }
         }
 
+        foreach (self::tools() as ['handle' => $handle, 'label' => $label]) {
+            $commands[] = ['id' => "open-{$handle}", 'label' => $label, 'group' => 'Open', 'dialog' => "{$handle}-dialog"];
+        }
+
         return $commands;
     }
 
@@ -189,6 +193,25 @@ class Navigation
         return Gate::for($plugin, PluginPolicy::class)->allows('use', [$plugin, $plugin]);
     }
 
+    /*
+     | The views of the plugins' tools the signed-in user may use, each with
+     | what it is given, for the admin's layout to draw in its top bar.
+     |
+     | @return list<array{handle: string, view: string, label: string}>
+     */
+    public static function tools(): array
+    {
+        $tools = [];
+
+        foreach (app(Mainstay::class)->plugins() as $plugin) {
+            if ($plugin->tools() !== null && self::uses($plugin::class)) {
+                $tools[] = ['handle' => $plugin::handle(), 'view' => $plugin->tools(), 'label' => $plugin::label()];
+            }
+        }
+
+        return $tools;
+    }
+
     /* Whether the signed-in user may upload to the media library. */
     public static function uploads(): bool
     {
@@ -205,9 +228,10 @@ class Navigation
     /*
      | Whether a plugin's screen named `index`, its item, is routed. Not yet
      | where the routes were cached before the config named it: it waits for
-     | route:cache, and every screen of the admin with it. Otherwise one with
-     | none is its author's mistake, refused naming the class rather than as
-     | a route nobody defined.
+     | route:cache, and every screen of the admin with it. One with tools has
+     | no item by choice, its button is its way in. Otherwise one with none is
+     | its author's mistake, refused naming the class rather than as a route
+     | nobody defined.
      */
     private static function routed(string $plugin): bool
     {
@@ -215,7 +239,7 @@ class Navigation
             return true;
         }
 
-        if (app()->routesAreCached()) {
+        if (app()->routesAreCached() || app(Mainstay::class)->plugins()[$plugin::handle()]->tools() !== null) {
             return false;
         }
 
