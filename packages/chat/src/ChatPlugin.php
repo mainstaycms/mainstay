@@ -31,6 +31,11 @@ class ChatPlugin extends Plugin
     /* Characters, which keeps the owner's text a guide and not a second prompt. */
     public const OWNER_INSTRUCTIONS_MAX = 2000;
 
+    /* The models the owner picked, which the chat's own text keeps from ChatModels. */
+    public const EVERYDAY_MODEL = 'chat.everyday_model';
+
+    public const STRONGER_MODEL = 'chat.stronger_model';
+
     public const REQUIRES = [AiConnectors::class, McpPlugin::class];
 
     public static function handle(): string
@@ -55,7 +60,31 @@ class ChatPlugin extends Plugin
                 placeholder: "Write in a warm, plain tone, and in Dutch unless I ask for English.\nNever change the pricing page. Keep headlines under 60 characters.",
                 rules: ['max:'.self::OWNER_INSTRUCTIONS_MAX],
             ),
+            new Setting(
+                'everyday_model',
+                'Model for everyday requests',
+                'text',
+                'The chat starts every message on this model. It runs on the provider and key chosen for text on the Connectors screen. Leave it empty to use that provider\'s default model.',
+                default: '',
+                placeholder: 'claude-haiku-5-5',
+                rules: $this->modelRules(),
+            ),
+            new Setting(
+                'stronger_model',
+                'Model for larger edits',
+                'text',
+                'With both set, the everyday model hands a bigger request, such as several edits, rich text or page-builder blocks, or anything it is unsure about, to this one, which finishes that message. On its own it is used for everything. It runs on the same provider and key as the everyday model.',
+                default: '',
+                placeholder: 'claude-sonnet-5-5',
+                rules: $this->modelRules(),
+            ),
         ];
+    }
+
+    /** @return list<string> */
+    private function modelRules(): array
+    {
+        return ['max:'.ChatModels::MAX_LENGTH, 'regex:'.ChatModels::PATTERN];
     }
 
     public function views(): ?string

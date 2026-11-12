@@ -6,6 +6,7 @@ use Laravel\Ai\Attributes\MaxSteps;
 use Laravel\Ai\Concerns\RemembersConversations;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
+use Laravel\Ai\Contracts\HasMiddleware;
 use Laravel\Ai\Contracts\HasTools;
 use Laravel\Ai\Promptable;
 use Mainstay\Facades\Mainstay;
@@ -15,9 +16,11 @@ use Mainstay\Facades\Mainstay;
  | tools, and the conversation kept per person in laravel/ai's own tables.
  */
 #[MaxSteps(20)]
-class ChatAgent implements Agent, Conversational, HasTools
+class ChatAgent implements Agent, Conversational, HasMiddleware, HasTools
 {
     use Promptable, RemembersConversations;
+
+    private const HAND_OVER_RULE = 'You may be the everyday model or the stronger one it hands over to. If you are the everyday model, call hand-over once, before you change anything, when the request is bigger than a quick lookup or one simple edit: several edits, edits that depend on each other\'s order, rich text or page-builder blocks, or anything you are not sure about. The stronger model then continues the same request. If the conversation shows a hand-over already, just carry on.';
 
     /*
      | The fixed rules, then what the developer wrote for how to work here,
@@ -32,7 +35,7 @@ class ChatAgent implements Agent, Conversational, HasTools
         $developer = ChatConfig::instructions();
         $stored = Mainstay::setting(ChatPlugin::OWNER_INSTRUCTIONS);
         $owner = is_string($stored) ? mb_substr(trim($stored), 0, ChatPlugin::OWNER_INSTRUCTIONS_MAX) : '';
-        $parts = [$this->rules()];
+        $parts = [$this->rules().(ChatModels::handOverTarget() === null ? '' : "\n\n".self::HAND_OVER_RULE)];
 
         if ($developer !== []) {
             $parts[] = "The site's developer says how to work on this site:\n\n".implode("\n\n", $developer);
@@ -62,8 +65,21 @@ class ChatAgent implements Agent, Conversational, HasTools
             TEXT;
     }
 
+    /* The model the owner picked, else the provider's own default. */
+    public function model(): ?string
+    {
+        return ChatModels::starting();
+    }
+
     public function tools(): iterable
     {
-        return ChatTools::all();
+        return [...ChatTools::all(), ...(ChatModels::handOverTarget() === null ? [] : [new HandOver])];
+    }
+
+    public function middleware(): array
+    {
+        $stronger = ChatModels::handOverTarget();
+
+        return $stronger === null ? [] : [new HandOverMiddleware($stronger)];
     }
 }
