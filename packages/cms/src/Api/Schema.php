@@ -7,6 +7,7 @@ use Mainstay\Content\Document;
 use Mainstay\Content\Entry;
 use Mainstay\Content\Media;
 use Mainstay\Fields\Field;
+use Mainstay\Fields\File;
 use Mainstay\Mainstay;
 
 /*
@@ -29,6 +30,7 @@ final class Schema
         $types = $this->readable();
         $ref = fn (string $class) => match (true) {
             $class === Media::class => ['$ref' => '#/$defs/Media'],
+            $class === File::class => ['$ref' => '#/$defs/File'],
             $class === Document::class => ['$ref' => '#/$defs/Node'],
             in_array($class, $types, true) => ['$ref' => '#/$defs/'.$class::handle()],
             default => null,
@@ -58,7 +60,7 @@ final class Schema
             ];
         }
 
-        return ['$schema' => self::DIALECT, '$defs' => [...$defs, 'Media' => self::media(), 'Node' => self::node()]];
+        return ['$schema' => self::DIALECT, '$defs' => [...$defs, 'Media' => self::media(), 'File' => self::file(), 'Node' => self::node()]];
     }
 
     /** @return list<class-string> the registered types the caller may read */
@@ -87,6 +89,27 @@ final class Schema
                 'sizes' => ['type' => 'object', 'additionalProperties' => $size],
             ],
             'required' => ['id', 'alt', 'focal', 'sizes'],
+            'additionalProperties' => false,
+        ];
+    }
+
+    /* A document as Media::fileArray() hands it out. */
+    private static function file(): array
+    {
+        return [
+            'type' => 'object',
+            'title' => 'File',
+            'properties' => [
+                'id' => ['type' => 'integer'],
+                'name' => ['type' => 'string'],
+                'type' => ['type' => 'string'],
+                'bytes' => ['type' => 'integer'],
+                'title' => ['type' => ['string', 'null']],
+                'description' => ['type' => ['string', 'null']],
+                'visibility' => ['enum' => ['public', 'restricted']],
+                'url' => ['type' => 'string'],
+            ],
+            'required' => ['id', 'name', 'type', 'bytes', 'title', 'description', 'visibility', 'url'],
             'additionalProperties' => false,
         ];
     }

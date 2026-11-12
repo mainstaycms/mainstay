@@ -2236,6 +2236,7 @@ class ContentStore
             }
 
             $given = [];
+            $types = [];
 
             foreach ($fields as $name => $field) {
                 if (! array_key_exists($name, $data)) {
@@ -2244,22 +2245,27 @@ class ContentStore
 
                 $held = array_map(fn (array $reference) => implode(':', $reference), $field->references($stored[$name] ?? null, $name));
 
-                foreach ($field->references($values[$name] ?? null, $name) as $at => [$class, $id]) {
-                    if (! in_array("{$class}:{$id}", $held, true)) {
+                foreach ($field->references($values[$name] ?? null, $name) as $at => $reference) {
+                    [$class, $id] = $reference;
+
+                    if (! in_array(implode(':', $reference), $held, true)) {
                         $given[$class][$at] = $id;
+                        $types[$at] = $reference[2] ?? '';
                     }
                 }
             }
 
             foreach ($given as $class => $ids) {
-                $present = $class === Media::class
-                    ? $this->mainstay->media()->present(array_values($ids))
-                    : $this->present($this->entry($class), array_values(array_unique($ids)), $overrideAccess);
+                if ($class === Media::class) {
+                    $this->checkMedia($validator, $ids, $types);
+
+                    continue;
+                }
+
+                $present = $this->present($this->entry($class), array_values(array_unique($ids)), $overrideAccess);
 
                 foreach (array_diff($ids, $present) as $at => $id) {
-                    $validator->errors()->add($at, $class === Media::class
-                        ? "The {$validator->getDisplayableAttribute($at)} field names image {$id}, which is not in the media library or is in its trash."
-                        : "The {$validator->getDisplayableAttribute($at)} field names {$class::handle()} {$id}, which is not there to point at.");
+                    $validator->errors()->add($at, "The {$validator->getDisplayableAttribute($at)} field names {$class::handle()} {$id}, which is not there to point at.");
                 }
             }
         });
@@ -2267,6 +2273,31 @@ class ContentStore
         $validator->validate();
 
         return $values;
+    }
+
+    /*
+     | Each image or file a save names, which is in the library out of its
+     | trash and of a type its field takes: an image field takes no document.
+     |
+     | @param  array<string, int>  $ids  by where they are written
+     | @param  array<string, string>  $types  the types each takes, comma separated
+     */
+    private function checkMedia(\Illuminate\Validation\Validator $validator, array $ids, array $types): void
+    {
+        $byTypes = [];
+
+        foreach ($ids as $at => $id) {
+            $byTypes[$types[$at]][$at] = $id;
+        }
+
+        foreach ($byTypes as $accepted => $group) {
+            $present = $this->mainstay->media()->present(array_values($group), explode(',', $accepted));
+            $noun = str_starts_with($accepted, 'image/') ? 'image' : 'file';
+
+            foreach (array_diff($group, $present) as $at => $id) {
+                $validator->errors()->add($at, "The {$validator->getDisplayableAttribute($at)} field names {$noun} {$id}, which is not in the media library or is in its trash.");
+            }
+        }
     }
 
     /*
