@@ -29,6 +29,9 @@ importers:
 
   packages/chat:
     devDependencies:
+      '@mainstay/admin':
+        specifier: workspace:*
+        version: link:../cms/resources/js
       '@mainstay/ui':
         specifier: workspace:*
         version: link:../ui

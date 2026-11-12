@@ -45,7 +45,7 @@ test('a quoted brace does not end its rule', () => {
 
 // The regression this exists for: a utility both sheets carry, loaded later,
 // beat the admin's responsive variant of it on the admin's own elements.
-test.each(['page-builder/dist/page-builder.css'])('%s repeats no rule of the admin stylesheet', (path) => {
+test.each(['chat/dist/chat.css', 'page-builder/dist/page-builder.css'])('%s repeats no rule of the admin stylesheet', (path) => {
   const admin = dist('cms/dist/mainstay.css')
   const plugin = dist(path)
 
