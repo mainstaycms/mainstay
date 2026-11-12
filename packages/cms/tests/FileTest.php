@@ -394,6 +394,63 @@ class FileTest extends DatabaseTestCase
     }
 
     #[Test]
+    public function the_admin_lists_documents_filters_by_kind_and_edits_a_documents_title_and_visibility(): void
+    {
+        $jar = $this->signedIn();
+        $pdf = $this->upload($this->pdf(), ['visibility' => 'restricted']);
+        $image = $this->upload($this->png(), ['alt' => ['en' => 'Red', 'nl' => 'Rood']]);
+        $docx = $this->upload($this->docx());
+
+        $all = $this->browser($jar)->get(route('mainstay.media'))->assertOk();
+        $all->assertSee('Report.pdf')->assertSee('Restricted')->assertSee('Documents')->assertSee('Images');
+        $this->assertStringNotContainsString('<img src="'.route('mainstay.media.file', "{$pdf->hash}.pdf"), $all->getContent());
+
+        $docs = $this->browser($jar)->get(route('mainstay.media', ['kind' => 'document']))->assertOk();
+        $docs->assertSee('Report.pdf')->assertSee('Letter.docx')->assertDontSee('Report.png');
+        $this->assertSame(0, substr_count($docs->getContent(), '<img src="http://localhost/media/'));
+
+        $pick = $this->browser($jar)->get(route('mainstay.media', ['pick' => 1, 'kind' => 'document', 'accept' => 'pdf']))->assertOk();
+        $pick->assertSee('data-pick="'.$pdf->id.'"', false)->assertDontSee('data-pick="'.$docx->id.'"', false)->assertDontSee('data-pick="'.$image->id.'"', false)->assertSee('data-name="Annual report"', false);
+        $this->assertStringContainsString('accept="image/jpeg', $this->browser($jar)->get(route('mainstay.media', ['pick' => 1, 'kind' => 'image']))->assertOk()->assertDontSee('data-pick="'.$pdf->id.'"', false)->getContent());
+        $this->assertStringContainsString('accept=".pdf"', $pick->getContent());
+
+        $edit = $this->browser($jar)->get(route('mainstay.media.edit', $pdf->id))->assertOk();
+        $edit->assertSee('Download')->assertDontSee('data-focal-image', false)->assertSee('name="title[nl]"', false)->assertSee('name="visibility"', false);
+
+        $this->browser($jar)->post(route('mainstay.media.update', $pdf->id), ['title' => ['en' => 'Report', 'nl' => 'Verslag'], 'description' => ['en' => 'Yearly'], 'visibility' => 'public'])->assertSessionHasNoErrors();
+        $changed = Mainstay::media()->find($pdf->id, 'nl');
+        $this->assertSame(['Verslag', 'public', null], [$changed->title, $changed->visibility, $changed->description]);
+        $this->assertSame('Yearly', Mainstay::media()->find($pdf->id, 'en')->description);
+
+        $this->browser($jar)->post(route('mainstay.media.update', $pdf->id), ['visibility' => 'secret'])->assertSessionHasErrors('visibility');
+        $this->browser($jar)->post(route('mainstay.media.update', $pdf->id), ['focal' => [10, 10]])->assertSessionHasErrors('file');
+
+        $this->browser($jar)->post(route('mainstay.media.store'), ['file' => UploadedFile::fake()->create('plan.pdf', 4, 'application/pdf'), 'visibility' => 'restricted'])->assertSessionHasErrors('file');
+        $stored = $this->browser($jar)->post(route('mainstay.media.store', ['pick' => 1, 'kind' => 'document', 'accept' => 'pdf']), ['file' => $this->uploaded($this->pdf('two'), 'two.pdf'), 'title' => ['en' => 'Two']])->assertOk();
+        $this->assertSame('public', DB::table('mainstay_media')->where('name', 'two.pdf')->value('visibility'));
+        $stored->assertSee('data-picked', false);
+        $refused = $this->browser($jar)->post(route('mainstay.media.store', ['pick' => 1, 'kind' => 'document', 'accept' => 'pdf']), ['file' => $this->uploaded($this->docx(), 'x.docx')])->assertStatus(422);
+        $refused->assertSee('not one of the allowed documents');
+    }
+
+    #[Test]
+    public function the_entry_form_draws_a_file_field_with_its_picker_and_saves_the_id(): void
+    {
+        $jar = $this->signedIn();
+        $pdf = $this->upload($this->pdf());
+
+        $form = $this->browser($jar)->get(route('mainstay.entries.create', 'brochured'))->assertOk();
+        $form->assertSee('data-file-field', false)->assertSee('No file')->assertSee('name="brochure"', false);
+        $this->assertStringContainsString('kind=document&amp;accept=pdf%2Cdocx', $form->getContent());
+        $this->assertStringContainsString('kind=image', $form->getContent());
+
+        $this->browser($jar)->post(route('mainstay.entries.store', 'brochured'), ['title' => 'B', 'slug' => 'b', 'brochure' => (string) $pdf->id])->assertSessionHasNoErrors();
+        $draft = Mainstay::drafts()->all(Brochured::class, locale: 'en')->sole();
+
+        $this->browser($jar)->get(route('mainstay.drafts.edit', ['brochured', $draft->id]))->assertSee('Annual report')->assertSee('value="'.$pdf->id.'"', false);
+    }
+
+    #[Test]
     public function a_file_or_image_in_the_trash_prints_nothing_and_never_throws_through_either_field(): void
     {
         $pdf = $this->upload($this->pdf());

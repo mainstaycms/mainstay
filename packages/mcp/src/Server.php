@@ -17,7 +17,7 @@ use Mainstay\Mainstay;
 #[Name('Mainstay')]
 #[Version(Mainstay::VERSION)]
 #[Instructions(<<<'TEXT'
-    A Mainstay site's content. Its types are classes: list-types names the ones you may read, and describe-type the fields one takes. An entry type has many entries, a global one per site. Reads hand back what is live; a relation or an image is loaded one level deep, or more with depth.
+    A Mainstay site's content. Its types are classes: list-types names the ones you may read, and describe-type the fields one takes. An entry type has many entries, a global one per site. Reads hand back what is live; a relation, an image or a file is loaded one level deep, or more with depth.
 
     To change content, write a draft (save-draft) and let a person publish it, unless you were asked to publish: publish-draft and the live writes need capabilities the token may not hold, and a refusal says which. trash-entry moves an entry to the trash, from which the admin restores it.
     TEXT)]

@@ -16,6 +16,20 @@ import { once } from './dom'
 
 let opener: HTMLElement | ((id: string) => void) | null = null
 
+function setFile(field: HTMLElement, id: string, name: string): void {
+  const input = field.querySelector<HTMLInputElement>('input[type="hidden"]')
+  const shown = field.querySelector<HTMLElement>('[data-file-name]')
+
+  if (!input || !shown) return
+
+  input.value = id
+  shown.textContent = id ? name : 'No file'
+  shown.classList.toggle('text-muted', !id)
+  field.querySelector('[data-image-choose]')!.textContent = id ? 'Replace' : 'Choose'
+  field.querySelector<HTMLElement>('[data-image-remove]')!.hidden = !id
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
 function set(field: HTMLElement, id: string, src: string | null): void {
   const input = field.querySelector<HTMLInputElement>('input[type="hidden"]')
   const preview = field.querySelector('[data-image-preview]')
@@ -70,9 +84,11 @@ export function imageFields(): void {
         dialog.showModal()
         void load(body, choose.dataset.picker ?? '')
       } else if (remove) {
-        set(remove, '', null)
+        if (remove.hasAttribute('data-file-field')) setFile(remove, '', '')
+        else set(remove, '', null)
       } else if (pick && opener && dialog.contains(pick)) {
         if (typeof opener === 'function') opener(pick.dataset.pick ?? '')
+        else if (opener.hasAttribute('data-file-field')) setFile(opener, pick.dataset.pick ?? '', pick.dataset.name ?? '')
         else set(opener, pick.dataset.pick ?? '', pick.dataset.src ?? null)
         dialog.close()
       } else if (page && dialog.contains(page)) {
