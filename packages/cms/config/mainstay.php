@@ -67,24 +67,49 @@ return [
     | Media
     |--------------------------------------------------------------------------
     |
-    | Where uploaded images are kept. The copies an image field's sizes name
-    | go to a public disk and are linked to as plain files; the original goes
-    | to a private one and is never served, since it still carries the
-    | camera's EXIF, GPS included.
+    | Where uploaded images and documents are kept: private disks, since
+    | nothing is served from them directly. Every file goes out through the
+    | `mainstay.media.file` route, which serves a public file to anyone for as
+    | long as a browser will keep it, and a restricted one to a signed-in
+    | editor or to a URL signed to expire. A host may point `disk` at any disk,
+    | S3 included: the route streams from it.
+    |
+    | `disk` holds every copy an image field's sizes name, and each document as
+    | it came. `originals` holds an image as it came, which still carries the
+    | camera's EXIF, GPS included, and is never served; leave it where it is,
+    | on a disk of its own or beside the rest.
     |
     | Copies are written in each of `formats` this PHP's GD can write, and,
     | where that leaves out WebP, in the original's own kind as well, so a
     | host without them serves larger files rather than none. A format gained
     | later reaches older images through mainstay:media:reprocess.
     |
+    | `documents` is the closed list of extensions a document may have; a file
+    | is also checked by what its bytes are. `max_document_kb` is the largest
+    | one taken. `url_minutes` is how long a URL for a restricted file lives.
+    | `sendfile` lets a proxy that sends X-Sendfile-Type (X-Accel-Redirect,
+    | X-Sendfile) deliver files from a local disk itself.
+    |
     */
 
     'media' => [
-        'disk' => env('MAINSTAY_MEDIA_DISK', 'public'),
+        'disk' => env('MAINSTAY_MEDIA_DISK', 'local'),
 
         'originals' => env('MAINSTAY_MEDIA_ORIGINALS', 'local'),
 
         'formats' => ['avif', 'webp'],
+
+        /* Where an earlier Mainstay kept the copies: served from there, with a
+           warning, until mainstay:media:move has copied them. Null for none. */
+        'legacy_disk' => env('MAINSTAY_MEDIA_LEGACY_DISK', 'public'),
+
+        'documents' => ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp', 'txt', 'csv', 'zip'],
+
+        'max_document_kb' => 20480,
+
+        'url_minutes' => 60,
+
+        'sendfile' => false,
     ],
 
     /*

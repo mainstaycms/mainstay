@@ -20,6 +20,14 @@ class MediaPolicy
         return true;
     }
 
+    /* Who is served a restricted file, or one in the trash: whoever is
+       signed in to Mainstay. A visitor reaches one only by a URL signed to
+       expire. */
+    public function viewRestricted(?User $user): bool
+    {
+        return $user !== null;
+    }
+
     public function create(?User $user): Response
     {
         return $this->needs($user, null);

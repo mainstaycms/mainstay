@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Mainstay\Media\Library;
 use Mainstay\Media\Reprocess;
 
 /*
@@ -24,7 +25,7 @@ class ReprocessCommand extends Command
     {
         $queued = 0;
 
-        foreach (DB::table('mainstay_media')->whereNull('deleted_at')->select('id')->lazyById() as $row) {
+        foreach (DB::table('mainstay_media')->whereIn('type', Library::imageTypes())->whereNull('deleted_at')->select('id')->lazyById() as $row) {
             Bus::dispatch(new Reprocess((int) $row->id));
             $queued++;
         }
