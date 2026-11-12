@@ -6,6 +6,10 @@ type Arguments = Record<string, unknown>
 
 const ERROR_PREFIX = 'Error: '
 
+// The tool the everyday model calls to pass the turn to the stronger one: a row that says so, with nothing to open.
+const HAND_OVER = 'hand-over'
+const HAND_OVER_TEXT = 'Handed over to the stronger model'
+
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text = ''): HTMLElementTagNameMap[K] {
   const created = document.createElement(tag)
   created.className = className
@@ -63,6 +67,15 @@ export class Transcript {
 
   toolCall(id: string, name: string, args: Arguments): void {
     this.text = null
+
+    if (name === HAND_OVER) {
+      const note = element('p', 'max-w-[80%] rounded-control border border-border px-3 py-1.5 text-sm text-muted', HAND_OVER_TEXT)
+      note.dataset.handOver = ''
+      this.root.append(note)
+
+      return
+    }
+
     const row = element('details', 'max-w-[80%] rounded-control border border-border text-sm')
     const head = element('summary', 'flex cursor-pointer items-baseline gap-2 px-3 py-1.5')
     head.append(element('span', 'font-medium', name), element('span', 'min-w-0 truncate text-muted', summary(args)), element('span', 'ml-auto shrink-0 text-xs text-muted', 'running'))

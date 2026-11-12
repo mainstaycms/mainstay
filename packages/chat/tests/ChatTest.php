@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Laravel\Ai\AiManager;
+use Laravel\Ai\Contracts\Approvable;
 use Laravel\Ai\Exceptions\ProviderConnectionException;
 use Laravel\Ai\Models\Conversation;
 use Laravel\Ai\Tools\Request as ToolRequest;
@@ -27,7 +29,9 @@ use Mainstay\Chat\ChatAgent;
 use Mainstay\Chat\ChatController;
 use Mainstay\Chat\ChatPlugin;
 use Mainstay\Chat\ChatTools;
+use Mainstay\Chat\HandOver;
 use Mainstay\Chat\McpToolAdapter;
+use Mainstay\Chat\ProviderFailed;
 use Mainstay\Facades\Mainstay;
 use Mainstay\Mainstay as Registry;
 use Mainstay\Mcp\McpPlugin;
@@ -783,5 +787,226 @@ class ChatTest extends DatabaseTestCase
         $this->post(route('mainstay.settings.update'), ['settings' => ['chat' => ['instructions' => $posted]]])->assertSessionHasNoErrors();
 
         $this->assertSame(ChatPlugin::OWNER_INSTRUCTIONS_MAX, strlen(Mainstay::setting('chat.instructions')));
+    }
+
+    private const EVERYDAY = 'light-model-1';
+
+    private const STRONGER = 'strong-model-1';
+
+    private function models(?string $everyday, ?string $stronger): void
+    {
+        Mainstay::setSetting(ChatPlugin::EVERYDAY_MODEL, $everyday ?? '');
+        Mainstay::setSetting(ChatPlugin::STRONGER_MODEL, $stronger ?? '');
+    }
+
+    /** @return list<string> the model each request to the provider carried */
+    private function requestedModels(): array
+    {
+        return array_map(fn (array $pair) => $pair[0]->data()['model'], Http::recorded()->all());
+    }
+
+    private function toolsOffered(int $request): array
+    {
+        return array_column(Http::recorded()[$request][0]->data()['tools'] ?? [], 'name');
+    }
+
+    private function handOverCall(string $id = 'toolu_h'): array
+    {
+        return [$id => [HandOver::NAME, (object) []]];
+    }
+
+    #[Test]
+    public function with_neither_model_set_the_default_model_runs_and_no_hand_over_is_offered(): void
+    {
+        $this->signIn();
+        $this->models(null, null);
+        $this->provider([$this->turn('Hello.')]);
+
+        $this->events($this->say('Hi there'));
+
+        $this->assertSame([app(AiManager::class)->instance('anthropic')->defaultTextModel()], $this->requestedModels());
+        $this->assertNotContains(HandOver::NAME, $this->toolsOffered(0));
+        $this->assertStringNotContainsString('hand-over', $this->sentInstructions());
+    }
+
+    /** @return array<string, array{?string, ?string}> */
+    public static function oneModelSet(): array
+    {
+        return ['only everyday' => [self::EVERYDAY, null], 'only stronger' => [null, self::STRONGER]];
+    }
+
+    #[Test]
+    #[DataProvider('oneModelSet')]
+    public function with_one_model_set_it_runs_everything_and_nothing_is_handed_over(?string $everyday, ?string $stronger): void
+    {
+        $this->signIn();
+        $this->models($everyday, $stronger);
+        $this->provider([$this->turn('Hello.')]);
+
+        $this->events($this->say('Hi there'));
+
+        $this->assertSame([$everyday ?? $stronger], $this->requestedModels());
+        $this->assertNotContains(HandOver::NAME, $this->toolsOffered(0));
+        $this->assertStringNotContainsString('hand-over', $this->sentInstructions());
+    }
+
+    #[Test]
+    public function the_same_model_twice_is_one_model_with_nothing_to_hand_over_to(): void
+    {
+        $this->signIn();
+        $this->models(self::EVERYDAY, self::EVERYDAY);
+        $this->provider([$this->turn('Hello.')]);
+
+        $this->events($this->say('Hi'));
+
+        $this->assertSame([self::EVERYDAY], $this->requestedModels());
+        $this->assertNotContains(HandOver::NAME, $this->toolsOffered(0));
+    }
+
+    #[Test]
+    public function with_both_set_a_message_starts_on_the_everyday_model_and_offers_the_hand_over(): void
+    {
+        $this->signIn();
+        $this->models(self::EVERYDAY, self::STRONGER);
+        $this->provider([$this->turn('Hello.')]);
+
+        $this->events($this->say('Hi there'));
+
+        $this->assertSame([self::EVERYDAY], $this->requestedModels());
+        $this->assertContains(HandOver::NAME, $this->toolsOffered(0));
+        $this->assertStringContainsString('call hand-over once', $this->sentInstructions());
+    }
+
+    #[Test]
+    public function after_a_hand_over_the_same_turn_continues_on_the_stronger_model_once_and_the_next_message_starts_light_again(): void
+    {
+        $this->signIn();
+        $this->models(self::EVERYDAY, self::STRONGER);
+        $this->provider([
+            $this->turn('This is bigger.', $this->handOverCall()),
+            $this->turn('Trying again.', $this->handOverCall('toolu_h2')),
+            $this->turn('Done.'),
+            $this->turn('Next.'),
+        ]);
+
+        $first = $this->say('Rebuild the page');
+        $events = $this->events($first);
+
+        $this->assertSame([self::EVERYDAY, self::STRONGER, self::STRONGER], array_slice($this->requestedModels(), 0, 3));
+        $this->assertSame([HandOver::NAME, HandOver::NAME], array_column($this->ofType($events, 'tool_call'), 'tool_name'));
+        $this->assertContains(HandOver::NAME, $this->toolsOffered(1));
+        $results = array_column($this->ofType($events, 'tool_result'), 'result');
+        $this->assertStringContainsString('stronger model continues', $results[0]);
+        $this->assertStringContainsString('already handed over', $results[1]);
+        $this->assertStringEndsWith('Done.', implode('', array_column($this->ofType($events, 'text_delta'), 'delta')));
+
+        $this->events($this->say('And another thing', $this->conversation($first)));
+
+        $this->assertSame(self::EVERYDAY, $this->requestedModels()[3]);
+    }
+
+    #[Test]
+    public function an_approval_resume_continues_on_the_model_that_asked_for_the_write(): void
+    {
+        $this->signIn();
+        $id = $this->essay();
+        $this->models(self::EVERYDAY, self::STRONGER);
+        $write = fn (string $call) => [$call => ['update-entry', ['type' => 'essay', 'id' => $id, 'data' => ['title' => 'New']]]];
+        $this->provider([
+            $this->turn('Bigger.', $this->handOverCall()),
+            $this->turn('Writing.', $write('toolu_w')),
+            $this->turn('Written.'),
+            $this->turn('Writing.', $write('toolu_x')),
+            $this->turn('Written.'),
+        ]);
+
+        $handedOver = $this->say('Retitle the essay carefully');
+        $this->events($handedOver);
+        $this->events($this->decide($this->conversation($handedOver), ['toolu_w' => true]));
+
+        $this->assertSame([self::EVERYDAY, self::STRONGER, self::STRONGER], array_slice($this->requestedModels(), 0, 3));
+        $this->assertSame('New', $this->title($id));
+
+        $light = $this->say('Retitle it again');
+        $this->events($light);
+        $this->events($this->decide($this->conversation($light), ['toolu_x' => true]));
+
+        $this->assertSame([self::EVERYDAY, self::EVERYDAY], array_slice($this->requestedModels(), 3, 2));
+    }
+
+    #[Test]
+    public function a_failure_during_the_stronger_run_is_scrubbed_like_any_other(): void
+    {
+        Exceptions::fake();
+        $this->signIn();
+        $this->models(self::EVERYDAY, self::STRONGER);
+        Http::fake(['api.anthropic.com/*' => Http::sequence()
+            ->push($this->turn('Bigger.', $this->handOverCall()), 200, ['Content-Type' => 'text/event-stream'])
+            ->push(['error' => ['message' => 'bad key sk-test-leaked for strong-model-1']], 401)]);
+
+        $response = $this->say('Rebuild the page');
+        $events = $this->events($response);
+
+        $this->assertStringContainsString('The provider rejected the request (401)', end($events)['message']);
+        $this->assertStringNotContainsString('sk-test', $response->streamedContent());
+        $this->assertStringNotContainsString(self::STRONGER, $response->streamedContent());
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(ProviderFailed::class);
+    }
+
+    #[Test]
+    public function the_models_are_owner_settings_checked_like_the_connectors_model_field(): void
+    {
+        $this->signIn(['manage_settings']);
+        $post = fn (array $chat) => $this->post(route('mainstay.settings.update'), ['settings' => ['chat' => $chat]]);
+
+        $this->get(route('mainstay.settings'))->assertOk()->assertSeeInOrder(['Chat', 'Model for everyday requests', 'Model for larger edits'])->assertSee('Connectors screen');
+
+        $post(['everyday_model' => '  claude-haiku-5-5 ', 'stronger_model' => 'anthropic/claude-sonnet-5.5'])->assertSessionHasNoErrors();
+        $this->assertSame('claude-haiku-5-5', Mainstay::setting(ChatPlugin::EVERYDAY_MODEL));
+
+        foreach (['has space', '<b>x</b>', str_repeat('m', 256)] as $bad) {
+            $post(['everyday_model' => $bad])->assertSessionHasErrors('settings.chat.everyday_model');
+            $post(['stronger_model' => $bad])->assertSessionHasErrors('settings.chat.stronger_model');
+        }
+
+        $post(['everyday_model' => str_repeat('m', 255), 'stronger_model' => ''])->assertSessionHasNoErrors();
+    }
+
+    #[Test]
+    public function the_models_are_seen_and_written_only_with_manage_settings(): void
+    {
+        $this->signIn(['use_chat']);
+
+        $this->post(route('mainstay.settings.update'), ['settings' => ['chat' => ['everyday_model' => 'mine']]])->assertNotFound();
+        $this->get(route('mainstay.settings'))->assertNotFound();
+
+        $this->assertSame('', Mainstay::setting(ChatPlugin::EVERYDAY_MODEL));
+    }
+
+    #[Test]
+    public function a_stored_model_that_is_not_a_model_id_is_ignored(): void
+    {
+        foreach ([['not', 'text'], 'has space', str_repeat('m', 256), 7] as $bad) {
+            $this->models(null, null);
+            Mainstay::setSetting(ChatPlugin::EVERYDAY_MODEL, $bad);
+            Mainstay::setSetting(ChatPlugin::STRONGER_MODEL, self::STRONGER);
+
+            $this->assertSame(self::STRONGER, (new ChatAgent)->model());
+            $this->assertNotContains(HandOver::NAME, array_map(fn ($tool) => ToolNameResolver::resolve($tool), [...(new ChatAgent)->tools()]));
+        }
+    }
+
+    #[Test]
+    public function the_hand_over_is_no_mcp_tool_and_never_waits_for_approval(): void
+    {
+        $this->models(self::EVERYDAY, self::STRONGER);
+        $tool = collect((new ChatAgent)->tools())->first(fn ($tool) => $tool instanceof HandOver);
+
+        $this->assertNotNull($tool);
+        $this->assertNotInstanceOf(McpToolAdapter::class, $tool);
+        $this->assertNotInstanceOf(Approvable::class, $tool);
+        $this->assertNotContains(HandOver::NAME, array_map(fn (McpToolAdapter $each) => $each->name(), ChatTools::all()));
+        $this->assertCount(count(Server::TOOLS) + 1, [...(new ChatAgent)->tools()]);
     }
 }

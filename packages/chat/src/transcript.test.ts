@@ -90,3 +90,14 @@ test('a tool call ends the answer, and the next text renders on its own', () => 
 
   expect(Array.from(root.querySelectorAll('strong')).map((strong) => strong.textContent)).toEqual(['one', 'two'])
 })
+
+test('a hand-over is one line saying so, with no row to open', () => {
+  const { root, transcript } = open()
+
+  transcript.toolCall('call_3', 'hand-over', {})
+  transcript.toolResult('call_3', 'Handed over. A stronger model continues this request from here: carry on with it.')
+
+  expect(root.textContent).toBe('Handed over to the stronger model')
+  expect(root.querySelector('details')).toBeNull()
+  expect(root.querySelector('[data-hand-over]')).not.toBeNull()
+})
