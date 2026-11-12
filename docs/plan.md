@@ -386,7 +386,10 @@ one is set.
 
 **Files.** The original is kept permanently on `mainstay.media.originals`, Laravel's private `local`,
 as `media/{hash}.{ext}`, and never served: it carries the camera's EXIF, GPS included, which the
-re-encoded copies do not. The copies go to `mainstay.media.disk`, `public`, as
+re-encoded copies do not. The copies go to `mainstay.media.disk`, also private (`local`) since files
+and documents were added: every file is served by the `mainstay.media.file` route, public or
+restricted per file, and a document, kept as it came on that disk, is served the same way. See
+`decisions.md`. The copies are named as
 `media/{hash}-{w}x{h}-{x}-{y}.{format}` for a size that crops and `media/{hash}-{w}.{format}` for
 one that only scales, so moving the point leaves the scaled files alone. Every file is written under a
 temporary name and moved into place, each step checked whatever the disk's `throw` says, so a name
