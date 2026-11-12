@@ -367,6 +367,46 @@ end of the tab bar and an aside in the publishing rail's place while the tab is 
 the scripts and stylesheets, relative to `public/vendor/<handle>`, that every admin screen loads after
 Mainstay's own; the plugin publishes them under the `mainstay-assets` tag.
 
+A plugin that builds its stylesheet with Tailwind writes `src/index.css` with this header, which is
+`packages/chat/src/index.css`, with `@source` naming that plugin's own views and scripts:
+
+```css
+@layer theme, base, components, utilities;
+@import 'tailwindcss/utilities' layer(utilities);
+@reference 'tailwindcss';
+@reference '@mainstay/ui/theme.css';
+
+@source '../resources/views';
+@source './main.ts';
+```
+
+- `@layer theme, base, components, utilities;` names Tailwind's layers in its order. The admin's stylesheet
+  declares them first; this line keeps the plugin's sheet in the same order on its own.
+- `@import 'tailwindcss/utilities' layer(utilities);` brings only the utilities, in the `utilities` layer. Without
+  `layer(utilities)` they come out unlayered, beat every layered rule of the admin's, and cannot be matched
+  against the admin's utilities. The admin's stylesheet already brings the theme, the reset and the components.
+- `@reference 'tailwindcss';` and `@reference '@mainstay/ui/theme.css';` make `p-3`, `max-sm:hidden`,
+  `text-muted` and the rest resolvable without emitting the theme again. Without both, a utility that
+  needs the theme (`p-3`, the breakpoints, the colours) is silently missing from the sheet, and nothing in CI notices.
+- `@source` lists only the plugin's own views and scripts. Tailwind reads `.blade.php` and `.ts` alike.
+
+The plugin's `vite.config.ts` adds `omitRulesOf(new URL('../cms/dist/mainstay.css', import.meta.url))` from
+`@mainstay/ui/vite` to `plugins` after `tailwindcss()`, and its `package.json` lists `@mainstay/admin` and
+`@mainstay/ui` under `devDependencies` as `workspace:*`, so the admin is built first. Its stylesheet loads after the
+admin's, and a utility both carry would otherwise land later and override the admin's responsive variants on the
+admin's own elements (`.flex-col` over `md:flex-row`). `omitRulesOf` leaves in the plugin's file only the rules the admin's
+lacks, in the same layer and media query, so the order of the two files decides nothing on the admin's elements.
+
+On the plugin's own elements the order still decides, because a utility the admin carries is no longer in the
+plugin's file and the plugin's remaining rules load after it. Rule of thumb: never put a utility only the plugin
+has and a utility only the admin has, for the same property, on one element. Two ways it shows, both built and
+measured in headless Chromium: `inline max-sm:hidden` (`max-sm:hidden` is the admin's, `inline` the plugin's) is
+`display: inline` at 420px where the full sheet gives `none`; and `p-7 px-3` (`px-3` is the admin's) gives
+`padding-left: 28px` where the full sheet gives 12px, because Tailwind sorts a shorthand before its longhand in one
+file, and with `px-3` left to the admin's file `p-7` ends up last. For such an element pick utilities the admin
+also carries, or none of them, or write the properties in one class in `@layer components` (which `@apply` rules
+use as well) and leave the utilities off that element.
+
 `tools()` returns the name of a view drawn on every admin screen, for someone holding `use_<handle>` and
 for no one else: in the top bar beside the user menu, where it draws its button, and it
 `@push('dialogs')` the dialog the button opens. The dialog's id is `<handle>-dialog`, which is how the
