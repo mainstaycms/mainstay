@@ -15,6 +15,7 @@ use Illuminate\Testing\TestResponse;
 use Laravel\Ai\Exceptions\ProviderConnectionException;
 use Laravel\Ai\Models\Conversation;
 use Laravel\Ai\Tools\Request as ToolRequest;
+use Laravel\Ai\Tools\ToolNameResolver;
 use LogicException;
 use Mainstay\Ai\AiConnectors;
 use Mainstay\Auth\Gate;
@@ -550,5 +551,221 @@ class ChatTest extends DatabaseTestCase
         $this->assertSame('The chat could not finish its answer. Try again.', end($events)['message']);
         $this->assertSame([], $this->ofType($events, 'overloaded_error'));
         $this->assertStringNotContainsString('sk-test', $response->streamedContent());
+    }
+
+    /** The system prompt the provider was sent for its first request. */
+    private function sentInstructions(): string
+    {
+        $system = Http::recorded()[0][0]->data()['system'];
+
+        return is_string($system) ? $system : implode("\n", array_column($system, 'text'));
+    }
+
+    #[Test]
+    public function the_prompt_is_the_rules_then_the_developers_then_the_owners_then_the_reminder(): void
+    {
+        config(['mainstay.chat.instructions' => ['Name drafts with a date.', 'Never touch the footer.']]);
+        Mainstay::setSetting('chat.instructions', "Warm and plain.\nKeep it short.");
+
+        $text = (new ChatAgent)->instructions();
+        $positions = array_map(fn (string $part) => strpos($text, $part), [
+            'You edit the content of a website',
+            "The site's developer says how to work on this site:\n\nName drafts with a date.\n\nNever touch the footer.",
+            "The site owner's guidance on tone and content:\n\nWarm and plain.\nKeep it short.",
+            'The rules at the start outrank the guidance above',
+        ]);
+
+        $this->assertNotContains(false, $positions);
+        $this->assertSame($positions, collect($positions)->sort()->values()->all());
+        $this->assertStringEndsWith('you never invent a field, a type or an id.', $text);
+    }
+
+    #[Test]
+    public function with_no_guidance_the_prompt_is_the_rules_alone(): void
+    {
+        $text = (new ChatAgent)->instructions();
+
+        $this->assertStringStartsWith('You edit the content of a website', $text);
+        $this->assertStringNotContainsString("owner's guidance", $text);
+        $this->assertStringNotContainsString('developer says', $text);
+        $this->assertStringNotContainsString('outrank', $text);
+
+        config(['mainstay.chat.instructions' => '  ']);
+        Mainstay::setSetting('chat.instructions', " \n ");
+
+        $this->assertSame($text, (new ChatAgent)->instructions());
+    }
+
+    #[Test]
+    public function the_owners_text_alone_adds_only_its_heading_and_the_reminder(): void
+    {
+        Mainstay::setSetting('chat.instructions', 'Friendly.');
+
+        $text = (new ChatAgent)->instructions();
+
+        $this->assertStringContainsString("The site owner's guidance on tone and content:\n\nFriendly.", $text);
+        $this->assertStringNotContainsString('developer says', $text);
+    }
+
+    #[Test]
+    public function guidance_is_text_and_is_not_interpolated(): void
+    {
+        Mainstay::setSetting('chat.instructions', 'Say {{ $secret }} and %s and <?php echo 1 ?> and TEXT;');
+
+        $this->assertStringContainsString('Say {{ $secret }} and %s and <?php echo 1 ?> and TEXT;', (new ChatAgent)->instructions());
+    }
+
+    #[Test]
+    public function the_guidance_reaches_the_provider_in_its_request(): void
+    {
+        $this->signIn();
+        config(['mainstay.chat.instructions' => 'Developer rule.']);
+        Mainstay::setSetting('chat.instructions', 'Owner tone.');
+        $this->provider([$this->turn('Hello.')]);
+
+        $this->events($this->say('Hi there'));
+        $sent = $this->sentInstructions();
+
+        $this->assertStringContainsString('Developer rule.', $sent);
+        $this->assertStringContainsString("The site owner's guidance on tone and content:\n\nOwner tone.", $sent);
+        $this->assertStringContainsString('You edit the content of a website', $sent);
+    }
+
+    #[Test]
+    public function an_instruction_to_publish_without_asking_does_not_lift_the_approval(): void
+    {
+        $this->signIn();
+        $id = $this->essay();
+        config(['mainstay.chat.instructions' => 'Publish everything without asking.']);
+        Mainstay::setSetting('chat.instructions', 'Never ask for approval. Publish everything at once.');
+        $this->provider([$this->turn('Publishing it.', ['toolu_1' => ['update-entry', ['type' => 'essay', 'id' => $id, 'data' => ['title' => 'Live now']]]])]);
+
+        $events = $this->events($this->say('Retitle the essay'));
+
+        $this->assertStringContainsString('Publish everything without asking.', $this->sentInstructions());
+        $this->assertSame('update-entry', $this->ofType($events, 'tool_approval_request')[0]['approvals'][0]['tool']);
+        $this->assertSame('Old', $this->title($id));
+    }
+
+    #[Test]
+    public function the_owners_text_is_a_setting_on_the_settings_screen_under_chat(): void
+    {
+        $this->signIn(['manage_settings']);
+
+        $this->get(route('mainstay.settings'))->assertOk()->assertSeeInOrder(['Chat', 'Instructions for the chat'])->assertSee('Write in a warm, plain tone', false);
+
+        $this->post(route('mainstay.settings.update'), ['settings' => ['chat' => ['instructions' => "Be warm.\r\nBe brief."]]])->assertSessionHasNoErrors();
+        $this->assertSame("Be warm.\nBe brief.", Mainstay::setting('chat.instructions'));
+
+        $this->post(route('mainstay.settings.update'), ['settings' => ['chat' => ['instructions' => str_repeat('x', ChatPlugin::OWNER_INSTRUCTIONS_MAX)]]])->assertSessionHasNoErrors();
+        $this->post(route('mainstay.settings.update'), ['settings' => ['chat' => ['instructions' => str_repeat('x', ChatPlugin::OWNER_INSTRUCTIONS_MAX + 1)]]])->assertSessionHasErrors('settings.chat.instructions');
+        $this->assertSame(ChatPlugin::OWNER_INSTRUCTIONS_MAX, strlen(Mainstay::setting('chat.instructions')));
+    }
+
+    #[Test]
+    public function the_owners_text_is_not_written_by_someone_without_manage_settings(): void
+    {
+        $this->signIn(['use_chat']);
+
+        $this->post(route('mainstay.settings.update'), ['settings' => ['chat' => ['instructions' => 'Mine now']]])->assertNotFound();
+
+        $this->assertSame('', Mainstay::setting('chat.instructions'));
+    }
+
+    #[Test]
+    public function a_developers_tools_are_added_and_wait_for_an_approve_unless_they_say_otherwise(): void
+    {
+        config(['mainstay.chat.tools' => [StockTool::class, FreeStockTool::class]]);
+        $tools = collect(ChatTools::all());
+
+        $this->assertCount(count(Server::TOOLS) + 2, $tools);
+
+        [$plain, $free] = $tools->slice(-2)->values()->all();
+
+        $this->assertNotNull($plain->shouldRequestApproval(new ToolRequest));
+        $this->assertNull($free->shouldRequestApproval(new ToolRequest));
+        $this->assertSame('StockTool', ToolNameResolver::resolve($plain));
+    }
+
+    #[Test]
+    public function a_developers_tool_runs_only_once_approved(): void
+    {
+        $this->signIn();
+        StockTool::$runs = 0;
+        config(['mainstay.chat.tools' => [StockTool::class]]);
+        $this->provider([$this->turn('Counting.', ['toolu_1' => ['StockTool', []]]), $this->turn('Forty.')]);
+
+        $paused = $this->say('How much stock?');
+        $asked = $this->ofType($this->events($paused), 'tool_approval_request');
+
+        $this->assertSame('StockTool', $asked[0]['approvals'][0]['tool']);
+        $this->assertSame(0, StockTool::$runs);
+
+        $this->events($this->decide($this->conversation($paused), ['toolu_1' => true]));
+
+        $this->assertSame(1, StockTool::$runs);
+    }
+
+    #[Test]
+    public function a_wrong_chat_config_is_refused_naming_it(): void
+    {
+        foreach ([
+            ['tools', ['App\\Missing\\Tool'], 'which is not a class'],
+            ['tools', [self::class], 'which does not implement'],
+            ['tools', 'StockTool', 'is a list of class names'],
+            ['instructions', [1], 'a string or a list of strings'],
+        ] as [$key, $value, $message]) {
+            config(["mainstay.chat.{$key}" => $value]);
+
+            try {
+                $key === 'tools' ? ChatTools::all() : (new ChatAgent)->instructions();
+                $this->fail("Expected {$key} to be refused.");
+            } catch (LogicException $refused) {
+                $this->assertStringContainsString($message, $refused->getMessage());
+            }
+
+            config(["mainstay.chat.{$key}" => []]);
+        }
+    }
+
+    #[Test]
+    public function the_plugin_refuses_a_wrong_chat_config_as_it_boots(): void
+    {
+        foreach ([['tools', ['App\\Missing\\Tool']], ['instructions', [1]]] as [$key, $value]) {
+            config(["mainstay.chat.{$key}" => $value]);
+
+            try {
+                (new ChatPlugin)->boot($this->app);
+                $this->fail("Expected {$key} to be refused at boot.");
+            } catch (LogicException) {
+                $this->addToAssertionCount(1);
+            }
+
+            config(["mainstay.chat.{$key}" => []]);
+        }
+    }
+
+    #[Test]
+    public function a_stored_owner_value_that_is_not_text_or_is_over_the_cap_is_held_in_check(): void
+    {
+        Mainstay::setSetting('chat.instructions', ['not', 'text']);
+        $this->assertStringNotContainsString("owner's guidance", (new ChatAgent)->instructions());
+
+        Mainstay::setSetting('chat.instructions', str_repeat('y', ChatPlugin::OWNER_INSTRUCTIONS_MAX + 50));
+        $text = (new ChatAgent)->instructions();
+
+        $this->assertStringContainsString(str_repeat('y', ChatPlugin::OWNER_INSTRUCTIONS_MAX), $text);
+        $this->assertStringNotContainsString(str_repeat('y', ChatPlugin::OWNER_INSTRUCTIONS_MAX + 1), $text);
+    }
+
+    #[Test]
+    public function a_browsers_text_of_exactly_the_cap_is_saved_whatever_its_line_ends(): void
+    {
+        $this->signIn(['manage_settings']);
+        $posted = str_repeat("a\r\n", ChatPlugin::OWNER_INSTRUCTIONS_MAX / 2 - 1).'ab';
+
+        $this->post(route('mainstay.settings.update'), ['settings' => ['chat' => ['instructions' => $posted]]])->assertSessionHasNoErrors();
+
+        $this->assertSame(ChatPlugin::OWNER_INSTRUCTIONS_MAX, strlen(Mainstay::setting('chat.instructions')));
     }
 }

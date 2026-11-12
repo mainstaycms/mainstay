@@ -9,6 +9,7 @@ use Mainstay\Ai\AiConnectors;
 use Mainstay\Content\Icon;
 use Mainstay\Mcp\McpPlugin;
 use Mainstay\Plugin;
+use Mainstay\Settings\Setting;
 use ReflectionClass;
 
 /*
@@ -24,6 +25,12 @@ use ReflectionClass;
 #[Icon(file: __DIR__.'/../resources/icons/chat.svg')]
 class ChatPlugin extends Plugin
 {
+    /* The owner's guidance on tone and content, as Mainstay::setting() names it. */
+    public const OWNER_INSTRUCTIONS = 'chat.instructions';
+
+    /* Characters, which keeps the owner's text a guide and not a second prompt. */
+    public const OWNER_INSTRUCTIONS_MAX = 2000;
+
     public const REQUIRES = [AiConnectors::class, McpPlugin::class];
 
     public static function handle(): string
@@ -34,6 +41,21 @@ class ChatPlugin extends Plugin
     public static function label(): string
     {
         return 'Chat';
+    }
+
+    public function settings(): array
+    {
+        return [
+            new Setting(
+                'instructions',
+                'Instructions for the chat',
+                'textarea',
+                'How the chat should sound and what it should keep to. It shapes the writing only: what it may change, and what waits for your approval, is not up to it.',
+                default: '',
+                placeholder: "Write in a warm, plain tone, and in Dutch unless I ask for English.\nNever change the pricing page. Keep headlines under 60 characters.",
+                rules: ['max:'.self::OWNER_INSTRUCTIONS_MAX],
+            ),
+        ];
     }
 
     public function views(): ?string
@@ -76,6 +98,9 @@ class ChatPlugin extends Plugin
                 throw new LogicException(self::class." needs the plugin {$required} in config('mainstay.plugins'): it brings the AI provider or the tools the chat runs on.");
             }
         }
+
+        ChatConfig::instructions();
+        ChatConfig::tools();
 
         $app->register(ChatServiceProvider::class);
     }
