@@ -4,6 +4,7 @@ namespace Mainstay\Chat\Tests;
 
 use Closure;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,7 @@ use Laravel\Ai\Tools\Request as ToolRequest;
 use Laravel\Ai\Tools\ToolNameResolver;
 use LogicException;
 use Mainstay\Ai\AiConnectors;
+use Mainstay\Ai\Connectors;
 use Mainstay\Auth\Gate;
 use Mainstay\Auth\Role;
 use Mainstay\Auth\User;
@@ -202,6 +204,20 @@ class ChatTest extends DatabaseTestCase
         request()->attributes->remove(Gate::PUBLIC);
 
         $this->assertSame('Error: There is no entry type called banner.', $tools['get-entry']->handle(new ToolRequest(['type' => 'banner', 'id' => $id])));
+    }
+
+    #[Test]
+    public function the_chat_talks_to_the_text_model_chosen_on_the_connectors_screen(): void
+    {
+        $this->signIn();
+        $this->provider([$this->turn('Hello.'), $this->turn('Hello again.')]);
+
+        $this->events($this->say('Hi'));
+        Http::assertSent(fn (Request $request) => $request['model'] === 'claude-sonnet-5-5');
+
+        app(Connectors::class)->choose('text', 'anthropic', 'claude-opus-5-5', overrideAccess: true);
+        $this->events($this->say('Hi again'));
+        Http::assertSent(fn (Request $request) => $request['model'] === 'claude-opus-5-5');
     }
 
     #[Test]
