@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b7743dba00bb4cba83b48f6221207d5a",
+    "content-hash": "4654e05c8b8d7ea07f9e4eb016d92cdf",
     "packages": [],
     "packages-dev": [
         {
@@ -4275,6 +4275,34 @@
                 "MIT"
             ],
             "description": "Template parts for Mainstay: a navigation, a footer, built from blocks once per site.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
+            "name": "mainstay/seo",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/seo",
+                "reference": "70911730628809326feb609e5a80c55f730cc06a"
+            },
+            "require": {
+                "mainstay/cms": "self.version",
+                "mainstay/site": "self.version",
+                "php": "^8.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mainstay\\Seo\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Search engine optimisation for Mainstay: meta tags, a snippet preview with live content checks, a sitemap, robots.txt, hreflang and JSON-LD.",
             "transport-options": {
                 "symlink": true,
                 "relative": true
@@ -12306,6 +12334,7 @@
         "mainstay/mcp": 20,
         "mainstay/page-builder": 20,
         "mainstay/parts": 20,
+        "mainstay/seo": 20,
         "mainstay/site": 20,
         "mainstay/ui": 20
     },

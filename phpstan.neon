@@ -12,6 +12,7 @@ parameters:
         - packages/mcp/src
         - packages/page-builder/src
         - packages/parts/src
+        - packages/seo/src
         - packages/site/src
         - packages/ui/src
     # Larastan reads a model's columns from the migrations, which live in the

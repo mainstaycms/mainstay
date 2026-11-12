@@ -138,6 +138,27 @@ importers:
         specifier: ^8.3.5
         version: 8.3.5(esbuild@0.28.2)(jiti@2.7.0)
 
+  packages/seo:
+    devDependencies:
+      '@mainstay/admin':
+        specifier: workspace:*
+        version: link:../cms/resources/js
+      '@mainstay/ui':
+        specifier: workspace:*
+        version: link:../ui
+      '@tailwindcss/vite':
+        specifier: ^4.3.3
+        version: 4.3.3(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0))
+      tailwindcss:
+        specifier: ^4.3.3
+        version: 4.3.3
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vite:
+        specifier: ^8.3.5
+        version: 8.3.5(esbuild@0.28.2)(jiti@2.7.0)
+
   packages/ui:
     devDependencies:
       '@storybook/addon-a11y':
