@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { expect, test } from 'vitest'
 import { omitSharedRules } from './omitSharedRules'
+
+const dist = (path: string) => readFileSync(join(import.meta.dirname, '../../..', path), 'utf8')
 
 test('a rule the admin has is dropped, with the media query and layer it leaves empty', () => {
   const admin = '@layer utilities{.flex-col{flex-direction:column}@media (min-width:48rem){.md\\:flex-row{flex-direction:row}}}'
@@ -37,4 +41,13 @@ test('the banner comment before the first rule is kept', () => {
 
 test('a quoted brace does not end its rule', () => {
   expect(omitSharedRules('.a{content:"}"}.b{color:red}', '.b{color:red}')).toBe('.a{content:"}"}')
+})
+
+// The regression this exists for: a utility both sheets carry, loaded later,
+// beat the admin's responsive variant of it on the admin's own elements.
+test.each(['page-builder/dist/page-builder.css'])('%s repeats no rule of the admin stylesheet', (path) => {
+  const admin = dist('cms/dist/mainstay.css')
+  const plugin = dist(path)
+
+  expect(omitSharedRules(plugin, admin)).toBe(plugin)
 })
