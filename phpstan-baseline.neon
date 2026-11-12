@@ -33,7 +33,7 @@ parameters:
 		-
 			message: '#^Parameter \#2 \$haystack of function in_array expects array, string given\.$#'
 			identifier: argument.type
-			count: 1
+			count: 3
 			path: packages/ai/src/Connectors.php
 
 		-

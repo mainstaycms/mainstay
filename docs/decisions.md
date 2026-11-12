@@ -1015,8 +1015,10 @@ does not hold `manage_users`: a key is the site's account, and a test spends its
 Consequences:
 
 - A queue worker or an Octane process made before a key changed reads it once restarted.
-- A provider's settings beyond its key -- a URL, a region, a deployment -- are laravel/ai's config,
-  not the screen's.
+- A provider's settings beyond its key and the model each kind of work uses -- a URL, a region -- are
+  laravel/ai's config, not the screen's. The model is `models.{kind}.default` in the provider's config,
+  or the deployment for Azure; the screen's choice wins over the host's, a kind with none keeps
+  laravel/ai's own, and the id is checked for its shape only, since laravel/ai lists no models.
 - A plugin's driver closure runs inside laravel/ai's manager, wrapped so it keeps the plugin's
   `$this`.
 

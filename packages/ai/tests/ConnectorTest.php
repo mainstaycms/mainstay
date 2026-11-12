@@ -137,8 +137,8 @@ class ConnectorTest extends DatabaseTestCase
         $this->fresh();
         $this->assertSame('anthropic', config('ai.default'));
         $this->assertSame('voyageai', config('ai.default_for_embeddings'));
-        $this->assertSame(['provider' => 'anthropic', 'chosen' => true], $connectors->defaults()['text']);
-        $this->assertSame(['provider' => 'gemini', 'chosen' => false], $connectors->defaults()['images']);
+        $this->assertSame(['provider' => 'anthropic', 'chosen' => true, 'model' => null], $connectors->defaults()['text']);
+        $this->assertSame(['provider' => 'gemini', 'chosen' => false, 'model' => null], $connectors->defaults()['images']);
 
         $this->assertSame('Anthropic does no images.', $this->refused(fn () => $connectors->choose('images', 'anthropic', overrideAccess: true), 'defaults.images'));
 
@@ -384,7 +384,7 @@ class ConnectorTest extends DatabaseTestCase
 
         $this->assertSame('sk-from-env', $this->fresh()->instance('openai')->providerCredentials()['key']);
         $this->assertSame('openai', config('ai.default'));
-        $this->assertSame(['provider' => 'openai', 'chosen' => false], app(Connectors::class)->defaults()['text']);
+        $this->assertSame(['provider' => 'openai', 'chosen' => false, 'model' => null], app(Connectors::class)->defaults()['text']);
     }
 
     #[Test]
@@ -428,6 +428,179 @@ class ConnectorTest extends DatabaseTestCase
         Http::fake(['api.voyageai.com/*' => Http::response(['data' => [['embedding' => [0.1, 0.2, 0.3], 'index' => 0]], 'usage' => ['total_tokens' => 1]])]);
 
         $this->assertSame('3 dimensions', app(Connectors::class)->test('voyageai', overrideAccess: true));
+    }
+
+    #[Test]
+    public function the_model_chosen_for_a_kind_of_work_is_the_one_laravel_ai_prompts_with(): void
+    {
+        $connectors = app(Connectors::class);
+        $connectors->save('anthropic', 'sk-ant-secret', overrideAccess: true);
+        $connectors->choose('text', 'anthropic', ' claude-opus-5-5 ', overrideAccess: true);
+        $connectors->choose('images', 'openai', 'gpt-image-9', overrideAccess: true);
+        $connectors->choose('embeddings', 'voyageai', 'voyage-9', overrideAccess: true);
+
+        $this->assertSame(['text' => 'claude-opus-5-5'], Connector::query()->where('provider', 'anthropic')->sole()->models);
+        $this->assertSame('claude-opus-5-5', $connectors->defaults()['text']['model']);
+        $this->assertNull($connectors->defaults()['audio']['model']);
+
+        $manager = $this->fresh();
+        $this->assertSame('claude-opus-5-5', config('ai.providers.anthropic.models.text.default'));
+        $this->assertSame('gpt-image-9', config('ai.providers.openai.models.image.default'));
+        $this->assertSame('voyage-9', config('ai.providers.voyageai.models.embeddings.default'));
+        $this->assertSame('claude-opus-5-5', $manager->instance('anthropic')->defaultTextModel());
+        $this->assertSame('claude-haiku-5-5', $manager->instance('anthropic')->cheapestTextModel(), 'Only the default is set.');
+        $this->assertNull(config('ai.providers.openai.models.text.default'), 'A kind of work with no model keeps laravel/ai\'s own.');
+        $this->assertSame('gpt-6.1-sol', $manager->instance('openai')->defaultTextModel());
+
+        Http::fake(['api.anthropic.com/*' => Http::response(self::ANSWER)]);
+        $this->assertSame('OK', agent('Answer.')->prompt('Hello?')->text);
+        Http::assertSent(fn (Request $request) => $request['model'] === 'claude-opus-5-5');
+
+        $connectors->choose('text', 'anthropic', overrideAccess: true);
+        $this->fresh();
+        $this->assertNull(config('ai.providers.anthropic.models.text.default'), 'A blank model is the provider\'s own again.');
+        $this->assertSame([], Connector::query()->where('provider', 'anthropic')->sole()->models);
+    }
+
+    #[Test]
+    public function azure_takes_its_model_as_the_deployment(): void
+    {
+        $connectors = app(Connectors::class);
+        $connectors->choose('text', 'azure', 'my-chat', overrideAccess: true);
+        $connectors->choose('images', 'azure', 'my-image', overrideAccess: true);
+        $connectors->choose('embeddings', 'azure', 'my-embed', overrideAccess: true);
+
+        $azure = $this->fresh()->instance('azure');
+        $this->assertSame(['my-chat', 'my-image', 'my-embed'], [$azure->defaultTextModel(), $azure->defaultImageModel(), $azure->defaultEmbeddingsModel()]);
+        $this->assertNull(config('ai.providers.azure.models'));
+    }
+
+    #[Test]
+    public function a_model_moves_with_its_kind_of_work_and_goes_with_it(): void
+    {
+        $connectors = app(Connectors::class);
+        $connectors->save('anthropic', 'sk-ant-secret', overrideAccess: true);
+        $connectors->choose('text', 'anthropic', 'claude-opus-5-5', overrideAccess: true);
+        $connectors->choose('text', 'openai', overrideAccess: true);
+
+        $this->assertSame([], Connector::query()->where('provider', 'anthropic')->sole()->models, "The old provider's model goes with its default.");
+        $this->assertNull(Connector::query()->where('provider', 'openai')->sole()->modelFor('text'));
+
+        $connectors->choose('text', null, 'claude-opus-5-5', overrideAccess: true);
+        $this->assertSame(0, Connector::query()->where('provider', 'openai')->count(), 'A model with no provider is kept nowhere.');
+    }
+
+    #[Test]
+    public function a_row_saved_before_models_reads_as_none(): void
+    {
+        DB::table('mainstay_connectors')->insert(['provider' => 'anthropic', 'defaults' => '["text"]', 'created_at' => now(), 'updated_at' => now()]);
+
+        $this->assertNull(Connector::query()->sole()->modelFor('text'));
+        $this->assertSame('claude-sonnet-5-5', $this->fresh()->instance('anthropic')->defaultTextModel());
+    }
+
+    #[Test]
+    public function a_model_is_refused_for_its_shape_and_nothing_is_saved(): void
+    {
+        $connectors = app(Connectors::class);
+
+        foreach (['two words', 'a"b', '<script>', "line\nbreak", str_repeat('m', 256)] as $model) {
+            $this->assertStringContainsString('text model', $this->refused(fn () => $connectors->choose('text', 'anthropic', $model, overrideAccess: true), 'models.text'), $model);
+        }
+
+        foreach (['gpt-6-luna', 'llama3.2:latest', 'anthropic/claude-sonnet-5.5', '~typesafe/jev-latest', 'global.anthropic.claude-haiku-4-5-20251001-v1:0', str_repeat('m', 255)] as $model) {
+            $connectors->choose('text', 'anthropic', $model, overrideAccess: true);
+            $this->assertSame($model, $connectors->defaults()['text']['model']);
+        }
+
+        $connectors->choose('text', 'anthropic', '   ', overrideAccess: true);
+        $this->assertNull($connectors->defaults()['text']['model'], 'Blank is the provider\'s own.');
+
+        $connectors->choose('text', 'anthropic', 'claude-opus-5-5', overrideAccess: true);
+        $this->refused(fn () => $connectors->choose('text', 'anthropic', 'two words', overrideAccess: true), 'models.text');
+        $this->assertSame('claude-opus-5-5', $connectors->defaults()['text']['model'], 'A refused model changes nothing.');
+    }
+
+    #[Test]
+    public function a_test_asks_the_model_chosen_for_text_on_that_provider(): void
+    {
+        $connectors = app(Connectors::class);
+        $connectors->save('anthropic', 'sk-ant-secret', overrideAccess: true);
+        Http::fake(['api.anthropic.com/*' => Http::response(self::ANSWER)]);
+
+        $connectors->choose('text', 'anthropic', 'claude-opus-5-5', overrideAccess: true);
+        $connectors->test('anthropic', overrideAccess: true);
+        Http::assertSent(fn (Request $request) => $request['model'] === 'claude-opus-5-5');
+
+        $connectors->choose('text', 'openai', overrideAccess: true);
+        $connectors->test('anthropic', overrideAccess: true);
+        Http::assertSent(fn (Request $request) => $request['model'] === 'claude-haiku-5-5');
+    }
+
+    #[Test]
+    public function the_screen_saves_a_model_for_whoever_holds_use_ai_and_escapes_it(): void
+    {
+        $this->signIn(['edit_entries']);
+        $this->post(route('mainstay.plugins.ai.defaults'), ['defaults' => ['text' => 'anthropic'], 'models' => ['text' => 'claude-opus-5-5']])->assertNotFound();
+        $this->assertSame(0, Connector::query()->count());
+
+        $this->signIn(['use_ai']);
+        $this->from(route('mainstay.plugins.ai.index'))->post(route('mainstay.plugins.ai.defaults'), ['defaults' => ['text' => 'anthropic'], 'models' => ['text' => 'two words']])
+            ->assertRedirect(route('mainstay.plugins.ai.index'))
+            ->assertSessionHasErrors('models.text');
+        $this->assertSame(0, Connector::query()->count(), 'Nothing is saved when one model is refused.');
+
+        $this->post(route('mainstay.plugins.ai.defaults'), ['defaults' => ['text' => 'anthropic', 'images' => 'openai'], 'models' => ['text' => 'claude-opus-5-5', 'audio' => 'ignored']])
+            ->assertRedirect(route('mainstay.plugins.ai.index'));
+        $this->assertSame('claude-opus-5-5', $this->app->make(Connectors::class)->defaults()['text']['model']);
+        $this->assertNull($this->app->make(Connectors::class)->defaults()['images']['model']);
+
+        $this->get(route('mainstay.plugins.ai.index'))->assertOk()
+            ->assertSee('id="model-text"', false)
+            ->assertSee('value="claude-opus-5-5"', false)
+            ->assertSee('placeholder="gpt-image-2.5-flare"', false);
+
+        DB::table('mainstay_connectors')->where('provider', 'anthropic')->update(['models' => json_encode(['text' => '"><script>alert(1)</script>'])]);
+        $this->get(route('mainstay.plugins.ai.index'))->assertOk()
+            ->assertDontSee('<script>alert(1)</script>', false)
+            ->assertSee('&quot;&gt;&lt;script&gt;', false);
+    }
+
+    #[Test]
+    public function a_model_posted_as_anything_but_text_is_refused_and_clears_nothing(): void
+    {
+        $this->signIn(['use_ai']);
+        app(Connectors::class)->choose('text', 'anthropic', 'claude-opus-5-5', overrideAccess: true);
+
+        $this->from(route('mainstay.plugins.ai.index'))->post(route('mainstay.plugins.ai.defaults'), ['defaults' => ['text' => 'anthropic'], 'models' => ['text' => ['x']]])
+            ->assertRedirect(route('mainstay.plugins.ai.index'))
+            ->assertSessionHasErrors(['models.text' => 'The text model must be text.']);
+        $this->assertSame('claude-opus-5-5', app(Connectors::class)->defaults()['text']['model']);
+    }
+
+    #[Test]
+    public function after_a_refusal_the_posted_provider_and_model_return_together_and_the_rest_show_what_is_saved(): void
+    {
+        $this->signIn(['use_ai']);
+        app(Connectors::class)->choose('text', 'anthropic', 'claude-opus-5-5', overrideAccess: true);
+        app(Connectors::class)->choose('images', 'openai', 'gpt-image-9', overrideAccess: true);
+
+        $this->from(route('mainstay.plugins.ai.index'))->post(route('mainstay.plugins.ai.defaults'), ['defaults' => ['text' => 'openai', 'audio' => ''], 'models' => ['text' => 'two words', 'audio' => 'stale words']])
+            ->assertSessionHasErrors('models.text');
+
+        $page = $this->followingRedirects()->get(route('mainstay.plugins.ai.index'))->getContent();
+        $select = fn (string $use) => preg_match('/<select[^>]*id="default-'.$use.'".*?<\/select>/s', $page, $found) ? $found[0] : '';
+        $input = fn (string $use) => preg_match('/<input[^>]*id="model-'.$use.'"[^>]*>/s', $page, $found) ? $found[0] : '';
+
+        $this->assertMatchesRegularExpression('/<option value="openai"\s+selected/', $select('text'));
+        $this->assertStringContainsString('value="two words"', $input('text'));
+        $this->assertStringContainsString('aria-invalid="true"', $input('text'));
+        $this->assertDoesNotMatchRegularExpression('/<option value="[a-z]+"\s+selected/', $select('audio'), 'A blank provider posted is the config again.');
+        $this->assertStringContainsString('value="stale words"', $input('audio'));
+        $this->assertMatchesRegularExpression('/<option value="openai"\s+selected/', $select('images'), 'A kind not posted shows what is saved.');
+        $this->assertStringContainsString('value="gpt-image-9"', $input('images'));
+        $this->assertStringContainsString('Use a model id that this provider offers.', $page);
+        $this->assertStringContainsString('Default now: ', $page);
     }
 
     #[Test]

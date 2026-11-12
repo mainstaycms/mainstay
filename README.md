@@ -565,14 +565,17 @@ The `mainstay/ai` plugin talks to AI providers through [laravel/ai](https://gith
 every provider it speaks is one a site can connect. Require it and name `Mainstay\Ai\AiConnectors` in
 `config('mainstay.plugins')`: OpenAI, Anthropic, Gemini, Mistral, Groq, xAI, DeepSeek,
 OpenRouter, Ollama and the rest. The admin's **Ai Connectors** screen, open to whoever holds
-`use_ai`, has a card per provider -- what it does, where its key comes from, Test -- and
-chooses the provider each kind of work goes to: text, images, speech, transcription, embeddings,
-reranking and classification. It adds an *AI connectors* dashboard widget, how many providers have a key and
+`use_ai`, has a cell per provider -- what it does, where its key comes from, Test -- and
+chooses the provider and the model each kind of work goes to: text, images, speech, transcription,
+embeddings, reranking and classification. A model is typed as the provider spells it
+(`claude-opus-5-5`, `llama3.2:latest`); left blank, it is laravel/ai's own default for that provider,
+which the field shows as its placeholder. The model is written into `ai.providers.{name}.models.{kind}.default`
+(an Azure deployment, into its `deployment` settings), so `agent()` and `prompt()` use it, as does the chat. It adds an *AI connectors* dashboard widget, how many providers have a key and
 where each kind of work goes, for whoever holds `use_ai`; a key is never shown.
 
 A key in the environment, under the name laravel/ai's config reads (`ANTHROPIC_API_KEY`,
 `OPENAI_API_KEY`), wins. Without one, the screen saves a key encrypted with `APP_KEY` and never shows
-it again. Test asks the provider's cheapest model for one word, so it costs a fraction of a cent.
+it again. Test asks the provider's cheapest model, or the text model chosen on it, for one word, so it costs a fraction of a cent.
 
 Code prompts with laravel/ai itself and reaches the provider the screen chose for that kind of work:
 

@@ -7,6 +7,7 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -25,24 +26,43 @@ class ConnectorController
             'providers' => $this->connectors->all(),
             'defaults' => $this->connectors->defaults(),
             'uses' => array_map(fn (array $use) => $use[2], Connectors::USES),
+            'fallbacks' => array_combine(array_keys(Connectors::USES), array_map($this->connectors->fallbackModel(...), array_keys(Connectors::USES))),
         ]);
     }
 
-    /* Every kind of work posted at once, a blank one left to the site's
-       config: all of them chosen or none. */
+    /* Every kind of work posted at once with the model to use for it, a blank
+       provider left to the site's config and a blank model to the provider's
+       own: all of them chosen or none. */
     public function defaults(Request $request): RedirectResponse
     {
         $chosen = (array) $request->input('defaults', []);
+        $models = (array) $request->input('models', []);
+        $this->assertModelsAreText($models);
 
-        $this->found(fn () => DB::transaction(function () use ($chosen) {
+        $this->found(fn () => DB::transaction(function () use ($chosen, $models) {
             foreach (array_keys(Connectors::USES) as $use) {
                 if (array_key_exists($use, $chosen)) {
-                    $this->connectors->choose($use, is_string($chosen[$use]) && $chosen[$use] !== '' ? $chosen[$use] : null);
+                    $this->connectors->choose(
+                        $use,
+                        is_string($chosen[$use]) && $chosen[$use] !== '' ? $chosen[$use] : null,
+                        is_string($models[$use] ?? null) ? $models[$use] : null,
+                    );
                 }
             }
         }));
 
         return redirect()->route('mainstay.plugins.ai.index')->with('status', 'Defaults saved.');
+    }
+
+    /* A model posted as anything but text is refused rather than read as blank,
+       which would clear the one saved. */
+    private function assertModelsAreText(array $models): void
+    {
+        foreach (Connectors::USES as $use => $kind) {
+            if (isset($models[$use]) && ! is_string($models[$use])) {
+                throw ValidationException::withMessages(["models.{$use}" => 'The '.Str::lower($kind[2]).' model must be text.']);
+            }
+        }
     }
 
     /* A refused key goes back with its errors alone: Laravel's own redirect
