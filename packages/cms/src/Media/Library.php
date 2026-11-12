@@ -29,15 +29,16 @@ use SplFileInfo;
 use Throwable;
 
 /*
- | The media library: images uploaded from code, held once each by the hash of
- | their bytes, with every size an image field declares written beside them as
- | plain files at the moment they arrive: in AVIF and WebP where this PHP's
- | GD writes them, and in the original's own kind where it writes no WebP, so
+ | The media library: images and documents uploaded from code, held once each
+ | by the hash of their bytes: a document as it came, an image with every
+ | size an image field declares written beside it at the moment it arrives,
+ | in AVIF and WebP where this PHP's GD writes them, and in the original's own kind where it writes no WebP, so
  | a host without either still serves every image.
  |
- | The original is kept on a private disk and never served -- a camera's
- | carries the EXIF the copies are re-encoded without, GPS included. The copies
- | are named from everything they are made of, so a name that exists is a file
+ | Every file is on a private disk and served by the mainstay.media.file
+ | route, public or restricted per file. An image's original is never
+ | served -- a camera's carries the EXIF the copies are re-encoded without,
+ | GPS included. The copies are named from everything they are made of, so a name that exists is a file
  | that is right, and nothing ever needs invalidating.
  |
  | spatie/image on GD, chosen here rather than left to the package, which
@@ -70,12 +71,18 @@ class Library
     public function __construct(private Mainstay $mainstay) {}
 
     /*
-     | A file into the library, and every declared size of it onto the media
-     | disk. Alt text names every content locale, an empty string marking the
-     | image decorative, so a language left out is refused rather than shipped
-     | undescribed. Bytes the library already holds are refused naming the
-     | image that holds them, trashed or not: an upload neither edits an image
-     | nor restores one.
+     | A file into the library: an image, with every declared size of it onto
+     | the media disk, or a document, kept as it came on the same disk. Which
+     | it is, is what the bytes say; `$documents` names the extensions the
+     | caller will take, which leaves images out, and is the list of
+     | mainstay.media.documents where null.
+     |
+     | An image's alt text names every content locale, an empty string
+     | marking it decorative, so a language left out is refused rather than
+     | shipped undescribed. A document has a title and a description, none
+     | asked of it. Bytes the library already holds are refused naming the
+     | item that holds them, trashed or not: an upload neither edits one nor
+     | restores one.
      |
      | The files are written before the row, so a failed upload leaves no
      | record naming a file that is not there. What it did write is whole --
@@ -83,8 +90,11 @@ class Library
      |
      | @param  array<string, string>  $alt  by locale
      | @param  array{0: int, 1: int}  $focal  percentages across and down
+     | @param  array<string, string>  $title  by locale
+     | @param  array<string, string>  $description  by locale
+     | @param  list<string>|null  $documents
      */
-    public function upload(string|SplFileInfo $file, array $alt = [], array $focal = [50, 50], bool $overrideAccess = false): Media
+    public function upload(string|SplFileInfo $file, array $alt = [], array $focal = [50, 50], bool $overrideAccess = false, array $title = [], array $description = [], string $visibility = Media::PUBLIC, ?array $documents = null): Media
     {
         $this->authorize('create', Media::class, $overrideAccess);
 
@@ -94,9 +104,18 @@ class Library
             throw new InvalidArgumentException(sprintf('%s is not a file that can be read.', $file instanceof SplFileInfo ? $file->getPathname() : $file));
         }
 
-        $this->check(['alt' => $alt, 'focal' => $focal], upload: true);
-        $type = $this->inspect($path);
-        $this->engine();
+        $name = $file instanceof SplFileInfo && method_exists($file, 'getClientOriginalName') ? $file->getClientOriginalName() : basename($path);
+        $this->checkText(['title' => $title, 'description' => $description, 'visibility' => $visibility]);
+
+        $document = $this->document($path, $name, $documents);
+
+        if ($document === null) {
+            $this->check(['alt' => $alt, 'focal' => $focal], upload: true);
+            $type = $this->inspect($path);
+            $this->engine();
+        } else {
+            [$extension, $type] = $document;
+        }
 
         $hash = hash_file('sha256', $path);
 
@@ -104,33 +123,40 @@ class Library
             throw $this->taken($held);
         }
 
-        $image = $this->decode($path);
+        $image = $document === null ? $this->decode($path) : null;
         $focal = array_map('intval', $focal);
 
-        $formats = $this->formats($type);
-
-        $this->put($this->originals(), "media/{$hash}.".self::TYPES[$type], $path);
-        $this->generate($image, $hash, $focal, $formats);
+        if ($image === null) {
+            $formats = [];
+            $this->put($this->disk(), "media/{$hash}.{$extension}", $path);
+        } else {
+            $formats = $this->formats($type);
+            $this->put($this->originals(), "media/{$hash}.".self::TYPES[$type], $path);
+            $this->generate($image, $hash, $focal, $formats);
+        }
 
         $now = $this->now();
 
         /* In a transaction of its own, which inside a seeder's is a savepoint:
            the second of two uploads racing with the same bytes is refused by
            the index, and on Postgres a failed insert outside a savepoint
-           abandons the whole of the caller's transaction. The image that won
+           abandons the whole of the caller's transaction. The item that won
            is read with a lock, since a plain read inside a caller's MySQL
            transaction answers from a snapshot older than it. */
         try {
             $id = DB::transaction(fn () => DB::table(self::TABLE)->insertGetId([
                 'hash' => $hash,
                 'type' => $type,
-                'name' => mb_substr($file instanceof SplFileInfo && method_exists($file, 'getClientOriginalName') ? $file->getClientOriginalName() : basename($path), 0, 255),
+                'name' => $this->cleaned($name),
                 'bytes' => filesize($path),
-                'width' => $image->getWidth(),
-                'height' => $image->getHeight(),
+                'width' => $image?->getWidth() ?? 0,
+                'height' => $image?->getHeight() ?? 0,
                 'focal_x' => $focal[0],
                 'focal_y' => $focal[1],
-                'alt' => json_encode($alt, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+                'alt' => json_encode($image === null ? [] : $alt, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+                'title' => $this->encoded($title),
+                'description' => $this->encoded($description),
+                'visibility' => $visibility,
                 'formats' => implode(',', $formats),
                 'owner_id' => Gate::user()?->getKey(),
                 'created_at' => $now,
@@ -141,6 +167,35 @@ class Library
         }
 
         return $this->find($id, overrideAccess: true);
+    }
+
+    /*
+     | The document a file is, when the caller takes documents only or the
+     | bytes are no image the library holds; null for an image. Refused
+     | naming what would have been taken.
+     |
+     | @param  list<string>|null  $accept
+     | @return array{0: string, 1: string}|null
+     */
+    private function document(string $path, string $name, ?array $accept): ?array
+    {
+        if ($accept === null && isset(self::TYPES[(new finfo(FILEINFO_MIME_TYPE))->file($path)])) {
+            return null;
+        }
+
+        $extensions = Documents::allowed($accept);
+
+        if (($document = Documents::match($path, $name, $extensions)) === null) {
+            throw ValidationException::withMessages(['file' => ($accept === null ? 'The file is not a JPEG, PNG, GIF or WebP image or one of the allowed documents: ' : 'The file is not one of the allowed documents: ').implode(', ', $extensions).'.']);
+        }
+
+        $limit = (int) config('mainstay.media.max_document_kb', 20480) * 1024;
+
+        if (filesize($path) > $limit) {
+            throw ValidationException::withMessages(['file' => sprintf('The document is %s MB, and the most the library takes is %s.', round(filesize($path) / 1_048_576, 1), round($limit / 1_048_576, 1).' MB')]);
+        }
+
+        return $document;
     }
 
     /*
@@ -156,14 +211,21 @@ class Library
     /*
      | The library a page at a time, newest first, each with its alt text in
      | the locale asked for or the request's: what the admin's grid shows.
-     | `trashed` reads the trash alone.
+     | `trashed` reads the trash alone; `$kind` is `image` or `document`, and
+     | `$accept` narrows documents to the extensions a field takes.
+     |
+     | @param  list<string>|null  $accept
      */
-    public function paginate(int $perPage = 24, ?int $page = null, ?string $locale = null, bool $trashed = false, bool $overrideAccess = false): LengthAwarePaginator
+    public function paginate(int $perPage = 24, ?int $page = null, ?string $locale = null, bool $trashed = false, bool $overrideAccess = false, ?string $kind = null, ?array $accept = null): LengthAwarePaginator
     {
         $this->authorize('viewAny', Media::class, $overrideAccess);
         $locale ??= App::getLocale();
 
         return DB::table(self::TABLE)
+            ->when($kind === 'image', fn ($query) => $query->whereIn('type', self::imageTypes()))
+            ->when($kind === 'document', fn ($query) => $accept === null
+                ? $query->whereNotIn('type', self::imageTypes())
+                : $query->whereIn('type', Documents::types(Documents::allowed($accept))))
             ->when($trashed, fn ($query) => $query->whereNotNull('deleted_at'), fn ($query) => $query->whereNull('deleted_at'))
             ->orderByDesc('created_at')->orderByDesc('id')
             ->paginate($perPage, page: $page)
@@ -183,22 +245,41 @@ class Library
      | Alt text for the locales given, the rest kept, and a focal point moved:
      | the crops it moves are written at once, before the row says where the
      | point is, so the row never names copies that are not there yet. The
-     | old ones stay, and old URLs go on serving what they served.
+     | old ones stay, and old URLs go on serving what they served. A title and
+     | a description merge as alt text does, and a visibility changes who is
+     | served the file from the next request on.
      |
      | @param  array<string, string>|null  $alt  by locale
      | @param  array{0: int, 1: int}|null  $focal
+     | @param  array<string, string>|null  $title  by locale
+     | @param  array<string, string>|null  $description  by locale
      */
-    public function update(int $id, ?array $alt = null, ?array $focal = null, bool $overrideAccess = false): Media
+    public function update(int $id, ?array $alt = null, ?array $focal = null, bool $overrideAccess = false, ?array $title = null, ?array $description = null, ?string $visibility = null): Media
     {
         $row = $this->row($id);
+        $isImage = isset(self::TYPES[$row->type]);
 
         $this->authorize('update', $this->media($row, App::getLocale()), $overrideAccess);
-        $this->check(array_filter(['alt' => $alt, 'focal' => $focal], fn (?array $value) => $value !== null), upload: false);
+
+        if (! $isImage && ($alt !== null || $focal !== null)) {
+            throw ValidationException::withMessages(['file' => 'A document has no alt text or focal point.']);
+        }
+
+        $given = array_filter(['alt' => $alt, 'focal' => $focal], fn (?array $value) => $value !== null);
+
+        $this->check($given, upload: false);
+        $this->checkText(array_filter(['title' => $title, 'description' => $description, 'visibility' => $visibility], fn (mixed $value) => $value !== null));
 
         $changes = ['updated_at' => $this->now()];
 
-        if ($alt !== null) {
-            $changes['alt'] = json_encode([...json_decode($row->alt, true), ...$alt], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+        foreach (['alt' => $alt, 'title' => $title, 'description' => $description] as $column => $locales) {
+            if ($locales !== null) {
+                $changes[$column] = $this->encoded([...json_decode($row->{$column} ?? '[]', true), ...$locales]);
+            }
+        }
+
+        if ($visibility !== null) {
+            $changes['visibility'] = $visibility;
         }
 
         if ($focal !== null) {
@@ -255,7 +336,7 @@ class Library
      */
     public function reprocess(int $id): void
     {
-        $row = DB::table(self::TABLE)->where('id', $id)->whereNull('deleted_at')->first();
+        $row = DB::table(self::TABLE)->where('id', $id)->whereIn('type', self::imageTypes())->whereNull('deleted_at')->first();
 
         if ($row === null) {
             return;
@@ -295,15 +376,22 @@ class Library
     }
 
     /*
-     | Which of `$ids` are images out of the trash, which is what a save asks
-     | of the images it is given.
+     | Which of `$ids` are out of the trash and of one of `$types`, which is
+     | what a save asks of the images and files it is given.
      |
      | @param  list<int>  $ids
+     | @param  list<string>  $types
      | @return list<int>
      */
-    public function present(array $ids): array
+    public function present(array $ids, array $types): array
     {
-        return $ids === [] ? [] : DB::table(self::TABLE)->whereIntegerInRaw('id', array_unique($ids))->whereNull('deleted_at')->pluck('id')->map(fn (mixed $id) => (int) $id)->all();
+        return $ids === [] ? [] : DB::table(self::TABLE)->whereIntegerInRaw('id', array_unique($ids))->whereIn('type', $types)->whereNull('deleted_at')->pluck('id')->map(fn (mixed $id) => (int) $id)->all();
+    }
+
+    /* What the library holds of images, by what the bytes say. */
+    public static function imageTypes(): array
+    {
+        return array_keys(self::TYPES);
     }
 
     /*
@@ -364,6 +452,35 @@ class Library
             'alt.*.present' => 'The :attribute field describes the image in that language; an empty string marks it decorative.',
             'focal.size' => 'The focal point is two percentages, across and down: [50, 50].',
         ])->validate();
+    }
+
+    /* Title, description and visibility, checked as a save checks a field. */
+    private function checkText(array $values): void
+    {
+        $locales = implode(',', array_keys($this->mainstay->locales()));
+
+        Validator::make($values, [
+            'title' => ['sometimes', 'array:'.$locales],
+            'title.*' => ['nullable', 'string', 'max:255'],
+            'description' => ['sometimes', 'array:'.$locales],
+            'description.*' => ['nullable', 'string', 'max:2000'],
+            'visibility' => ['sometimes', 'in:'.Media::PUBLIC.','.Media::RESTRICTED],
+        ])->validate();
+    }
+
+    /* A locale-keyed column's value: null for none written. */
+    private function encoded(array $locales): ?string
+    {
+        return $locales === [] ? null : json_encode($locales, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+    }
+
+    /* The name a file was uploaded under, kept to show and to offer it by:
+       no path, no control characters. Never a path on a disk. */
+    private function cleaned(string $name): string
+    {
+        $name = trim(preg_replace('/[\x00-\x1F\x7F\/\\\\]+/u', '', $name) ?? '');
+
+        return mb_substr($name === '' ? 'file' : $name, 0, 255);
     }
 
     /*
@@ -552,12 +669,14 @@ class Library
 
     private function held(string $hash, bool $lock = false): ?object
     {
-        return DB::table(self::TABLE)->where('hash', $hash)->when($lock, fn ($query) => $query->lockForUpdate())->first(['id', 'deleted_at']);
+        return DB::table(self::TABLE)->where('hash', $hash)->when($lock, fn ($query) => $query->lockForUpdate())->first(['id', 'type', 'deleted_at']);
     }
 
     private function taken(object $held): ValidationException
     {
-        return ValidationException::withMessages(['file' => "This image is already in the library, as image {$held->id}".($held->deleted_at === null ? '.' : ', in its trash.')]);
+        $noun = isset(self::TYPES[$held->type]) ? 'image' : 'file';
+
+        return ValidationException::withMessages(['file' => "This {$noun} is already in the library, as {$noun} {$held->id}".($held->deleted_at === null ? '.' : ', in its trash.')]);
     }
 
     private function row(int $id): object
@@ -585,6 +704,10 @@ class Library
             originalHeight: (int) $row->height,
             formats: explode(',', $row->formats),
             ownerId: $row->owner_id === null ? null : (int) $row->owner_id,
+            bytes: (int) $row->bytes,
+            title: json_decode($row->title ?? '[]', true)[$locale] ?? null,
+            description: json_decode($row->description ?? '[]', true)[$locale] ?? null,
+            visibility: $row->visibility,
         );
     }
 
@@ -597,9 +720,11 @@ class Library
         }
     }
 
-    private function disk(): Filesystem
+    /* Where the copies and the documents are, which is never served from
+       directly: the route reads it. */
+    public function disk(): Filesystem
     {
-        return Storage::disk(config('mainstay.media.disk', 'public'));
+        return Storage::disk(config('mainstay.media.disk', 'local'));
     }
 
     private function originals(): Filesystem

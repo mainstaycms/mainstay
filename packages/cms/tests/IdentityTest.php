@@ -81,7 +81,6 @@ class IdentityTest extends DatabaseTestCase
     {
         parent::setUp();
 
-        Storage::fake('public');
         Storage::fake('local');
 
         $this->declare(Note::class, Flyer::class, Banner::class, Footer::class, Topic::class);

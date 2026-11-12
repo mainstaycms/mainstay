@@ -2,16 +2,23 @@
 
 namespace Mainstay\Content;
 
-use Illuminate\Support\Facades\Storage;
+use DateTimeInterface;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
 use Mainstay\Mainstay;
+use Mainstay\Media\Documents;
 use Mainstay\Media\Size;
 
 /*
- | An image in the media library, as a read hands it out: its alt text in the
- | locale it was read in, and the copies of it the field it was read through
+ | An image or a document in the media library, as a read hands it out: its
+ | alt text (an image) or title and description (a document) in the locale it
+ | was read in, and the copies of an image the field it was read through
  | declares, by name.
+ |
+ | Every address is the `mainstay.media.file` route's, never a disk's. A
+ | restricted file's is signed to expire, so a page that prints one prints a
+ | link that works for a while and then does not.
  |
  | One that is in the trash, or gone, is still a Media -- `missing`, holding
  | its id and nothing else -- so a list of blocks written back while it is
@@ -20,6 +27,10 @@ use Mainstay\Media\Size;
  */
 final class Media
 {
+    public const PUBLIC = 'public';
+
+    public const RESTRICTED = 'restricted';
+
     /* What a copy can be written in, by MIME type. */
     private const TYPES = ['avif' => 'image/avif', 'webp' => 'image/webp', 'jpg' => 'image/jpeg', 'png' => 'image/png'];
 
@@ -48,6 +59,10 @@ final class Media
            MediaPolicy asks. */
         public readonly ?int $ownerId = null,
         private readonly array $formats = [],
+        public readonly ?int $bytes = null,
+        public readonly ?string $title = null,
+        public readonly ?string $description = null,
+        public readonly string $visibility = self::PUBLIC,
     ) {
         $this->missing = $hash === null;
     }
@@ -55,7 +70,27 @@ final class Media
     /* This image with the sizes of the field it is read through. */
     public function sized(array $sizes): self
     {
-        return new self($this->id, $this->alt, $this->hash, $this->type, $this->name, $this->focal, $this->originalWidth, $this->originalHeight, $sizes, $this->ownerId, $this->formats);
+        return new self($this->id, $this->alt, $this->hash, $this->type, $this->name, $this->focal, $this->originalWidth, $this->originalHeight, $sizes, $this->ownerId, $this->formats, $this->bytes, $this->title, $this->description, $this->visibility);
+    }
+
+    /* Whether this is a document rather than an image: by its type, which a
+       missing one has none of. */
+    public function isDocument(): bool
+    {
+        return $this->type !== null && ! str_starts_with($this->type, 'image/');
+    }
+
+    /* The size as an editor reads it. */
+    public function readableBytes(): string
+    {
+        $bytes = $this->bytes ?? 0;
+
+        return $bytes >= 1_048_576 ? round($bytes / 1_048_576, 1).' MB' : max(1, (int) round($bytes / 1024)).' KB';
+    }
+
+    public function isRestricted(): bool
+    {
+        return $this->visibility === self::RESTRICTED;
     }
 
     /* This image as a block's field holds it. */
@@ -67,11 +102,30 @@ final class Media
         return $copy;
     }
 
-    /* The copy's address, in the format an <img> shows unless another is
-       asked for. Null for an image that is missing, or a format this one
-       was not written in: the host's GD could not write it. */
-    public function url(string $size, ?string $format = null): ?string
+    /*
+     | The copy's address, in the format an <img> shows unless another is
+     | asked for. Null for an image that is missing, or a format this one
+     | was not written in: the host's GD could not write it, or null for
+     | a file or image in the trash or gone. A document has
+     | one file and no size to name: its address is the one that downloads it.
+     */
+    public function url(?string $size = null, ?string $format = null): ?string
     {
+        /* Read through a File field, or any field, a missing one has no
+           type to tell a document from an image by, and prints nothing as
+           an image's does. */
+        if ($this->missing && ($size === null || $this->sizes === [])) {
+            return null;
+        }
+
+        if ($this->isDocument()) {
+            return $this->address($this->file());
+        }
+
+        if ($size === null) {
+            throw new InvalidArgumentException("Image {$this->id} is printed at a size its field declares: url('card').");
+        }
+
         if ($format !== null && ! isset(self::TYPES[$format])) {
             throw new InvalidArgumentException('Copies are written as '.implode(', ', array_keys(self::TYPES)).", not {$format}.");
         }
@@ -79,7 +133,20 @@ final class Media
         $declared = $this->size($size);
         $format ??= $this->shown();
 
-        return $this->missing || ! in_array($format, $this->formats, true) ? null : $this->address($declared, $format);
+        return $this->missing || ! in_array($format, $this->formats, true) ? null : $this->address($this->copyFile($declared, $format));
+    }
+
+    /*
+     | The address of a document, or of an image's copy at `$size` and
+     | `$format`, signed to stop working at `$expires` -- an hour from now by
+     | default -- whether the file is restricted or not: what a link sent
+     | by mail is. Null for what url() gives null for.
+     */
+    public function temporaryUrl(?string $size = null, ?string $format = null, ?DateTimeInterface $expires = null): ?string
+    {
+        $file = $this->isDocument() ? $this->file() : ($this->url($size, $format) === null ? null : $this->copyFile($this->size($size), $format ?? $this->shown()));
+
+        return $file === null ? null : $this->signed($file, $expires);
     }
 
     public function width(string $size): ?int
@@ -106,7 +173,9 @@ final class Media
     public function picture(string $size, array $attributes = []): HtmlString
     {
         if ($this->missing) {
-            $this->size($size);
+            if ($this->sizes !== []) {
+                $this->size($size);
+            }
 
             return new HtmlString('');
         }
@@ -162,6 +231,22 @@ final class Media
         return ['id' => $this->id, 'alt' => $this->alt, 'focal' => $this->focal, 'sizes' => (object) $sizes];
     }
 
+    /* The document as the API hands it out, with the address that downloads
+       it: signed to expire where it is restricted. */
+    public function fileArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'type' => $this->type,
+            'bytes' => $this->bytes,
+            'title' => $this->title,
+            'description' => $this->description,
+            'visibility' => $this->visibility,
+            'url' => $this->url(),
+        ];
+    }
+
     /* The format an `<img>` shows: the last written, the most widely read. */
     private function shown(): ?string
     {
@@ -172,15 +257,31 @@ final class Media
        that is missing. */
     private function copy(Size $size): array
     {
-        $url = fn (?string $format) => ! $this->missing && in_array($format, $this->formats, true) ? $this->address($size, $format) : null;
+        $url = fn (?string $format) => ! $this->missing && in_array($format, $this->formats, true) ? $this->address($this->copyFile($size, $format)) : null;
         [$width, $height] = $this->missing ? [null, null] : $size->output($this->originalWidth, $this->originalHeight, $this->focal);
 
         return ['src' => $url($this->shown()), 'avif' => $url('avif'), 'webp' => $url('webp'), 'width' => $width, 'height' => $height];
     }
 
-    private function address(Size $size, string $format): string
+    private function address(string $file): string
     {
-        return Storage::disk(config('mainstay.media.disk', 'public'))->url($size->path($this->hash, $this->focal, $format));
+        return $this->isRestricted() ? $this->signed($file) : route('mainstay.media.file', $file);
+    }
+
+    private function signed(string $file, ?DateTimeInterface $expires = null): string
+    {
+        return URL::temporarySignedRoute('mainstay.media.signed', $expires ?? now()->addMinutes((int) config('mainstay.media.url_minutes', 60)), ['file' => $file]);
+    }
+
+    /* The name a document is kept and served under. */
+    private function file(): string
+    {
+        return "{$this->hash}.".Documents::extension($this->type);
+    }
+
+    private function copyFile(Size $size, string $format): string
+    {
+        return basename($size->path($this->hash, $this->focal, $format));
     }
 
     /* A size and its fractions in one format, each named by the width it
@@ -193,7 +294,7 @@ final class Media
 
         foreach ([...array_reverse($declared->fractions()), $declared] as $copy) {
             $width = $copy->output($this->originalWidth, $this->originalHeight, $this->focal)[0];
-            $candidates[$width] ??= $this->address($copy, $format)." {$width}w";
+            $candidates[$width] ??= $this->address($this->copyFile($copy, $format))." {$width}w";
         }
 
         return count($candidates) > 1 ? implode(', ', $candidates) : null;

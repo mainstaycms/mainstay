@@ -15,6 +15,7 @@ use Mainstay\Content\Media;
 use Mainstay\Facades\Mainstay;
 use Mainstay\Fields\Image;
 use Mainstay\Mainstay as Registry;
+use Mainstay\Media\Documents;
 use Mainstay\Media\Reprocess;
 use Mainstay\Media\Size;
 use Mainstay\Tests\Fixtures\Banner;
@@ -50,13 +51,14 @@ class MediaTest extends DatabaseTestCase
         parent::defineEnvironment($app);
 
         $app['config']->set('mainstay.locales', ['en' => '/', 'nl' => '/nl']);
+        $app['config']->set('mainstay.media.disk', 'media');
     }
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        Storage::fake('public');
+        Storage::fake('media');
         Storage::fake('local');
 
         $this->declare(Pictured::class);
@@ -119,7 +121,7 @@ class MediaTest extends DatabaseTestCase
        lossy formats come back near the colour drawn, not on it. */
     private function colour(string $path, int $x, int $y): string
     {
-        $image = imagecreatefromstring(Storage::disk('public')->get($path));
+        $image = imagecreatefromstring(Storage::disk('media')->get($path));
         $rgb = imagecolorsforindex($image, imagecolorat($image, $x, $y));
 
         return $rgb['red'] > $rgb['blue'] ? 'red' : 'blue';
@@ -128,7 +130,7 @@ class MediaTest extends DatabaseTestCase
     /* The width and height a copy was written at. */
     private function dimensions(string $path): array
     {
-        return array_slice(getimagesizefromstring(Storage::disk('public')->get($path)), 0, 2);
+        return array_slice(getimagesizefromstring(Storage::disk('media')->get($path)), 0, 2);
     }
 
     private function create(array $data): Pictured
@@ -179,7 +181,7 @@ class MediaTest extends DatabaseTestCase
             }
         }
 
-        $written = Storage::disk('public')->files('media');
+        $written = Storage::disk('media')->files('media');
         sort($expected);
         sort($written);
         $this->assertSame($expected, $written, 'Only the copies are public, never the original.');
@@ -192,7 +194,7 @@ class MediaTest extends DatabaseTestCase
            holding them, and nothing is written for them. */
         $this->assertSame(['file' => ["This image is already in the library, as image {$media->id}."]], $this->refusal(fn () => $this->upload($file)));
         $this->assertSame(1, DB::table('mainstay_media')->count());
-        $this->assertCount(8, Storage::disk('public')->files('media'));
+        $this->assertCount(8, Storage::disk('media')->files('media'));
     }
 
     #[Test]
@@ -208,13 +210,13 @@ class MediaTest extends DatabaseTestCase
         $this->assertSame([300, 150], $this->dimensions("media/{$hash}-300x150-50-50.webp"));
         $this->assertSame([150, 75], $this->dimensions("media/{$hash}-150x75-50-50.avif"));
         $this->assertSame([160, 80], $this->dimensions("media/{$hash}-160.webp"));
-        $this->assertFalse(Storage::disk('public')->exists("media/{$hash}-80.webp"));
-        $this->assertFalse(Storage::disk('public')->exists("media/{$hash}-20x10-50-50.webp"));
+        $this->assertFalse(Storage::disk('media')->exists("media/{$hash}-80.webp"));
+        $this->assertFalse(Storage::disk('media')->exists("media/{$hash}-20x10-50-50.webp"));
         $this->assertSame(['0.5'], array_keys((new Size(560))->fractions()), 'A quarter of 140 pixels is too narrow.');
 
         $image = Mainstay::create(Banner::class, ['title' => 'Banner', 'image' => $media], locale: 'en', overrideAccess: true)->image;
         $copies = fn (string $format) => implode(', ', array_map(
-            fn (string $copy, int $width) => Storage::disk('public')->url("media/{$hash}-{$copy}.{$format}")." {$width}w",
+            fn (string $copy, int $width) => route('mainstay.media.file', basename("media/{$hash}-{$copy}.{$format}"))." {$width}w",
             ['150x75-50-50', '300x150-50-50', '600x300-50-50'],
             [150, 300, 600],
         ));
@@ -230,9 +232,9 @@ class MediaTest extends DatabaseTestCase
         $sizes = (array) $image->toArray()['sizes'];
         $this->assertSame(['hero', 'hero@0.5', 'hero@0.25', 'strip', 'strip@0.5'], array_keys($sizes));
         $this->assertSame([
-            'src' => Storage::disk('public')->url("media/{$hash}-300x150-50-50.webp"),
-            'avif' => Storage::disk('public')->url("media/{$hash}-300x150-50-50.avif"),
-            'webp' => Storage::disk('public')->url("media/{$hash}-300x150-50-50.webp"),
+            'src' => route('mainstay.media.file', basename("media/{$hash}-300x150-50-50.webp")),
+            'avif' => route('mainstay.media.file', basename("media/{$hash}-300x150-50-50.avif")),
+            'webp' => route('mainstay.media.file', basename("media/{$hash}-300x150-50-50.webp")),
             'width' => 300,
             'height' => 150,
         ], $sizes['hero@0.5']);
@@ -242,7 +244,7 @@ class MediaTest extends DatabaseTestCase
         $narrow = $this->upload($this->png(400, 200, 200));
         $image = Mainstay::create(Banner::class, ['title' => 'Narrow', 'image' => $narrow], locale: 'en', overrideAccess: true)->image;
 
-        $this->assertStringContainsString(' 300w, '.Storage::disk('public')->url("media/{$narrow->hash}-600x300-50-50.webp").' 400w"', (string) $image->picture('hero'));
+        $this->assertStringContainsString(' 300w, '.route('mainstay.media.file', basename("media/{$narrow->hash}-600x300-50-50.webp")).' 400w"', (string) $image->picture('hero'));
 
         $tiny = $this->upload($this->png(140, 70, 70));
         $image = Mainstay::create(Banner::class, ['title' => 'Tiny', 'image' => $tiny], locale: 'en', overrideAccess: true)->image;
@@ -282,8 +284,8 @@ class MediaTest extends DatabaseTestCase
         $this->assertSame([90, 50], $moved->focal);
         $this->assertSame('blue', $this->colour("media/{$hash}-16x16-90-50.webp", 12, 8));
         $this->assertSame('blue', $this->colour("media/{$hash}-16x16-90-50.webp", 3, 8));
-        $this->assertTrue(Storage::disk('public')->exists("media/{$hash}-16x16-10-50.webp"), 'Old URLs go on serving what they served.');
-        $this->assertCount(2, array_filter(Storage::disk('public')->files('media'), fn (string $path) => str_contains($path, "{$hash}-60.")), 'A size that only scales keeps its files when the point moves.');
+        $this->assertTrue(Storage::disk('media')->exists("media/{$hash}-16x16-10-50.webp"), 'Old URLs go on serving what they served.');
+        $this->assertCount(2, array_filter(Storage::disk('media')->files('media'), fn (string $path) => str_contains($path, "{$hash}-60.")), 'A size that only scales keeps its files when the point moves.');
     }
 
     #[Test]
@@ -318,7 +320,7 @@ class MediaTest extends DatabaseTestCase
         $this->files[] = $text = sys_get_temp_dir().'/mainstay-media-'.uniqid().'.png';
         file_put_contents($text, 'Not a picture at all.');
 
-        $this->assertSame(['file' => ['The file is not a JPEG, PNG, GIF or WebP image.']], $this->refusal(fn () => $this->upload($text)));
+        $this->assertSame(['file' => ['The file is not a JPEG, PNG, GIF or WebP image or one of the allowed documents: '.implode(', ', Documents::allowed()).'.']], $this->refusal(fn () => $this->upload($text)));
         $this->assertArrayHasKey('file', $this->refusal(fn () => $this->upload($this->draw(20, 20, 10, 0, fn (GdImage $image, string $path) => imagebmp($image, $path)))), 'An image of a kind the library does not hold.');
         file_put_contents($svg = $this->files[] = sys_get_temp_dir().'/mainstay-media-'.uniqid().'.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"/>');
         $this->assertArrayHasKey('file', $this->refusal(fn () => $this->upload($svg)));
@@ -344,7 +346,7 @@ class MediaTest extends DatabaseTestCase
 
         $this->assertSame(0, DB::table('mainstay_media')->count());
         $this->assertSame([], Storage::disk('local')->allFiles());
-        $this->assertSame([], Storage::disk('public')->allFiles());
+        $this->assertSame([], Storage::disk('media')->allFiles());
 
         $decorative = $this->upload($image, alt: ['en' => '', 'nl' => '']);
         $this->assertSame('', $decorative->alt);
@@ -369,20 +371,20 @@ class MediaTest extends DatabaseTestCase
         $failing('local');
         $this->assertThrows(fn () => $this->upload($file), RuntimeException::class, "media/{$hash}.png could not be written to its disk.");
         $this->assertSame([], Storage::disk('local')->allFiles(), 'The temporary file goes with the failure.');
-        $this->assertSame([], Storage::disk('public')->allFiles());
+        $this->assertSame([], Storage::disk('media')->allFiles());
 
         /* The original whole, the copies not: a second try uses the one and
            writes the others. */
         Storage::fake('local');
-        $failing('public');
+        $failing('media');
         $this->assertThrows(fn () => $this->upload($file), RuntimeException::class);
         $this->assertSame(["media/{$hash}.png"], Storage::disk('local')->allFiles());
-        $this->assertSame([], Storage::disk('public')->allFiles());
+        $this->assertSame([], Storage::disk('media')->allFiles());
         $this->assertSame(0, DB::table('mainstay_media')->count());
 
-        Storage::fake('public');
+        Storage::fake('media');
         $this->upload($file);
-        $this->assertCount(8, Storage::disk('public')->files('media'));
+        $this->assertCount(8, Storage::disk('media')->files('media'));
         $this->assertSame(1, DB::table('mainstay_media')->count());
     }
 
@@ -415,8 +417,8 @@ class MediaTest extends DatabaseTestCase
         $this->assertStringStartsWith('<picture data-mainstay-image="image" data-mainstay-item="'.$figure->id.'">', (string) Mainstay::marked(fn () => $figure->image->picture('thumb')));
         $this->assertStringNotContainsString('data-mainstay-image', (string) Mainstay::marked(fn () => $en->cover->picture('card')));
 
-        $webp = Storage::disk('public')->url("media/{$cover->hash}-40x20-50-50.webp");
-        $avif = Storage::disk('public')->url("media/{$cover->hash}-40x20-50-50.avif");
+        $webp = route('mainstay.media.file', basename("media/{$cover->hash}-40x20-50-50.webp"));
+        $avif = route('mainstay.media.file', basename("media/{$cover->hash}-40x20-50-50.avif"));
         $this->assertSame($webp, $en->cover->url('card'));
         $this->assertSame($avif, $en->cover->url('card', 'avif'));
         $this->assertSame(
@@ -487,7 +489,7 @@ class MediaTest extends DatabaseTestCase
 
         $this->assertThrows(fn () => Mainstay::media()->upload($file, alt: self::ALT), AuthorizationException::class, 'Writing to the media library needs a Mainstay user');
         $this->assertSame(0, DB::table('mainstay_media')->count());
-        $this->assertSame([], Storage::disk('public')->allFiles());
+        $this->assertSame([], Storage::disk('media')->allFiles());
 
         $media = $this->upload($file);
 
@@ -552,7 +554,7 @@ class MediaTest extends DatabaseTestCase
         Mainstay::media()->delete($trashed->id, overrideAccess: true);
 
         $this->declare(Pictured::class, Poster::class);
-        $this->assertFalse(Storage::disk('public')->exists("media/{$live->hash}-24x36-50-50.webp"));
+        $this->assertFalse(Storage::disk('media')->exists("media/{$live->hash}-24x36-50-50.webp"));
 
         Queue::fake();
         $this->artisan('mainstay:media:reprocess')->expectsOutputToContain('Queued 1 image.')->assertSuccessful();
@@ -562,8 +564,8 @@ class MediaTest extends DatabaseTestCase
         (new Reprocess($trashed->id))->handle($this->app->make(Registry::class));
 
         $this->assertSame([24, 36], $this->dimensions("media/{$live->hash}-24x36-50-50.webp"));
-        $this->assertTrue(Storage::disk('public')->exists("media/{$live->hash}-24x36-50-50.avif"));
-        $this->assertFalse(Storage::disk('public')->exists("media/{$trashed->hash}-24x36-50-50.webp"));
+        $this->assertTrue(Storage::disk('media')->exists("media/{$live->hash}-24x36-50-50.avif"));
+        $this->assertFalse(Storage::disk('media')->exists("media/{$trashed->hash}-24x36-50-50.webp"));
     }
 
     #[Test]
@@ -573,7 +575,7 @@ class MediaTest extends DatabaseTestCase
         $webpOnly = $this->upload($this->png(120, 80, 48));
         $cover = Mainstay::findById(Pictured::class, $this->create(['cover' => $webpOnly])->id, locale: 'en')->cover;
 
-        $this->assertSame([], array_filter(Storage::disk('public')->files('media'), fn (string $path) => str_ends_with($path, '.avif')), 'Nothing is written in a format left out.');
+        $this->assertSame([], array_filter(Storage::disk('media')->files('media'), fn (string $path) => str_ends_with($path, '.avif')), 'Nothing is written in a format left out.');
         $this->assertNull($cover->url('card', 'avif'));
         $this->assertSame('<picture><img src="'.e($cover->url('card')).'" alt="Red beside blue" width="40" height="20" loading="lazy" decoding="async"></picture>', (string) $cover->picture('card'));
         $this->assertStringEndsWith('-40x20-50-50.webp', $cover->url('card'));
@@ -588,7 +590,7 @@ class MediaTest extends DatabaseTestCase
 
         $this->assertSame([40, 20], $this->dimensions("media/{$png->hash}-40x20-50-50.png"));
         $this->assertSame([20, 40], $this->dimensions("media/{$jpeg->hash}-60.jpg"));
-        $this->assertFalse(Storage::disk('public')->exists("media/{$png->hash}-40x20-50-50.webp"));
+        $this->assertFalse(Storage::disk('media')->exists("media/{$png->hash}-40x20-50-50.webp"));
         $this->assertNull($read->cover->url('card', 'webp'));
         $this->assertStringEndsWith('.jpg', $read->content->blocks()[0]->inner()[0]->image->url('thumb'));
         $this->assertSame('<picture><img src="'.e($read->cover->url('card')).'" alt="Red beside blue" width="40" height="20" loading="lazy" decoding="async"></picture>', (string) $read->cover->picture('card'));

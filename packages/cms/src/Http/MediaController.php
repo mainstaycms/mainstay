@@ -10,16 +10,20 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Mainstay\Content\Media;
 use Mainstay\Mainstay;
+use Mainstay\Media\Documents;
 
 /*
  | The media library's screens over the library: the grid and its trash, an
- | upload, and an image's page for its alt text and focal point. The library
+ | upload, and a page for an image's alt text and focal point or a
+ | document's title and description, and either's visibility. The library
  | asks Gate on every write, as it does for a seeder, so a refusal is its own.
  |
- | The grid is also the image field's picker: `?pick` draws it without the
- | shell, for the dialog an image field opens, and an upload from there
- | answers with the grid again rather than a page. An image's page is the
+ | The grid is also the image and file fields' picker: `?pick` draws it
+ | without the shell, for the dialog a field opens, `kind=image` or
+ | `kind=document&accept=pdf,docx` showing only what the field takes, and an
+ | upload from there answers with the grid again rather than a page. An image's page is the
  | Content tab's image dialog too: `?dialog` draws its form alone, which
  | posts for JSON.
  */
@@ -49,11 +53,18 @@ class MediaController
         $file = $request->file('file');
 
         if (! $file instanceof UploadedFile || ! $file->isValid()) {
-            $this->refuse($request, ['file' => $file instanceof UploadedFile ? $file->getErrorMessage() : 'Choose an image to upload.']);
+            $this->refuse($request, ['file' => $file instanceof UploadedFile ? $file->getErrorMessage() : 'Choose a file to upload.']);
         }
 
         try {
-            $media = $this->mainstay->media()->upload($file, $this->alt($request));
+            $media = $this->mainstay->media()->upload(
+                $file,
+                $this->alt($request),
+                title: $this->locales($request, 'title'),
+                description: $this->locales($request, 'description'),
+                visibility: $request->input('visibility') === Media::RESTRICTED ? Media::RESTRICTED : Media::PUBLIC,
+                documents: $this->filter($request)['kind'] === 'document' ? $this->filter($request)['accept'] ?? Documents::allowed() : null,
+            );
         } catch (ValidationException $exception) {
             $this->refuse($request, $exception->errors());
         }
@@ -68,9 +79,13 @@ class MediaController
         $locales = array_keys($this->mainstay->locales());
         $media = $this->mainstay->media()->find($id) ?? throw $this->missing();
 
+        $in = fn (string $property) => array_combine($locales, array_map(fn (string $locale) => $this->mainstay->media()->find($id, $locale)?->{$property}, $locales));
+
         return view($request->has('dialog') ? 'mainstay::media.dialog' : 'mainstay::media.edit', [
             'media' => $media,
-            'alt' => array_combine($locales, array_map(fn (string $locale) => $this->mainstay->media()->find($id, $locale)?->alt, $locales)),
+            'alt' => $in('alt'),
+            'title' => $in('title'),
+            'description' => $in('description'),
         ]);
     }
 
@@ -78,7 +93,16 @@ class MediaController
     {
         $focal = $request->input('focal');
 
-        $this->found(fn () => $this->mainstay->media()->update($id, alt: $this->alt($request), focal: is_array($focal) ? array_values($focal) : null));
+        $visibility = $request->input('visibility');
+
+        $this->found(fn () => $this->mainstay->media()->update(
+            $id,
+            alt: $request->has('alt') ? $this->alt($request) : null,
+            focal: is_array($focal) ? array_values($focal) : null,
+            title: $request->has('title') ? $this->locales($request, 'title') : null,
+            description: $request->has('description') ? $this->locales($request, 'description') : null,
+            visibility: is_string($visibility) ? $visibility : null,
+        ));
 
         return $request->expectsJson()
             ? response()->json(['status' => 'Saved.'])
@@ -109,13 +133,15 @@ class MediaController
     private function grid(Request $request, bool $trashed, ?int $picked = null): View
     {
         $page = $request->query('page');
-        $images = $this->mainstay->media()->paginate(self::PER_PAGE, page: is_string($page) && ctype_digit($page) ? (int) $page : null, trashed: $trashed);
+        $filter = $this->filter($request);
+        $images = $this->mainstay->media()->paginate(self::PER_PAGE, page: is_string($page) && ctype_digit($page) ? (int) $page : null, trashed: $trashed, kind: $filter['kind'], accept: $filter['accept']);
 
         return view($request->has('pick') ? 'mainstay::media.picker' : 'mainstay::media.index', [
             'images' => $images,
             'trashed' => $trashed,
             'picked' => $picked,
             'locales' => $this->mainstay->locales(),
+            'filter' => $filter,
         ]);
     }
 
@@ -135,14 +161,40 @@ class MediaController
         return new HttpResponseException(response()->view('mainstay::missing', status: 404));
     }
 
+    /*
+     | What the grid shows: `kind` is image or document, and `accept` the
+     | extensions a file field takes -- the library's own, so what a query
+     | string says is only ever one of those.
+     |
+     | @return array{kind: ?string, accept: ?list<string>}
+     */
+    private function filter(Request $request): array
+    {
+        $kind = $request->input('kind');
+        $accept = $request->input('accept');
+        $extensions = is_string($accept) ? array_values(array_intersect(explode(',', $accept), Documents::known())) : [];
+
+        return [
+            'kind' => in_array($kind, ['image', 'document'], true) ? $kind : null,
+            'accept' => $extensions === [] ? null : $extensions,
+        ];
+    }
+
+    /* A text posted by locale, the null an empty input posts as the empty
+       string, a locale not posted left out. */
+    private function locales(Request $request, string $name): array
+    {
+        $posted = $request->input($name);
+
+        return array_map(fn (mixed $text) => $text ?? '', array_intersect_key(is_array($posted) ? $posted : [], $this->mainstay->locales()));
+    }
+
     /* The alt text posted, by locale: the null an empty input posts as the
        empty string, and a locale not posted left out, for the library to
        refuse on an upload. */
     private function alt(Request $request): array
     {
-        $posted = $request->input('alt');
-
-        return array_map(fn (mixed $alt) => $alt ?? '', array_intersect_key(is_array($posted) ? $posted : [], $this->mainstay->locales()));
+        return $this->locales($request, 'alt');
     }
 
     /* Back to the form with what was wrong, or, from the picker, the picker
@@ -151,7 +203,8 @@ class MediaController
     {
         if ($request->has('pick')) {
             throw new HttpResponseException(response()->view('mainstay::media.picker', [
-                'images' => $this->mainstay->media()->paginate(self::PER_PAGE),
+                'images' => $this->mainstay->media()->paginate(self::PER_PAGE, kind: $this->filter($request)['kind'], accept: $this->filter($request)['accept']),
+                'filter' => $this->filter($request),
                 'trashed' => false,
                 'picked' => null,
                 'locales' => $this->mainstay->locales(),

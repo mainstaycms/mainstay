@@ -75,7 +75,6 @@ class PartsTest extends DatabaseTestCase
 
     private function logo(): Media
     {
-        Storage::fake('public');
         Storage::fake('local');
 
         return Mainstay::media()->upload(UploadedFile::fake()->image('logo.png', 40, 30), ['en' => 'Our logo', 'nl' => 'Ons logo'], overrideAccess: true);
