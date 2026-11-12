@@ -66,7 +66,11 @@ Mainstay owns its tables inside your app. "Headless" describes the consumer, not
   language, a date or a price stays one, and each language is served on its own host or path prefix.
 - **Images written once.** An installation-wide media library with alt text in every language and a
   focal point. Every size a field declares is written as AVIF and WebP the moment a file arrives,
-  or in the original's own format where PHP's GD writes neither.
+  or in the original's own format where PHP's GD writes neither. Documents (PDF, Office files, zip)
+  live in the same library under a `File` field.
+- **Private files, served by route.** Nothing is served from a disk: every image copy and document
+  goes through `/media/{hash}.{ext}` from a private disk, each file public (cached for a year) or
+  restricted (signed-in editors, or a link that expires).
 - **Relations, tags and globals.** Entries point at each other through relations a read follows to a
   depth, tags are the entries of a taxonomy, and a global holds a site's menu and footer.
 - **Drafts, history and the trash.** A change waits as a draft until it is published, every version a
@@ -284,6 +288,50 @@ The type's template gets the entry, and printing its content draws its text and 
     <div class="prose">{{ $entry->content }}</div>
 </main>
 ```
+
+### Media: images, documents and who may open them
+
+An image field names its sizes, a file field the extensions it takes. Both hold the id of an item of
+the library, and read back as a `Media`:
+
+```php
+#[Image(sizes: ['cover' => [1600, 900], 'card' => [640]])]
+public ?Media $cover;
+
+#[File(accept: ['pdf', 'docx'])]
+public ?Media $brochure;
+```
+
+```blade
+{{ $entry->cover->picture('card') }}
+@if ($entry->brochure?->missing === false)
+    <a href="{{ $entry->brochure->url() }}">{{ $entry->brochure->title ?? $entry->brochure->name }}</a>
+@endif
+```
+
+A file field holds one file; for a list of files, make a block with a `File` field and repeat it.
+The library takes the extensions of `mainstay.media.documents` (pdf, doc, docx, xls, xlsx, ppt, pptx,
+odt, ods, odp, txt, csv, zip) and only those: a file must agree with its extension by what its bytes
+are, so a PHP file named `.pdf` is refused, and nothing a browser runs (HTML, SVG, script) is ever
+accepted. `mainstay.media.max_document_kb` caps a document (20 MB).
+
+Files are on `mainstay.media.disk` (`local` by default, any disk, S3 included) and are never linked
+to directly. Every address is the `mainstay.media.file` route: `Media::url()` for a document, `url('card')`
+or `picture('card')` for an image. A file is **public** (any visitor; `Cache-Control: public,
+max-age=31536000, immutable`, ETag, 304s, ranges for local disks) or **restricted** (404 to everyone but
+a signed-in editor; its `url()` is a link signed to expire after `mainstay.media.url_minutes`, and
+`temporaryUrl()` makes one with a lifetime of your choosing, for a public file too). Visibility is set
+when uploading and on the file's page in the admin. A browser or a CDN may keep a file that was public
+for the year it was told to: restricting one does not recall copies already out. Documents download as
+attachments; every response carries `X-Content-Type-Options: nosniff`.
+
+**Upgrading:** an install that stored its images on the public disk keeps serving them without any
+step -- a file missing from the media disk is read from `mainstay.media.legacy_disk` (`public`; null
+turns it off) by the same rules, and a warning is logged once a day. Run
+`php artisan mainstay:media:move`, which copies, verifies by size and is safe to run twice, then
+delete `storage/app/public/media` yourself: the command deletes nothing. With a proxy that sets
+`X-Sendfile-Type` (nginx `X-Accel-Redirect`, Apache `X-Sendfile`), `mainstay.media.sendfile` lets it
+deliver local files.
 
 ### Write a plugin
 

@@ -1117,6 +1117,36 @@ allows. A plugin names its widgets in `Plugin::widgets()` and a host in `Mainsta
   they are read, since a plugin may load before or after the host names its own. They are the keys of
   what is stored, so two sharing one would share a switch.
 
+## Files are media too, and nothing is served from a disk
+
+Documents join images in the one library rather than a second table: one hash dedup, one trash, one
+policy, one picker. A `File` field stores the id as `Image` does, so a read, a draft and a block
+treat both alike; what differs is the type check at save (an image field takes no document, a file
+field only the extensions it accepts) and the payload.
+
+The allow-list is closed and by pair: an extension in `mainstay.media.documents` and bytes that
+sniff as one of the types listed for it. A deny-list would be a list of what has been thought of.
+Office files sniff as zip, so a zip standing in for one must hold the entries only that kind has,
+read from its central directory without unpacking. The stored type is the extension's own, so two
+extensions never share a type and the picker filters by type.
+
+Every file is served by one route off a private disk, because a public `/storage` link cannot be
+restricted afterwards and cannot carry a download name or a signature. Public files are content
+addressed (the name holds the hash and every setting of a copy), so a year of `immutable` is safe;
+the price is that making a file restricted does not recall copies already cached. Restricted files
+are 404 to anyone not signed in, so their existence is not told, and reachable by a URL signed to
+expire. The route reads the editor's session only when its cookie is present, so a visitor starts no
+session and sets no cookie and public files stay cacheable. An image's original is never served;
+a document's original is the deliverable and is kept on the media disk.
+
+An install upgrading from the public disk is not left to find its images 404: the route falls back,
+for a file the media disk lacks, to `mainstay.media.legacy_disk` under the same visibility and header
+rules and logs a daily warning naming `mainstay:media:move`. The upgrade is: run the move, then delete
+the old copies. `mainstay:schema:check` checks tables, not files, so it is not the signal.
+
+A document's width and height are 0 rather than altering two NOT NULL columns in place, which the
+four drivers each do their own way.
+
 ## Deferred
 
 Questions raised and deliberately left open. The reasoning is recorded so it does not have to be

@@ -109,7 +109,7 @@ jobs:
 
       - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
 
-      - run: vendor/bin/phpunit packages/cms/tests/SchemaTest.php packages/cms/tests/ContentTest.php packages/site/tests/RenderTest.php packages/site/tests/UrisTest.php packages/site/tests/PatternsTest.php packages/cms/tests/MediaTest.php packages/cms/tests/RelationTest.php packages/cms/tests/DraftTest.php packages/cms/tests/IdentityTest.php packages/cms/tests/AccountTest.php packages/cms/tests/PluginTest.php packages/cms/tests/SettingsTest.php packages/cms/tests/ApiTest.php packages/mcp/tests/McpTest.php packages/ai/tests/ConnectorTest.php packages/chat/tests/ChatTest.php packages/page-builder/tests/PageBuilderTest.php packages/parts/tests/PartsTest.php packages/forms/tests/FormsTest.php
+      - run: vendor/bin/phpunit packages/cms/tests/SchemaTest.php packages/cms/tests/ContentTest.php packages/site/tests/RenderTest.php packages/site/tests/UrisTest.php packages/site/tests/PatternsTest.php packages/cms/tests/MediaTest.php packages/cms/tests/FileTest.php packages/cms/tests/RelationTest.php packages/cms/tests/DraftTest.php packages/cms/tests/IdentityTest.php packages/cms/tests/AccountTest.php packages/cms/tests/PluginTest.php packages/cms/tests/SettingsTest.php packages/cms/tests/ApiTest.php packages/mcp/tests/McpTest.php packages/ai/tests/ConnectorTest.php packages/chat/tests/ChatTest.php packages/page-builder/tests/PageBuilderTest.php packages/parts/tests/PartsTest.php packages/forms/tests/FormsTest.php
         env:
           MAINSTAY_TEST_DB: ${{ matrix.db }}
           DB_DATABASE: mainstay
@@ -184,7 +184,7 @@ jobs:
         env:
           SA_PASSWORD: 'Mainstay-Passw0rd!'
 
-      - run: vendor/bin/phpunit packages/cms/tests/SchemaTest.php packages/cms/tests/ContentTest.php packages/site/tests/RenderTest.php packages/site/tests/UrisTest.php packages/site/tests/PatternsTest.php packages/cms/tests/MediaTest.php packages/cms/tests/RelationTest.php packages/cms/tests/DraftTest.php packages/cms/tests/IdentityTest.php packages/cms/tests/AccountTest.php packages/cms/tests/PluginTest.php packages/cms/tests/SettingsTest.php packages/cms/tests/ApiTest.php packages/mcp/tests/McpTest.php packages/ai/tests/ConnectorTest.php packages/chat/tests/ChatTest.php packages/page-builder/tests/PageBuilderTest.php packages/parts/tests/PartsTest.php packages/forms/tests/FormsTest.php
+      - run: vendor/bin/phpunit packages/cms/tests/SchemaTest.php packages/cms/tests/ContentTest.php packages/site/tests/RenderTest.php packages/site/tests/UrisTest.php packages/site/tests/PatternsTest.php packages/cms/tests/MediaTest.php packages/cms/tests/FileTest.php packages/cms/tests/RelationTest.php packages/cms/tests/DraftTest.php packages/cms/tests/IdentityTest.php packages/cms/tests/AccountTest.php packages/cms/tests/PluginTest.php packages/cms/tests/SettingsTest.php packages/cms/tests/ApiTest.php packages/mcp/tests/McpTest.php packages/ai/tests/ConnectorTest.php packages/chat/tests/ChatTest.php packages/page-builder/tests/PageBuilderTest.php packages/parts/tests/PartsTest.php packages/forms/tests/FormsTest.php
         env:
           MAINSTAY_TEST_DB: sqlsrv
           DB_DATABASE: mainstay
