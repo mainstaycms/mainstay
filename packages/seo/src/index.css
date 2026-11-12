@@ -1,0 +1,36 @@
+@layer theme, base, components, utilities;
+@import 'tailwindcss/utilities' layer(utilities);
+@reference 'tailwindcss';
+@reference '@mainstay/ui/theme.css';
+
+/* Only the utilities its own views and script use: the admin's stylesheet,
+   loaded before this one, brings the theme, the reset and the design
+   system's components. The build then drops every rule the admin's stylesheet
+   already has (omitRulesOf, vite.config.ts), so a repeated utility cannot beat
+   the admin's responsive variants by loading later. */
+@source '../resources/views';
+@source './tab.ts';
+
+/*
+ | The traffic lights. The theme has an accent and a danger but no success or
+ | warning colour, so these are this plugin's own, dark enough for text on the
+ | canvas. Colour is never the whole message: every status also has its icon
+ | and its word.
+ */
+:root {
+  --seo-good: oklch(0.5 0.12 150);
+  --seo-ok: oklch(0.5 0.11 65);
+  --seo-bad: oklch(0.5 0.17 25);
+}
+
+[data-status='good'] .seo-status {
+  color: var(--seo-good);
+}
+
+[data-status='ok'] .seo-status {
+  color: var(--seo-ok);
+}
+
+[data-status='bad'] .seo-status {
+  color: var(--seo-bad);
+}

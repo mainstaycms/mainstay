@@ -1,0 +1,16 @@
+{
+    "name": "mainstay/seo",
+    "description": "Search engine optimisation for Mainstay: meta tags, a snippet preview with live content checks, a sitemap, robots.txt, hreflang and JSON-LD.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "mainstay/cms": "self.version",
+        "mainstay/site": "self.version"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mainstay\\Seo\\": "src/"
+        }
+    }
+}
