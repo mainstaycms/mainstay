@@ -20,6 +20,7 @@ use Mainstay\Tests\Fixtures\Broken\MainstayDrafts;
 use Mainstay\Tests\Fixtures\Broken\MainstayPasswordResetTokens;
 use Mainstay\Tests\Fixtures\Broken\MainstayRevisions;
 use Mainstay\Tests\Fixtures\Broken\MainstayRoles;
+use Mainstay\Tests\Fixtures\Broken\MainstaySettings;
 use Mainstay\Tests\Fixtures\Broken\MainstayTokens;
 use Mainstay\Tests\Fixtures\Broken\MainstayUsers;
 use Mainstay\Tests\Fixtures\Broken\Publisher;
@@ -883,6 +884,7 @@ class SchemaTest extends DatabaseTestCase
             MainstayRoles::class => 'would be stored in mainstay_roles, a table Mainstay keeps for itself',
             MainstayUsers::class => 'would be stored in mainstay_users, a table Mainstay keeps for itself',
             MainstayPasswordResetTokens::class => 'would be stored in mainstay_password_reset_tokens, a table Mainstay keeps for itself',
+            MainstaySettings::class => 'would be stored in mainstay_settings, a table Mainstay keeps for itself',
             MainstayTokens::class => 'would be stored in mainstay_tokens, a table Mainstay keeps for itself',
             Typed::class => 'has a field stored as type, a column Mainstay keeps for itself',
         ] as $type => $message) {

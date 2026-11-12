@@ -4,12 +4,14 @@ use Illuminate\Support\Facades\Route;
 use Mainstay\Http\Authenticate;
 use Mainstay\Http\AuthenticateSession;
 use Mainstay\Http\AuthorizePlugin;
+use Mainstay\Http\AuthorizeSettings;
 use Mainstay\Http\DashboardController;
 use Mainstay\Http\EntryController;
 use Mainstay\Http\LoginController;
 use Mainstay\Http\MediaController;
 use Mainstay\Http\PasswordController;
 use Mainstay\Http\RoleController;
+use Mainstay\Http\SettingsController;
 use Mainstay\Http\TokenController;
 use Mainstay\Http\UserController;
 use Mainstay\Mainstay;
@@ -26,7 +28,7 @@ Route::post('reset-password', [PasswordController::class, 'update'])->name('main
 /*
  | Every screen under a type's handle, which registration keeps from being
  | one of the admin's own: `login`, `logout`, `media`, `users`, `roles`,
- | `account`, `dashboard`, or a plugin's. A path none of them answers is the admin's
+ | `account`, `dashboard`, `settings`, or a plugin's. A path none of them answers is the admin's
  | own not-found, drawn in the shell: named as the others are, so no entry
  | can be given a path anywhere under the prefix.
  */
@@ -58,6 +60,9 @@ Route::middleware([Authenticate::class, AuthenticateSession::class])->group(func
     Route::post('roles/{id}', [RoleController::class, 'update'])->whereNumber('id')->name('mainstay.roles.update');
     Route::post('roles/{id}/destroy', [RoleController::class, 'destroy'])->whereNumber('id')->name('mainstay.roles.destroy');
 
+    Route::get('settings', [SettingsController::class, 'show'])->name('mainstay.settings');
+    Route::post('settings', [SettingsController::class, 'update'])->name('mainstay.settings.update');
+
     Route::get('account', [UserController::class, 'account'])->name('mainstay.account');
     Route::post('account', [UserController::class, 'saveAccount'])->name('mainstay.account.update');
     Route::get('account/tokens', [TokenController::class, 'index'])->name('mainstay.tokens');
@@ -69,6 +74,12 @@ Route::middleware([Authenticate::class, AuthenticateSession::class])->group(func
     foreach (app(Mainstay::class)->plugins() as $handle => $plugin) {
         if ($plugin->routes() !== null) {
             Route::prefix($handle)->name("mainstay.plugins.{$handle}.")->middleware(AuthorizePlugin::class.':'.$handle)->group($plugin->routes());
+        }
+    }
+
+    foreach (app(Mainstay::class)->plugins() as $handle => $plugin) {
+        if ($plugin->settingsRoutes() !== null) {
+            Route::prefix("settings/{$handle}")->name("mainstay.settings.{$handle}.")->middleware(AuthorizeSettings::class)->group($plugin->settingsRoutes());
         }
     }
 

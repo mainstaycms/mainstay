@@ -32,6 +32,7 @@ use Mainstay\Fields\Terms;
 use Mainstay\Fields\Text;
 use Mainstay\Fields\Textarea;
 use Mainstay\Media\Library;
+use Mainstay\Settings\Settings;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionProperty;
@@ -43,7 +44,7 @@ class Mainstay
 
     /* The first segments of the admin's own screens, which a type's handle,
        naming its screens' segment, cannot be. */
-    private const ADMIN = ['media', 'login', 'logout', 'users', 'roles', 'account', 'dashboard'];
+    private const ADMIN = ['media', 'login', 'logout', 'users', 'roles', 'account', 'dashboard', 'settings'];
 
     /* View namespaces a plugin's handle cannot be: Mainstay's own, and
        Laravel's mail and error pages, which it adds only as a mail or an
@@ -620,6 +621,27 @@ class Mainstay
     public function accounts(): Accounts
     {
         return new Accounts($this);
+    }
+
+    /* The site's settings, which plugins declare and the owner sets in the
+       admin: `Mainstay::settings()->declared()`. */
+    public function settings(): Settings
+    {
+        return app(Settings::class);
+    }
+
+    /* `Mainstay::setting('chat.instructions')`: what the owner set, else the
+       default given or the one its plugin declared. */
+    public function setting(string $key, mixed $default = null): mixed
+    {
+        return $this->settings()->get($key, $default);
+    }
+
+    /* `Mainstay::setSetting('chat.instructions', 'Be brief.')`, null to
+       forget it. As the other writes here, on the code's own authority. */
+    public function setSetting(string $key, mixed $value): void
+    {
+        $this->settings()->set($key, $value);
     }
 
     /* The tokens programs sign in to the API with: `Mainstay::tokens()

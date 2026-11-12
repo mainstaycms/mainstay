@@ -92,6 +92,7 @@ class RoleController
                 ...self::contentSections($this->mainstay->registered()),
                 ['label' => 'Media', 'verbs' => ['Upload', "Edit others'"], 'rows' => [['label' => 'The library', 'names' => Capabilities::MEDIA]]],
                 ['label' => 'Accounts', 'verbs' => ['Manage accounts and roles'], 'rows' => [['label' => 'Every account', 'names' => [Capabilities::USERS]]]],
+                self::settingsSection(),
                 ...($plugins === [] ? [] : [
                     ['label' => 'Plugins', 'verbs' => ['Use'], 'rows' => array_map(fn (string $plugin, string $name) => ['label' => $plugin::label(), 'names' => [$name]], array_keys($plugins), $plugins)],
                 ]),
@@ -101,6 +102,21 @@ class RoleController
             'changes' => $editable,
             'deletes' => $role->exists && ! User::query()->where('role_id', $role->id)->exists() && Gate::accounts()->allows('deleteRole', [$role]),
         ]);
+    }
+
+    /* The Settings screen's one name, and a row for each more that a plugin's
+       setting asks for, named by the plugin and the setting. */
+    private function settingsSection(): array
+    {
+        $asked = [];
+
+        foreach ($this->mainstay->settings()->declared() as ['plugin' => $plugin, 'setting' => $setting]) {
+            if ($setting->capability !== null) {
+                $asked[$setting->capability] ??= ['label' => $plugin::label().': '.$setting->label, 'names' => [$setting->capability]];
+            }
+        }
+
+        return ['label' => 'Settings', 'verbs' => ['Manage'], 'rows' => [['label' => 'Every setting', 'names' => [Capabilities::SETTINGS]], ...array_values($asked)]];
     }
 
     /* The grid's sections for content -- entries, taxonomies, globals --

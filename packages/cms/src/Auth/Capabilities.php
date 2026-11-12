@@ -30,6 +30,9 @@ final class Capabilities
 
     public const USERS = 'manage_users';
 
+    /* The Settings screen and every write it makes; a setting may ask for one more. */
+    public const SETTINGS = 'manage_settings';
+
     /*
      | A verb's two names for a type: its own and every type's.
      |
@@ -48,7 +51,7 @@ final class Capabilities
         return array_map(fn (string $verb) => self::names($type, $verb)[0], self::verbs($type));
     }
 
-    /** @return list<string> every name no type owns: the all-types forms, the library's, and the accounts' */
+    /** @return list<string> every name no type owns: the all-types forms, the library's, the accounts' and the settings' */
     public static function shared(): array
     {
         return [
@@ -57,7 +60,22 @@ final class Capabilities
             ...array_map(fn (string $verb) => "{$verb}_terms", self::TERM),
             ...self::MEDIA,
             self::USERS,
+            self::SETTINGS,
+            ...self::settings(),
         ];
+    }
+
+    /*
+     | The extra names plugins' settings ask for, each a plugin's own and one
+     | more than `manage_settings`, so a role can hold it.
+     |
+     | @return list<string>
+     */
+    public static function settings(): array
+    {
+        $names = array_map(fn (array $declared) => $declared['setting']->capability, app(Mainstay::class)->settings()->declared());
+
+        return array_values(array_unique(array_filter($names)));
     }
 
     /*

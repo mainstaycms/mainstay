@@ -6,6 +6,7 @@ use Illuminate\Contracts\Foundation\Application;
 use Mainstay\Admin\EntryTab;
 use Mainstay\Admin\Widget;
 use Mainstay\Content\ContentType;
+use Mainstay\Settings\Setting;
 
 /*
  | A package's types, views, admin screens, dashboard widgets, listeners, migrations and boot step, which
@@ -68,6 +69,32 @@ abstract class Plugin
      | plugin one with screens, whether or not it has routes.
      */
     public function tools(): ?string
+    {
+        return null;
+    }
+
+    /*
+     | What the site's owner may set, drawn as a section under its label() on
+     | the Settings screen for someone holding `manage_settings`, and read in
+     | code as `Mainstay::setting('<handle>.<key>')`. A screen of its own, where
+     | the generic form is not enough, is settingsRoutes().
+     |
+     | @return list<Setting>
+     */
+    public function settings(): array
+    {
+        return [];
+    }
+
+    /*
+     | A routes file of a screen inside Settings, loaded under
+     | `/settings/<handle>`, named `mainstay.settings.<handle>.*` and answered
+     | only to someone holding `manage_settings`. The route named `index` is
+     | its entry in Settings' own navigation, under its label(); it adds
+     | nothing to the sidebar, which has Settings alone. Whoever it should
+     | refuse beyond that, its controller refuses.
+     */
+    public function settingsRoutes(): ?string
     {
         return null;
     }

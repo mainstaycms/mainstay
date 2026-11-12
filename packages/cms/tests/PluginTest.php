@@ -176,7 +176,7 @@ class PluginTest extends DatabaseTestCase
         /* An admin screen's segment, Mainstay's views, Laravel's mail, a
            error pages, a namespace Laravel registered, and one a plugin's
            views took. */
-        foreach (['media', 'account', 'mainstay', 'mail', 'errors', 'pagination', 'seo'] as $taken) {
+        foreach (['media', 'account', 'settings', 'mainstay', 'mail', 'errors', 'pagination', 'seo'] as $taken) {
             Named::$handle = $taken;
             $this->refused(fn () => (new Registry)->loadPlugins([Named::class]), "is called \"{$taken}\", which the admin or a view namespace uses already");
         }
