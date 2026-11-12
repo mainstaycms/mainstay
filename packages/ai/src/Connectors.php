@@ -5,6 +5,7 @@ namespace Mainstay\Ai;
 use Closure;
 use Exception;
 use Illuminate\Database\RecordNotFoundException;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -43,17 +44,33 @@ final class Connectors
 {
     /*
      | Each kind of work laravel/ai keeps a default provider for: the contract
-     | a provider implements to do it, the config naming its default, and what
-     | the screen calls it.
+     | a provider implements to do it, the config naming its default, what the
+     | screen calls it, the name laravel/ai's provider config keeps its default
+     | model under (`models.{name}.default`), and the provider method that
+     | answers with the model it uses when that is not set.
      */
     public const USES = [
-        'text' => [TextProvider::class, 'ai.default', 'Text'],
-        'images' => [ImageProvider::class, 'ai.default_for_images', 'Images'],
-        'audio' => [AudioProvider::class, 'ai.default_for_audio', 'Speech'],
-        'transcription' => [TranscriptionProvider::class, 'ai.default_for_transcription', 'Transcription'],
-        'embeddings' => [EmbeddingProvider::class, 'ai.default_for_embeddings', 'Embeddings'],
-        'reranking' => [RerankingProvider::class, 'ai.default_for_reranking', 'Reranking'],
-        'classification' => [ClassificationProvider::class, 'ai.default_for_classification', 'Classification'],
+        'text' => [TextProvider::class, 'ai.default', 'Text', 'text', 'defaultTextModel'],
+        'images' => [ImageProvider::class, 'ai.default_for_images', 'Images', 'image', 'defaultImageModel'],
+        'audio' => [AudioProvider::class, 'ai.default_for_audio', 'Speech', 'audio', 'defaultAudioModel'],
+        'transcription' => [TranscriptionProvider::class, 'ai.default_for_transcription', 'Transcription', 'transcription', 'defaultTranscriptionModel'],
+        'embeddings' => [EmbeddingProvider::class, 'ai.default_for_embeddings', 'Embeddings', 'embeddings', 'defaultEmbeddingsModel'],
+        'reranking' => [RerankingProvider::class, 'ai.default_for_reranking', 'Reranking', 'reranking', 'defaultRerankingModel'],
+        'classification' => [ClassificationProvider::class, 'ai.default_for_classification', 'Classification', 'classification', 'defaultClassificationModel'],
+    ];
+
+    /* A model is letters, digits and the punctuation ids use: `gpt-6-luna`,
+       `llama3.2:latest`, `anthropic/claude-sonnet-5.5`, `~typesafe/jev-latest`. */
+    private const MODEL_PATTERN = '/\A[\w.:\/@~+-]+\z/';
+
+    private const MODEL_MAX_LENGTH = 255;
+
+    /* Azure OpenAI names a model by the deployment that serves it, and keeps
+       it beside the key rather than under `models`. */
+    private const AZURE_DEPLOYMENTS = [
+        'text' => 'deployment',
+        'images' => 'image_deployment',
+        'embeddings' => 'embedding_deployment',
     ];
 
     /* laravel/ai's own providers, by the names its config gives them, as
@@ -144,16 +161,35 @@ final class Connectors
             ->all();
     }
 
-    /** @return array<string, array{provider: string|null, chosen: bool}> the provider each kind of work goes to, and whether the screen chose it rather than the host's config */
+    /** @return array<string, array{provider: string|null, chosen: bool, model: string|null}> the provider each kind of work goes to, whether the screen chose it rather than the host's config, and the model the screen chose for it, if any */
     public function defaults(): array
     {
         app(AiManager::class);
-        $chosen = Connector::query()->pluck('defaults', 'provider')->filter(fn (array $uses, string $name) => array_key_exists($name, $this->providers()));
+        $saved = Connector::query()->get()->filter(fn (Connector $connector) => array_key_exists($connector->provider, $this->providers()));
 
-        return array_map(fn (string $use) => [
-            'provider' => self::first(config(self::USES[$use][1])),
-            'chosen' => $chosen->contains(fn (array $uses) => in_array($use, $uses, true)),
-        ], array_combine(array_keys(self::USES), array_keys(self::USES)));
+        return array_map(function (string $use) use ($saved) {
+            $chosen = $saved->first(fn (Connector $connector) => in_array($use, $connector->defaults, true));
+
+            return [
+                'provider' => self::first(config(self::USES[$use][1])),
+                'chosen' => $chosen !== null,
+                'model' => $chosen?->modelFor($use),
+            ];
+        }, array_combine(array_keys(self::USES), array_keys(self::USES)));
+    }
+
+    /* The model a kind of work uses when none is chosen for it -- laravel/ai's
+       for its default provider, or the host's config's -- or null where the
+       provider has none and asks for one to be set. */
+    public function fallbackModel(string $use): ?string
+    {
+        $name = self::first(config(self::USES[$use][1]));
+
+        try {
+            return $name === null ? null : app(AiManager::class)->instance($name)->{self::USES[$use][4]}();
+        } catch (Exception) {
+            return null;
+        }
     }
 
     public function label(string $name): string
@@ -191,11 +227,14 @@ final class Connectors
     }
 
     /* The provider a kind of work goes to, or null to leave it to the host's
-       config again. */
-    public function choose(string $use, ?string $name, bool $overrideAccess = false): void
+       config again, and the model it uses there, or null for the provider's
+       own default. A model is the provider's to know, so it is checked for
+       its shape and no more. */
+    public function choose(string $use, ?string $name, ?string $model = null, bool $overrideAccess = false): void
     {
         $this->authorize($overrideAccess);
         $contract = self::USES[$use][0] ?? throw ValidationException::withMessages(['defaults' => "laravel/ai keeps no default provider for {$use}."]);
+        $model = $name === null ? null : $this->validModel($use, $model);
 
         if ($name !== null) {
             $this->known($name);
@@ -205,18 +244,19 @@ final class Connectors
             }
         }
 
-        DB::transaction(function () use ($use, $name) {
+        DB::transaction(function () use ($use, $name, $model) {
             foreach (Connector::query()->lockForUpdate()->get() as $connector) {
                 $left = array_values(array_diff($connector->defaults, [$use]));
 
                 if ($connector->provider !== $name && $left !== $connector->defaults) {
-                    $left === [] && ! $connector->holdsKey() ? $connector->delete() : $connector->update(['defaults' => $left]);
+                    $left === [] && ! $connector->holdsKey() ? $connector->delete() : $connector->update(['defaults' => $left, 'models' => Arr::except($connector->models ?? [], $use)]);
                 }
             }
 
             if ($name !== null) {
                 $connector = Connector::query()->firstOrNew(['provider' => $name]);
                 $connector->defaults = array_values(array_unique([...$connector->defaults, $use]));
+                $connector->models = array_filter([...Arr::except($connector->models ?? [], $use), $use => $model]);
                 $connector->save();
             }
         });
@@ -225,8 +265,8 @@ final class Connectors
     }
 
     /*
-     | Whether the provider answers with its key: its cheapest text model
-     | asked for one word, or one word embedded where it does no text, so a
+     | Whether the provider answers with its key: the text model the site chose
+     | on it, or else its cheapest, asked for one word, or one word embedded where it does no text, so a
      | test costs a fraction of a cent. What it answered, or why it did not,
      | the key taken out wherever the provider or the client echoed it.
      */
@@ -239,7 +279,7 @@ final class Connectors
             $provider = app(AiManager::class)->instance($name);
 
             return match (true) {
-                $provider instanceof TextProvider => trim(agent('Reply with the one word OK.')->prompt('Are you there?', provider: $name, model: $provider->cheapestTextModel())->text),
+                $provider instanceof TextProvider => trim(agent('Reply with the one word OK.')->prompt('Are you there?', provider: $name, model: $this->chosenModel($name, 'text') ?? $provider->cheapestTextModel())->text),
                 $provider instanceof EmbeddingProvider => count(Embeddings::for(['OK'])->generate(provider: $name)->first()).' dimensions',
                 default => throw new Exception("Mainstay tests a provider by text or embeddings, and {$this->label($name)} does neither."),
             };
@@ -287,7 +327,42 @@ final class Connectors
         foreach (self::USES as $use => [, $setting]) {
             $chosen = $saved->first(fn (Connector $connector) => in_array($use, $connector->defaults, true) && isset($providers[$connector->provider]));
             config([$setting => $chosen->provider ?? $hosted['defaults'][$use]]);
+
+            if ($model = $chosen?->modelFor($use)) {
+                config([$this->modelSetting($chosen->provider, $use) => $model]);
+            }
         }
+    }
+
+    /* The config key laravel/ai reads the default model of a kind of work
+       from, for a provider. */
+    private function modelSetting(string $name, string $use): string
+    {
+        $deployment = $this->providers()[$name]['driver'] === 'azure' ? self::AZURE_DEPLOYMENTS[$use] ?? null : null;
+
+        return "ai.providers.{$name}.".($deployment ?? 'models.'.self::USES[$use][3].'.default');
+    }
+
+    /* The model the screen chose for a kind of work on this provider, if it
+       chose the provider for it. */
+    private function chosenModel(string $name, string $use): ?string
+    {
+        $connector = Connector::query()->where('provider', $name)->first();
+
+        return $connector !== null && in_array($use, $connector->defaults, true) ? $connector->modelFor($use) : null;
+    }
+
+    private function validModel(string $use, ?string $model): ?string
+    {
+        $model = trim((string) $model);
+
+        if ($model === '') {
+            return null;
+        }
+
+        Validator::make(['models' => [$use => $model]], ["models.{$use}" => ['string', 'max:'.self::MODEL_MAX_LENGTH, 'regex:'.self::MODEL_PATTERN]], attributes: ["models.{$use}" => Str::lower(self::USES[$use][2]).' model'])->validate();
+
+        return $model;
     }
 
     /** @return list<string> the providers whose key the host's config sets */
