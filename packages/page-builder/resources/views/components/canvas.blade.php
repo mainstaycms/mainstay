@@ -44,7 +44,7 @@
  | errors are listed here, naming the block. canvas.ts in packages/page-builder is
  | its behaviour; without it the tab holds this message.
 --}}
-<div data-canvas data-canvas-url="{{ $url }}" data-block-url="{{ $block }}" data-sidebar="{{ $sidebar }}" data-header="{{ $header }}" data-blocks="{{ json_encode((object) array_map(fn (array $each) => ['label' => $each['label'], 'inner' => $each['inner'], 'text' => $each['text'] ?? false], $blocks)) }}" data-top="{{ json_encode(array_values($top)) }}" data-invalid="{{ json_encode((object) $invalid) }}" @if ($pictures) data-picker="{{ route('mainstay.media', ['pick' => 1]) }}" data-media="{{ route('mainstay.media') }}" @endif class="relative flex min-h-0 flex-1 flex-col">
+<div data-canvas data-canvas-url="{{ $url }}" data-block-url="{{ $block }}" data-sidebar="{{ $sidebar }}" data-header="{{ $header }}" data-blocks="{{ json_encode((object) array_map(fn (array $each) => ['label' => $each['label'], 'inner' => $each['inner'], 'text' => $each['text'] ?? false], $blocks)) }}" data-top="{{ json_encode(array_values($top)) }}" data-invalid="{{ json_encode((object) $invalid) }}" @if ($pictures) data-picker="{{ route('mainstay.media', ['pick' => 1, 'kind' => 'image']) }}" data-media="{{ route('mainstay.media') }}" @endif class="relative flex min-h-0 flex-1 flex-col">
     @if ($invalid !== [])
         <ul data-canvas-invalid role="alert" class="mx-3 mt-3 space-y-1 rounded-control border border-danger/40 bg-surface px-3 py-2 text-sm text-danger">
             @foreach ($invalid as $id => $each)

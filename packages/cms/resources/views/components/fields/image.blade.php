@@ -18,7 +18,7 @@
  | dialog every image field shares.
 --}}
 <x-mainstay::field-section :label="$field->label()">
-    <div data-image-field data-picker="{{ route('mainstay.media', ['pick' => 1]) }}" class="flex items-center gap-3">
+    <div data-image-field data-picker="{{ route('mainstay.media', ['pick' => 1, 'kind' => 'image']) }}" class="flex items-center gap-3">
         <input type="hidden" name="{{ $name }}" value="{{ $media?->id }}">
         <span data-image-preview>
             <x-mainstay::thumbnail size="md" dashed :src="$src" :fallback="$media?->missing ? 'Missing' : 'None'" />

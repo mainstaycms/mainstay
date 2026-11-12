@@ -73,6 +73,6 @@ abstract class Tool extends McpTool
 
     protected function data(JsonSchema $schema): Type
     {
-        return $schema->object()->description('The fields to write, by name, as describe-type\'s input shows them: a relation or an image by its id.')->required();
+        return $schema->object()->description('The fields to write, by name, as describe-type\'s input shows them: a relation, an image or a file by its id.')->required();
     }
 }
