@@ -83,6 +83,11 @@ Mainstay owns its tables inside your app. "Headless" describes the consumer, not
 - **An API, and an MCP server as a plugin (`mainstay/mcp`).** The same reads and writes over JSON and as tools a language model
   calls, behind tokens that never hold more than the account that made them. `/schema` describes
   every payload, and `mainstay:typescript` writes it out for a front end.
+- **SEO, a plugin (`mainstay/seo`).** A `#[Seo]` field gives a type meta tags, social tags and a focus keyphrase,
+  kept with the entry so they are drafted, translated and published with it, and in the API. The entry form gets
+  an SEO tab with a search-result and social preview and live checks of the keyphrase, the text and how readable
+  it is, in English and Dutch. The plugin draws the head, and serves `sitemap.xml` with hreflang, `robots.txt`
+  and JSON-LD.
 - **AI connectors, a plugin (`mainstay/ai`).** Every provider laravel/ai speaks -- OpenAI, Anthropic, Gemini, Mistral, Ollama
   and more -- on one admin screen: a key from the environment or saved there encrypted, a test, and
   the provider each kind of work goes to. Code prompts with laravel/ai and reaches what the site
@@ -702,6 +707,44 @@ public function providers(): array
 
 Your own `ai.providers` entry of the name wins key by key, so `'together' => ['key' =>
 env('TOGETHER_API_KEY')]` in `config/ai.php` gives it a key from the environment.
+
+### Search engine optimisation
+
+The `mainstay/seo` plugin needs `mainstay/site`. Require it, name `Mainstay\Seo\SeoPlugin` in
+`config('mainstay.plugins')`, run `php artisan migrate` and publish its script and stylesheet with the
+`mainstay-assets` tag (`public/vendor/seo`). A type opts in with a field, and the layout draws the tags:
+
+```php
+use Mainstay\Seo\Seo;
+use Mainstay\Seo\SeoMeta;
+
+#[Seo]
+public ?SeoMeta $seo;
+```
+
+```blade
+<head>
+    <x-seo::head :entry="$entry" />
+</head>
+```
+
+The component writes the title in the language's template, the description, canonical address, robots,
+hreflang alternates, Open Graph and Twitter tags and JSON-LD, and falls back to the entry's own title and
+description where the field is empty. A page that is no entry passes `title` and `description`. Remove any
+`sitemap.xml` route of your own: the plugin's `mainstay.seo.sitemap` and `mainstay.seo.robots` answer before
+the site's catch-all, per host, with every language's address as an alternate, noindex entries left out and the
+list kept until content changes or the front page does, and empty while the site is hidden from search engines. A type whose pages are articles says so, and names its date and author:
+`#[Article(published: 'publishedAt', author: 'author')]`. A `parent` relation gives breadcrumbs.
+
+The entry form's SEO tab checks the text as the form holds it, and as a visitor sees the page, which the server
+draws from the unsaved form. The site-wide settings (site name, default description, organization, hide the
+site) are on Settings, and the title template and default social image of each language on Settings > SEO.
+The checks' thresholds follow Yoast SEO's published scoring documents (yoastseo's `SCORING SEO.md` and
+`SCORING READABILITY.md`), each marked as verified, from memory or the plugin's own in
+`packages/seo/src/analysis/thresholds.ts`; the Flesch limits are not in those documents and are unverified.
+Sentences are cut by the browser's `Intl.Segmenter`, which does not split before a lowercase word, so text typed
+entirely in lowercase counts as one long sentence per paragraph; there is no fallback where it is missing.
+The social image is the library's 640 pixel copy, since the original is never served.
 
 ### Upgrading
 
