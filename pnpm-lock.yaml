@@ -20,6 +20,9 @@ importers:
 
   packages/chat:
     devDependencies:
+      '@mainstay/admin':
+        specifier: workspace:*
+        version: link:../cms/resources/js
       '@mainstay/ui':
         specifier: workspace:*
         version: link:../ui
@@ -119,6 +122,9 @@ importers:
         specifier: ^1.42.8
         version: 1.42.8
     devDependencies:
+      '@mainstay/admin':
+        specifier: workspace:*
+        version: link:../cms/resources/js
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@8.3.5(esbuild@0.28.2)(jiti@2.7.0))

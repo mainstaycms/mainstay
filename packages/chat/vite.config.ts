@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
+import { omitRulesOf } from '@mainstay/ui/vite'
 
 /*
  | Fixed filenames, as the admin's: the Blade shell cache-busts with
@@ -7,7 +8,7 @@ import tailwindcss from '@tailwindcss/vite'
  */
 export default defineConfig({
   base: './',
-  plugins: [tailwindcss()],
+  plugins: [tailwindcss(), omitRulesOf(new URL('../cms/dist/mainstay.css', import.meta.url))],
   build: {
     outDir: 'dist',
     emptyOutDir: true,

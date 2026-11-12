@@ -4,5 +4,8 @@
 @reference '@mainstay/ui/theme.css';
 
 /* Only the utilities its own views use: the admin's stylesheet, loaded before
-   this one, brings the theme, the reset and the design system's components. */
+   this one, brings the theme, the reset and the design system's components.
+   The build then drops every rule the admin's stylesheet already has
+   (omitRulesOf, vite.config.ts), so a repeated utility cannot beat the admin's
+   responsive variants by loading later. */
 @source '../resources/views';

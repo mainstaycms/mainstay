@@ -21,6 +21,7 @@
     "prosemirror-view": "^1.42.8"
   },
   "devDependencies": {
+    "@mainstay/admin": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
