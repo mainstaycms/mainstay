@@ -388,6 +388,18 @@ class Library
         return $ids === [] ? [] : DB::table(self::TABLE)->whereIntegerInRaw('id', array_unique($ids))->whereIn('type', $types)->whereNull('deleted_at')->pluck('id')->map(fn (mixed $id) => (int) $id)->all();
     }
 
+    /*
+     | The type of each of `$ids` that is out of the trash, by id: what a
+     | refusal says of one that is there but not of a type its field takes.
+     |
+     | @param  list<int>  $ids
+     | @return array<int, string>
+     */
+    public function typesOf(array $ids): array
+    {
+        return $ids === [] ? [] : DB::table(self::TABLE)->whereIntegerInRaw('id', array_unique($ids))->whereNull('deleted_at')->pluck('type', 'id')->all();
+    }
+
     /* What the library holds of images, by what the bytes say. */
     public static function imageTypes(): array
     {

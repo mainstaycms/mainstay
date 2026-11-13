@@ -41,6 +41,7 @@ use Mainstay\Fields\Field;
 use Mainstay\Fields\Relation;
 use Mainstay\Fields\Terms;
 use Mainstay\Mainstay;
+use Mainstay\Media\Documents;
 use ReflectionClass;
 use ReflectionProperty;
 use RuntimeException;
@@ -2291,13 +2292,36 @@ class ContentStore
         }
 
         foreach ($byTypes as $accepted => $group) {
-            $present = $this->mainstay->media()->present(array_values($group), explode(',', $accepted));
-            $noun = str_starts_with($accepted, 'image/') ? 'image' : 'file';
+            $allowed = explode(',', $accepted);
+            $present = $this->mainstay->media()->present(array_values($group), $allowed);
+            $missing = array_diff($group, $present);
+            $held = $this->mainstay->media()->typesOf(array_values($missing));
 
-            foreach (array_diff($group, $present) as $at => $id) {
-                $validator->errors()->add($at, "The {$validator->getDisplayableAttribute($at)} field names {$noun} {$id}, which is not in the media library or is in its trash.");
+            foreach ($missing as $at => $id) {
+                $field = $validator->getDisplayableAttribute($at);
+                $isThere = isset($held[$id]);
+                $noun = $isThere || ! str_starts_with($accepted, 'image/') ? 'file' : 'image';
+                $reason = $isThere ? $this->refusedType($held[$id], $allowed) : 'which is not in the media library or is in its trash';
+                $validator->errors()->add($at, "The {$field} field names {$noun} {$id}, {$reason}.");
             }
         }
+    }
+
+    /*
+     | Why a media row that is in the library is not one its field takes.
+     |
+     | @param  list<string>  $allowed  the types the field takes
+     */
+    private function refusedType(string $type, array $allowed): string
+    {
+        if (str_starts_with($allowed[0], 'image/')) {
+            return 'which is a document, not an image';
+        }
+
+        $held = str_starts_with($type, 'image/') ? 'an image' : 'a .'.(Documents::extension($type) ?? 'document');
+        $takes = implode(', ', array_map(fn (string $allowedType) => Documents::extension($allowedType) ?? $allowedType, $allowed));
+
+        return "which is {$held}; this field takes only {$takes}";
     }
 
     /*
