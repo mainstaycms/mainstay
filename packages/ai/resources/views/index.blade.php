@@ -7,6 +7,7 @@
         'none' => 'No key',
     ];
 @endphp
+@php($modelHint = 'Use a model id that this provider offers. Blank uses its own default.')
 
 {{--
  | The AI providers the site can talk to, as WordPress's Settings >
@@ -73,20 +74,22 @@
             </ul>
         </section>
 
+        <form id="refresh-models" method="post" action="{{ route('mainstay.plugins.ai.models.refresh') }}">@csrf</form>
+
         <form id="connectors-defaults" method="post" action="{{ route('mainstay.plugins.ai.defaults') }}">
             @csrf
             <section aria-labelledby="uses-heading">
                 <h2 id="uses-heading" class="border-b border-border px-5 py-2.5 text-xs font-medium text-muted">Used for</h2>
-                <p class="border-b border-border px-5 py-3 text-sm text-muted">Each kind of work goes to one provider and one of its models. Change the model along with the provider.</p>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3">
+                    <p class="text-sm text-muted">Each kind of work goes to one provider and one of its models, picked from what the provider lists for its key. Change the model along with the provider.</p>
+                    <x-mainstay::button type="submit" variant="secondary" form="refresh-models">Refresh models</x-mainstay::button>
+                </div>
 
                 <ul class="grid [&>li]:border-b [&>li]:border-border sm:grid-cols-2 sm:[&>li:nth-child(odd)]:border-r">
                     @foreach ($uses as $use => $label)
                         @php($able = array_values(array_filter($providers, fn (array $provider) => in_array($use, $provider['uses'], true))))
                         @continue($able === [])
-                        {{-- After a refusal, the pair the person posted comes back together; a kind they did not post shows what is saved. --}}
-                        @php($posted = array_key_exists($use, (array) old('defaults', [])))
-                        @php($shownProvider = $posted ? (string) old('defaults.'.$use) : ($defaults[$use]['chosen'] ? $defaults[$use]['provider'] : ''))
-                        @php($model = $posted ? old('models.'.$use) : $defaults[$use]['model'])
+                        @php($shownProvider = (string) $selections[$use]['provider'])
                         <li class="[&>*:last-child]:border-b-0">
                             <x-mainstay::field :label="$label" :for="'default-'.$use">
                                 <x-mainstay::select :id="'default-'.$use" :name="'defaults['.$use.']'">
@@ -96,8 +99,8 @@
                                     @endforeach
                                 </x-mainstay::select>
                             </x-mainstay::field>
-                            <x-mainstay::field :label="$label.' model'" :for="'model-'.$use" :hint="'Use a model id that this provider offers. Blank uses its own default.'.($fallbacks[$use] ? ' Default now: '.$fallbacks[$use].', for the provider saved; this does not change until you save.' : '')">
-                                <x-mainstay::input :id="'model-'.$use" :name="'models['.$use.']'" type="text" maxlength="255" autocomplete="off" spellcheck="false" :value="$model" :placeholder="$fallbacks[$use] ?? 'Model id'" :aria-invalid="$errors->has('models.'.$use) ? 'true' : null" :aria-describedby="'model-'.$use.'-hint'" />
+                            <x-mainstay::field :label="$label.' model'" :for="'model-'.$use" :hint="$modelHint.($fallbacks[$use] ? ' Default now: '.$fallbacks[$use].', for the provider saved; this does not change until you save.' : '')">
+                                <x-ai::model-picker :id="'model-'.$use" :name="'models['.$use.']'" :list="$lists[$use]" :value="$selections[$use]['model']" :default="$shownProvider === '' ? ($selections[$use]['pin']['default'] ?? $fallbacks[$use]) : app(\Mainstay\Ai\Connectors::class)->fallbackModel($use, $shownProvider)" :disabled="$shownProvider === '' && $selections[$use]['pin'] === null" :pin="$shownProvider === '' ? $selections[$use]['pin'] : null" :pin-available="$selections[$use]['pin']" :blank-default="$selections[$use]['pin']['default'] ?? $fallbacks[$use]" :hint-base="$modelHint" :use="$use" :provider-select="'default-'.$use" :invalid="$errors->has('models.'.$use)" :describedby="'model-'.$use.'-hint'" />
                             </x-mainstay::field>
                         </li>
                     @endforeach

@@ -302,12 +302,12 @@ class ConnectorTest extends DatabaseTestCase
         $this->signIn(['use_ai']);
         app(Connectors::class)->save('anthropic', 'sk-ant-secret', overrideAccess: true);
 
-        Http::fake(['api.anthropic.com/*' => Http::sequence()
+        Http::fake(['api.anthropic.com/v1/models*' => Http::response(['data' => [['id' => 'claude-haiku-5-5']]]), 'api.anthropic.com/*' => Http::sequence()
             ->push(self::ANSWER)
             ->push(['type' => 'error', 'error' => ['type' => 'authentication_error', 'message' => 'invalid x-api-key sk-ant-secret']], 401)]);
         $this->post(route('mainstay.plugins.ai.test', 'anthropic'))->assertRedirect(route('mainstay.plugins.ai.index'));
         $this->get(route('mainstay.plugins.ai.index'))->assertSee('Anthropic answered: OK');
-        Http::assertSent(fn (Request $request) => $request['model'] === 'claude-haiku-5-5');
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && $request['model'] === 'claude-haiku-5-5');
 
         $this->post(route('mainstay.plugins.ai.test', 'anthropic'))->assertSessionHasErrors('test');
         $error = session('errors')->first('test');
@@ -534,7 +534,7 @@ class ConnectorTest extends DatabaseTestCase
 
         $connectors->choose('text', 'openai', overrideAccess: true);
         $connectors->test('anthropic', overrideAccess: true);
-        Http::assertSent(fn (Request $request) => $request['model'] === 'claude-haiku-5-5');
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && $request['model'] === 'claude-haiku-5-5');
     }
 
     #[Test]
