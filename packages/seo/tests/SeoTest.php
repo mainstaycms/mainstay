@@ -336,6 +336,28 @@ class SeoTest extends DatabaseTestCase
     }
 
     #[Test]
+    public function a_trashed_social_image_is_passed_over_for_the_locales_default_and_for_nothing_when_that_is_trashed_too(): void
+    {
+        $default = Mainstay::media()->upload($this->png(), alt: ['en' => 'Default', 'nl' => 'Standaard'], overrideAccess: true);
+        $own = Mainstay::media()->upload($this->png(50), alt: ['en' => 'Own', 'nl' => 'Eigen'], overrideAccess: true);
+        app(LocaleSettings::class)->save('en', null, $default->id);
+        $post = $this->entry(['seo' => ['social_image' => $own->id]]);
+
+        Mainstay::media()->delete($own->id, overrideAccess: true);
+        $html = $this->drawn(Mainstay::findById(Post::class, $post->id));
+
+        $this->assertStringContainsString('<meta property="og:image:alt" content="Default">', $html);
+        $this->assertStringNotContainsString('content="Own"', $html);
+
+        Mainstay::media()->delete($default->id, overrideAccess: true);
+        $html = $this->drawn(Mainstay::findById(Post::class, $post->id));
+
+        $this->assertStringNotContainsString('og:image', $html);
+        $this->assertStringNotContainsString('twitter:image', $html);
+        $this->assertStringContainsString('content="summary"', $html);
+    }
+
+    #[Test]
     public function the_social_image_falls_back_to_the_locales_default(): void
     {
         $default = Mainstay::media()->upload($this->png(), alt: ['en' => 'Default', 'nl' => 'Standaard'], overrideAccess: true);
@@ -727,6 +749,20 @@ class SeoTest extends DatabaseTestCase
         $this->post(route('mainstay.settings.seo.update'), ['locales' => ['en' => ['title_template' => 'No title here', 'default_image' => '999'], 'nl' => ['title_template' => str_repeat('a', 121)]]])
             ->assertSessionHasErrors(['locales.en.title_template', 'locales.en.default_image', 'locales.nl.title_template']);
         $this->assertSame('%title% / %site%', app(LocaleSettings::class)->template('en'), 'A refused save changes nothing.');
+    }
+
+    #[Test]
+    public function the_default_social_image_refuses_a_document(): void
+    {
+        $this->signIn(['manage_settings']);
+        $path = sys_get_temp_dir().'/seo-'.uniqid().'.pdf';
+        file_put_contents($path, "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
+        $document = Mainstay::media()->upload($path, title: ['en' => 'Report'], overrideAccess: true);
+        unlink($path);
+
+        $this->post(route('mainstay.settings.seo.update'), ['locales' => ['en' => ['title_template' => '%title%', 'default_image' => (string) $document->id]]])
+            ->assertSessionHasErrors(['locales.en.default_image' => 'That image is not in the media library.']);
+        $this->assertNull(app(LocaleSettings::class)->imageId('en'));
     }
 
     #[Test]
