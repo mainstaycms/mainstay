@@ -22,6 +22,7 @@ final class Setting
     /**
      * @param  array<string, string>  $options  a select's values and their labels
      * @param  list<mixed>  $rules  Laravel validation rules, added to those its type brings
+     * @param  string|null  $control  a view that draws a text setting's control in place of the plain input, given `setting`, `id`, `name`, `value`, `describedby` and `messages`; what it posts is validated as the text it is
      */
     public function __construct(
         public readonly string $key,
@@ -33,6 +34,7 @@ final class Setting
         public readonly array $options = [],
         public readonly ?string $placeholder = null,
         public readonly ?string $capability = null,
+        public readonly ?string $control = null,
     ) {
         if (preg_match('/\A[a-z][a-z0-9_]*\z/', $key) !== 1) {
             throw new InvalidArgumentException("A setting's key is lowercase letters, digits and underscores, starting with a letter, and \"{$key}\" is not.");
@@ -40,6 +42,10 @@ final class Setting
 
         if (! in_array($type, self::TYPES, true)) {
             throw new InvalidArgumentException("The setting {$key} has the type \"{$type}\". It is one of ".implode(', ', self::TYPES).'.');
+        }
+
+        if ($control !== null && $type !== 'text') {
+            throw new InvalidArgumentException("The setting {$key} draws its own control, which only a text setting can: it is a {$type}.");
         }
 
         if (($type === 'select') === ($options === [])) {
