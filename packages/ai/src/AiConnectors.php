@@ -41,6 +41,11 @@ class AiConnectors extends Plugin
         return __DIR__.'/../routes/admin.php';
     }
 
+    public function assets(): array
+    {
+        return ['ai.js'];
+    }
+
     public function migrations(): ?string
     {
         return __DIR__.'/../database/migrations';
@@ -60,7 +65,9 @@ class AiConnectors extends Plugin
     public function boot(Application $app): void
     {
         $app->register(AiServiceProvider::class);
+        $app->register(AiConnectorsServiceProvider::class);
         $app->singleton(Connectors::class);
+        $app->scoped(ModelCatalog::class);
         $app->afterResolving(AiManager::class, fn (AiManager $ai) => $app->make(Connectors::class)->apply($ai));
         $app->make(Connectors::class)->assertDeclared();
     }

@@ -2,6 +2,7 @@ packages:
   - packages/ui
   - packages/editor
   - packages/page-builder
+  - packages/ai
   - packages/chat
   - packages/seo
   - packages/cms/resources/js

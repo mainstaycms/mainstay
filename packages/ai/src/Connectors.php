@@ -61,9 +61,9 @@ final class Connectors
 
     /* A model is letters, digits and the punctuation ids use: `gpt-6-luna`,
        `llama3.2:latest`, `anthropic/claude-sonnet-5.5`, `~typesafe/jev-latest`. */
-    private const MODEL_PATTERN = '/\A[\w.:\/@~+-]+\z/';
+    public const MODEL_PATTERN = '/\A[\w.:\/@~+-]+\z/';
 
-    private const MODEL_MAX_LENGTH = 255;
+    public const MODEL_MAX_LENGTH = 255;
 
     /* Azure OpenAI names a model by the deployment that serves it, and keeps
        it beside the key rather than under `models`. */
@@ -178,18 +178,42 @@ final class Connectors
         }, array_combine(array_keys(self::USES), array_keys(self::USES)));
     }
 
-    /* The model a kind of work uses when none is chosen for it -- laravel/ai's
-       for its default provider, or the host's config's -- or null where the
-       provider has none and asks for one to be set. */
-    public function fallbackModel(string $use): ?string
+    /* The provider a kind of work goes to now: the screen's choice or the host's config's. */
+    public function providerFor(string $use): ?string
     {
-        $name = self::first(config(self::USES[$use][1]));
+        return self::first(config(self::USES[$use][1]));
+    }
+
+    /* The provider the host's own config names for a kind of work, before
+       anything chosen here. */
+    public function hostedProvider(string $use): ?string
+    {
+        return self::first($this->hosted()['defaults'][$use] ?? null);
+    }
+
+    /* The model a kind of work uses on a provider -- by default the one it
+       goes to now -- when none is chosen for it, or null where the provider
+       has none and asks for one to be set. */
+    public function fallbackModel(string $use, ?string $name = null): ?string
+    {
+        $name ??= $this->providerFor($use);
 
         try {
             return $name === null ? null : app(AiManager::class)->instance($name)->{self::USES[$use][4]}();
         } catch (Exception) {
             return null;
         }
+    }
+
+    /* Whether a provider has a key to ask with: the host's config's, or one
+       saved here that can be read. */
+    public function hasKey(string $name): bool
+    {
+        if (in_array($name, $this->configured(), true)) {
+            return true;
+        }
+
+        return Connector::query()->where('provider', $name)->first()?->readableKey() !== null;
     }
 
     public function label(string $name): string
