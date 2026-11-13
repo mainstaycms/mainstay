@@ -955,8 +955,35 @@ class ChatTest extends DatabaseTestCase
     }
 
     #[Test]
+    public function the_settings_pick_from_the_text_providers_models_and_keep_a_saved_custom_id(): void
+    {
+        Http::fake(['api.anthropic.com/*' => Http::response(['data' => [['id' => 'claude-haiku-5-5'], ['id' => 'claude-sonnet-5-5']]])]);
+        Mainstay::setSetting(ChatPlugin::STRONGER_MODEL, 'my-own-model');
+        $this->signIn(['manage_settings']);
+
+        $page = $this->get(route('mainstay.settings'))->assertOk();
+
+        $page->assertSee('data-model-picker', false)->assertSee('<option value="claude-haiku-5-5"', false)->assertSee('<option value="my-own-model" selected', false)->assertSee('Custom...');
+        $page->assertSee('name="settings[chat][everyday_model]"', false)->assertSee('name="settings[chat][stronger_model]"', false);
+        $this->assertStringNotContainsString('sk-test', $page->getContent());
+        Http::assertSentCount(1);
+    }
+
+    #[Test]
+    public function without_a_list_the_settings_keep_the_text_input_and_say_why(): void
+    {
+        config(['ai.providers.anthropic.key' => null]);
+        Http::fake();
+        $this->signIn(['manage_settings']);
+
+        $this->get(route('mainstay.settings'))->assertOk()->assertSee('No key for Anthropic yet')->assertSee('name="settings[chat][everyday_model]"', false);
+        Http::assertNothingSent();
+    }
+
+    #[Test]
     public function the_models_are_owner_settings_checked_like_the_connectors_model_field(): void
     {
+        Http::fake(['api.anthropic.com/*' => Http::response(['data' => [['id' => 'claude-haiku-5-5']]])]);
         $this->signIn(['manage_settings']);
         $post = fn (array $chat) => $this->post(route('mainstay.settings.update'), ['settings' => ['chat' => $chat]]);
 
