@@ -64,10 +64,10 @@ class ChatPlugin extends Plugin
                 'everyday_model',
                 'Model for everyday requests',
                 'text',
-                'The chat starts every message on this model. It runs on the provider and key chosen for text on the Connectors screen. Leave it empty to use that provider\'s default model.',
+                'The chat starts every message on this model. It runs on the provider and key chosen for text on the Connectors screen. Pick from the models that provider lists for its key, or a custom id. Leave it as the default to use that provider\'s own. The Connectors screen refreshes the list.',
                 default: '',
-                placeholder: 'claude-haiku-5-5',
                 rules: $this->modelRules(),
+                control: 'chat::model-setting',
             ),
             new Setting(
                 'stronger_model',
@@ -75,8 +75,8 @@ class ChatPlugin extends Plugin
                 'text',
                 'With both set, the everyday model hands a bigger request, such as several edits, rich text or page-builder blocks, or anything it is unsure about, to this one, which finishes that message. On its own it is used for everything. It runs on the same provider and key as the everyday model.',
                 default: '',
-                placeholder: 'claude-sonnet-5-5',
                 rules: $this->modelRules(),
+                control: 'chat::model-setting',
             ),
         ];
     }
