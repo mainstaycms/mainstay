@@ -237,10 +237,18 @@ class FileTest extends DatabaseTestCase
         $nl = Mainstay::find(Brochured::class, locale: 'nl')->first();
         $this->assertNull($nl?->sheet, 'A localized field is per language.');
 
-        $this->assertSame(['brochure' => ["The brochure field names file {$xlsx->id}, which is not in the media library or is in its trash."]], $this->refusal(fn () => $made(['brochure' => $xlsx])), 'An extension the field does not accept.');
-        $this->assertArrayHasKey('brochure', $this->refusal(fn () => $made(['brochure' => $image])), 'An image is no file.');
-        $this->assertArrayHasKey('photo', $this->refusal(fn () => $made(['photo' => $pdf])), 'A document is no image.');
-        $this->assertArrayHasKey('brochure', $this->refusal(fn () => $made(['brochure' => 999])));
+        $refused = fn (string $field, string $reason, Media|int $media) => [$field => ['The '.$field.' field names file '.($media instanceof Media ? $media->id : $media).', '.$reason.'.']];
+        $this->assertSame($refused('brochure', 'which is a .xlsx; this field takes only pdf, docx', $xlsx), $this->refusal(fn () => $made(['brochure' => $xlsx])), 'An extension the field does not accept.');
+        $this->assertSame($refused('brochure', 'which is an image; this field takes only pdf, docx', $image), $this->refusal(fn () => $made(['brochure' => $image])), 'An image is no file.');
+        $this->assertSame($refused('photo', 'which is a document, not an image', $pdf), $this->refusal(fn () => $made(['photo' => $pdf])), 'A document is no image.');
+        $this->assertSame($refused('brochure', 'which is not in the media library or is in its trash', 999), $this->refusal(fn () => $made(['brochure' => 999])));
+        $this->assertSame(['photo' => ['The photo field names file '.$pdf->id.', which is a document, not an image.']], $this->refusal(fn () => Mainstay::drafts()->publish(
+            Mainstay::drafts()->save(Brochured::class, ['photo' => $pdf->id], entry: $entry->id, locale: 'en', overrideAccess: true)->id, overrideAccess: true,
+        )), 'A draft is refused when it is published, in the same words.');
+
+        $gone = $this->upload($this->pdf('gone'));
+        Mainstay::media()->delete($gone->id, overrideAccess: true);
+        $this->assertSame($refused('brochure', 'which is not in the media library or is in its trash', $gone), $this->refusal(fn () => $made(['brochure' => $gone])), 'A trashed one is not a wrong type.');
 
         $draft = Mainstay::drafts()->save(Brochured::class, ['brochure' => $docx->id], entry: $entry->id, locale: 'en', overrideAccess: true);
         $this->assertNotNull($draft);

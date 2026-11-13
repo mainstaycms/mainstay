@@ -483,6 +483,24 @@ class MediaTest extends DatabaseTestCase
     }
 
     #[Test]
+    public function an_image_field_refuses_a_document_by_saying_what_it_is_wherever_it_is_written(): void
+    {
+        $dir = sys_get_temp_dir().'/mainstay-media-'.uniqid();
+        mkdir($dir);
+        file_put_contents($path = "{$dir}/Report.pdf", "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
+        $this->files[] = $path;
+        $document = $this->upload($path);
+        $live = $this->upload($this->png(20, 20, 10));
+        $words = 'which is a document, not an image.';
+
+        $this->assertSame(['cover' => ["The cover field names file {$document->id}, {$words}"]], $this->refusal(fn () => $this->create(['cover' => $document])));
+
+        $at = 'content.content.0.content.1.attrs.data.image';
+        $this->assertSame([$at => ["The {$at} field names file {$document->id}, {$words}"]], $this->refusal(fn () => $this->create(['cover' => $live, 'content' => $this->figures($live, $document->id)])), 'Inside a block.');
+        $this->assertSame(0, DB::table('pictured')->count());
+    }
+
+    #[Test]
     public function the_library_is_written_only_with_the_override_until_there_is_a_user(): void
     {
         $file = $this->png(20, 20, 10);
