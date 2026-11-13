@@ -660,9 +660,14 @@ every provider it speaks is one a site can connect. Require it and name `Mainsta
 OpenRouter, Ollama and the rest. The admin's **Ai Connectors** screen, open to whoever holds
 `use_ai`, has a cell per provider -- what it does, where its key comes from, Test -- and
 chooses the provider and the model each kind of work goes to: text, images, speech, transcription,
-embeddings, reranking and classification. A model is typed as the provider spells it
-(`claude-opus-5-5`, `llama3.2:latest`); left blank, it is laravel/ai's own default for that provider,
-which the field shows as its placeholder. The model is written into `ai.providers.{name}.models.{kind}.default`
+embeddings, reranking and classification. A model is picked from the models the provider lists for its
+key, fetched by the server (a request header only, cached ten minutes, **Refresh models** asks again) and sorted by kind of work
+as best it can, or typed as the provider spells it (`claude-opus-5-5`, `llama3.2:latest`) under *Custom...*, or where the
+provider lists none (Azure, Bedrock, Jina, Voyage AI, TypeSafe), or the fetch fails. The chat's two model settings pick
+from the default text provider's list the same way. Left blank, the model is laravel/ai's own default for that provider.
+A use left to the site's config shows the models of the provider the config names, when it has a key; saving a model for it
+also sets that provider for the use, as the line under the field says, since the model is kept only with a provider chosen. Without
+a key for it, a model is refused ("Choose a provider to set a model"). The model is written into `ai.providers.{name}.models.{kind}.default`
 (an Azure deployment, into its `deployment` settings), so `agent()` and `prompt()` use it, as does the chat. It adds an *AI connectors* dashboard widget, how many providers have a key and
 where each kind of work goes, for whoever holds `use_ai`; a key is never shown.
 
