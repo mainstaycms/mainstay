@@ -33,6 +33,8 @@
                     <option value="{{ $option }}" @selected((string) $value === (string) $option)>{{ $label }}</option>
                 @endforeach
             </x-mainstay::select>
+        @elseif ($setting->control !== null)
+            @include($setting->control, ['setting' => $setting, 'id' => $id, 'name' => $name, 'value' => $value, 'describedby' => $describedby, 'messages' => $messages])
         @else
             <x-mainstay::input :id="$id" :name="$name" :type="$setting->type === 'number' ? 'number' : 'text'" :step="$setting->type === 'number' ? 'any' : null" :placeholder="$setting->placeholder" :value="$value" :aria-invalid="$messages ? 'true' : null" :aria-describedby="$describedby" />
         @endif

@@ -17,6 +17,7 @@ use Mainstay\Navigation;
 use Mainstay\Settings\Setting;
 use Mainstay\Settings\Settings;
 use Mainstay\Tests\Fixtures\Plugins\Configured;
+use Mainstay\Tests\Fixtures\Plugins\Drawn;
 use Mainstay\Tests\Fixtures\Plugins\Paged;
 use Mainstay\Tests\Fixtures\Plugins\Tuned;
 use Mainstay\Tests\Fixtures\Plugins\Twice;
@@ -37,7 +38,7 @@ class SettingsTest extends DatabaseTestCase
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('mainstay.plugins', [Zebra::class, Configured::class, Tuned::class, Paged::class]);
+        $app['config']->set('mainstay.plugins', [Zebra::class, Configured::class, Tuned::class, Paged::class, Drawn::class]);
     }
 
     private function signIn(array $capabilities): User
@@ -138,6 +139,7 @@ class SettingsTest extends DatabaseTestCase
             fn () => new Setting('title', 'Title', 'markdown'),
             fn () => new Setting('title', 'Title', 'select'),
             fn () => new Setting('title', 'Title', 'text', options: ['a' => 'A']),
+            fn () => new Setting('title', 'Title', 'boolean', control: 'drawn::pick'),
         ] as $declare) {
             try {
                 $declare();
@@ -159,6 +161,19 @@ class SettingsTest extends DatabaseTestCase
         $page->assertSee('Shown above everything.')->assertSee('placeholder="Say something"', false)->assertSee('role="switch"', false);
         $page->assertSee('value="Untitled"', false)->assertSee('type="number"', false)->assertSee('<option value="warm"', false);
         $page->assertSee('name="settings[configured][title]"', false)->assertSee('name="settings[tuned][title]"', false);
+    }
+
+    #[Test]
+    public function a_setting_can_draw_its_own_control_and_is_validated_as_text(): void
+    {
+        Mainstay::setSetting('drawn.pick', 'two');
+        $this->signIn(['manage_settings']);
+
+        $this->get(route('mainstay.settings'))->assertSee('data-drawn="pick"', false)->assertSee('name="settings[drawn][pick]"', false)->assertSee('value="two"', false);
+
+        $this->from(route('mainstay.settings'))->post(route('mainstay.settings.update'), ['settings' => ['drawn' => ['pick' => 'far too long']]])->assertSessionHasErrors('settings.drawn.pick');
+        $this->post(route('mainstay.settings.update'), ['settings' => ['drawn' => ['pick' => 'three']]])->assertSessionHasNoErrors();
+        $this->assertSame('three', Mainstay::setting('drawn.pick'));
     }
 
     #[Test]
