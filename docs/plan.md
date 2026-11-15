@@ -1835,8 +1835,9 @@ screen, behind `manage_connectors`:
 - has a password field that saves a key encrypted in `mainstay_connectors`;
 - has Test, which asks the cheapest model for one word or embeds one, with the key taken out of any
   error;
-- chooses the provider for text, images, speech, transcription, embeddings, reranking and
-  classification.
+- chooses the provider, and the model on it, for text, images, speech, transcription, embeddings,
+  reranking and classification (the `models` column, added in its own migration since the table had
+  shipped in v0.2.0).
 
 **Not built.** An AI feature in the admin.
 
