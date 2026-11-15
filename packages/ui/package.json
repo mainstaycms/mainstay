@@ -12,6 +12,7 @@
   ],
   "exports": {
     "./behaviour": "./src/js/index.ts",
+    "./vite": "./src/vite/omitSharedRules.ts",
     "./theme.css": "./resources/css/theme.css"
   },
   "scripts": {
