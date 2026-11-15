@@ -6,6 +6,7 @@ use Illuminate\Contracts\Foundation\Application;
 use Mainstay\Admin\EntryTab;
 use Mainstay\Admin\Widget;
 use Mainstay\Content\ContentType;
+use Mainstay\Settings\Setting;
 
 /*
  | A package's types, views, admin screens, dashboard widgets, listeners, migrations and boot step, which
@@ -27,6 +28,13 @@ abstract class Plugin
      */
     abstract public static function handle(): string;
 
+    /*
+     | Its name in the admin: its item in the sidebar and its row in the roles
+     | grid. Declared rather than made from the class's name, which is an
+     | author's choice of identifier and not a label, and has no default.
+     */
+    abstract public static function label(): string;
+
     /** @return list<class-string<ContentType>> its types, registered as the host's are */
     public function types(): array
     {
@@ -45,9 +53,48 @@ abstract class Plugin
      | A routes file of its admin screens, loaded under `/<handle>` inside the
      | admin's sign-in and CSRF check, named `mainstay.plugins.<handle>.*`, and
      | answered only to someone holding `use_<handle>`. The one named `index` is
-     | its sidebar item.
+     | its sidebar item, and a plugin with `tools()` need not have one.
      */
     public function routes(): ?string
+    {
+        return null;
+    }
+
+    /*
+     | A view drawn on every admin page for someone holding `use_<handle>`, and
+     | on no other: in the top bar beside the user menu, where it draws its
+     | button, and it `@push('dialogs')` the dialog that button opens. That
+     | dialog's id is `<handle>-dialog`, so that the command center can open it
+     | too. It is given `$label`, the plugin's label(). Having it makes a
+     | plugin one with screens, whether or not it has routes.
+     */
+    public function tools(): ?string
+    {
+        return null;
+    }
+
+    /*
+     | What the site's owner may set, drawn as a section under its label() on
+     | the Settings screen for someone holding `manage_settings`, and read in
+     | code as `Mainstay::setting('<handle>.<key>')`. A screen of its own, where
+     | the generic form is not enough, is settingsRoutes().
+     |
+     | @return list<Setting>
+     */
+    public function settings(): array
+    {
+        return [];
+    }
+
+    /*
+     | A routes file of a screen inside Settings, loaded under
+     | `/settings/<handle>`, named `mainstay.settings.<handle>.*` and answered
+     | only to someone holding `manage_settings`. The route named `index` is
+     | its entry in Settings' own navigation, under its label(); it adds
+     | nothing to the sidebar, which has Settings alone. Whoever it should
+     | refuse beyond that, its controller refuses.
+     */
+    public function settingsRoutes(): ?string
     {
         return null;
     }
