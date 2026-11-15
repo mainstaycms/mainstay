@@ -513,6 +513,24 @@ class Mainstay
         ];
     }
 
+    /* `Mainstay::addAction('content.created', fn (string $type, int $id) => ...)`:
+       a host's hook, as a plugin's `Plugin::hooks()` is. */
+    public function addAction(string $name, callable $callback, int $priority = Hook::DEFAULT_PRIORITY): void
+    {
+        app(Hooks::class)->addAction($name, $callback, $priority);
+    }
+
+    public function addFilter(string $name, callable $callback, int $priority = Hook::DEFAULT_PRIORITY): void
+    {
+        app(Hooks::class)->addFilter($name, $callback, $priority);
+    }
+
+    /** @return list<class-string> every plugin's MCP tools */
+    public function mcpTools(): array
+    {
+        return array_merge(...array_map(fn (Plugin $plugin) => $plugin->mcpTools(), array_values($this->plugins)));
+    }
+
     /*
      | The query layer, reached from here so a template writes
      | `Mainstay::find(Article::class, where: [...])`. The arguments are
@@ -653,7 +671,7 @@ class Mainstay
 
     private function store(): ContentStore
     {
-        return new ContentStore($this, app(Paths::class));
+        return new ContentStore($this, app(Paths::class), app(Hooks::class));
     }
 
     /* The media library: `Mainstay::media()->upload(...)`, beside the

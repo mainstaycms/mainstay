@@ -40,6 +40,7 @@ use Mainstay\Fields\Date;
 use Mainstay\Fields\Field;
 use Mainstay\Fields\Relation;
 use Mainstay\Fields\Terms;
+use Mainstay\Hooks;
 use Mainstay\Mainstay;
 use ReflectionClass;
 use ReflectionProperty;
@@ -100,7 +101,7 @@ class ContentStore
        and a read and value() take a blank as null first. */
     private Date $moment;
 
-    public function __construct(private Mainstay $mainstay, private Paths $paths)
+    public function __construct(private Mainstay $mainstay, private Paths $paths, private Hooks $hooks)
     {
         $this->moment = new Date(time: true);
     }
@@ -123,6 +124,7 @@ class ContentStore
         $locale = $this->locale($locale);
         $this->depth($depth);
         $internal = $this->reads($type, $overrideAccess);
+        $where = $this->hooks->applyFilters('content.query', $where, $type);
 
         $rows = $this->select($type, $locale, $where, $sort, $internal, $trashed)->limit($limit)->get();
         $this->attach($type, $rows, locale: $locale);
@@ -147,6 +149,7 @@ class ContentStore
         $locale = $this->locale($locale);
         $this->depth($depth);
         $internal = $this->reads($type, $overrideAccess);
+        $where = $this->hooks->applyFilters('content.query', $where, $type);
 
         $entries = $this->select($type, $locale, $where, $sort, $internal, $trashed)->paginate($perPage, page: $page);
         $this->attach($type, $entries->items(), locale: $locale);
@@ -207,9 +210,11 @@ class ContentStore
            draft and not publish would otherwise put content live through
            here. So update() and saveGlobal() ask `publish` too. */
         [$internal, $reads] = $this->writes($type, ['create', 'publish'], $type, $overrideAccess);
+        $data = $this->hooks->applyFilters('content.creating', $data, $type, $locale);
 
         $id = $this->write($type, null, $this->validate($type, $data, [], $internal, $overrideAccess), $data, $locale, false, $reads, Gate::user()?->getKey(), $this->publisher($overrideAccess));
         Event::dispatch(new Saved($type, $id));
+        $this->announce('content.created', $type, $id);
 
         return $this->readBack($type, $id, $locale, $internal, $reads ? null : array_keys($data), $overrideAccess);
     }
@@ -249,6 +254,11 @@ class ContentStore
 
             [$internal, $reads] = $this->writes($type, ['update', 'publish'], fn () => $this->hydrate($type, $row, null, true), $overrideAccess);
 
+            /* Once, whatever a race makes of the attempts. */
+            if ($attempt === 1) {
+                $data = $this->hooks->applyFilters('content.updating', $data, $type, $id, $locale);
+            }
+
             try {
                 $values = $this->validate($type, $data, $this->stored($type, $row, $translations->get($locale), $internal), $internal, $overrideAccess);
                 $this->filed($type, $id, fn () => $this->write($type, $id, $values, $data, $locale, $translations->has($locale), $reads), $this->publisher($overrideAccess));
@@ -262,6 +272,7 @@ class ContentStore
         }
 
         Event::dispatch(new Saved($type, $id));
+        $this->announce('content.updated', $type, $id);
 
         return $this->readBack($type, $id, $locale, $internal, $reads ? null : array_keys($data), $overrideAccess);
     }
@@ -279,6 +290,7 @@ class ContentStore
         $this->writes($type, 'delete', fn () => $this->hydrate($type, $row, null, true), $overrideAccess);
 
         $this->paths->guardTrashing($type, $id, $this->site());
+        $this->hooks->doAction('content.trashing', $type, $id);
 
         DB::transaction(function () use ($type, $id) {
             $now = $this->stamp(CarbonImmutable::now());
@@ -289,6 +301,7 @@ class ContentStore
         }, self::ATTEMPTS);
 
         Event::dispatch(new Deleted($type, $id));
+        $this->announce('content.trashed', $type, $id);
     }
 
     /*
@@ -347,6 +360,10 @@ class ContentStore
                 throw $this->missing($type, $overrideAccess, "{$type} has no {$locale} translation to save. Pass locale: '{$locale}' to add one.");
             }
 
+            if ($attempt === 1) {
+                $data = $this->hooks->applyFilters('content.updating', $data, $type, $row === null ? null : (int) $row->id, $locale);
+            }
+
             try {
                 $stored = $row === null ? [] : $this->stored($type, $row, $translations->get($locale), $internal);
                 $values = $this->validate($type, $data, $stored, $internal, $overrideAccess);
@@ -362,6 +379,7 @@ class ContentStore
         }
 
         Event::dispatch(new Saved($type, $id));
+        $this->announce('content.updated', $type, $id);
 
         return $this->readBack($type, $id, $locale, $internal, $reads ? null : array_keys($data), $overrideAccess);
     }
@@ -419,6 +437,7 @@ class ContentStore
             throw $this->missing($type, $overrideAccess, "{$type} has no {$locale} translation to draft. Pass locale: '{$locale}' to add one.");
         }
 
+        $data = $this->hooks->applyFilters('content.draft-saving', $data, $type, $entry, $locale);
         $values = $this->validate($type, $data, $row === null ? [] : $this->stored($type, $row, $translations->get($locale), $internal), $internal, $overrideAccess, draft: true);
         $fields = $this->mainstay->fields($type);
         $changes = [];
@@ -500,6 +519,8 @@ class ContentStore
         if ($id === null) {
             return null;
         }
+
+        $this->announce('content.draft-saved', $type, $id);
 
         return $this->readDraft($type, DB::table(self::DRAFTS)->where('id', $id)->first(), $locale, $overrideAccess, self::DEPTH, $internal);
     }
@@ -608,6 +629,8 @@ class ContentStore
             default => fn () => $this->hydrate($type, $row, null, true),
         }, $overrideAccess);
 
+        $this->hooks->doAction('content.publishing', $type, $entry, $id);
+
         $nested = $this->snapshotted(0);
 
         [$id, $locale, $given] = DB::transaction(function () use ($type, $id, $global, $internal, $reads, $overrideAccess, $nested) {
@@ -632,6 +655,7 @@ class ContentStore
         }, self::ATTEMPTS);
 
         Event::dispatch(new Published($type, $id));
+        $this->announce('content.published', $type, $id);
 
         return $this->readBack($type, $id, $locale, $internal, $reads ? null : $given, $overrideAccess);
     }
@@ -810,6 +834,7 @@ class ContentStore
 
         $this->attach($type, [$row]);
         [, $reads] = $this->writes($type, 'restore', fn () => $this->hydrate($type, $row, null, true), $overrideAccess);
+        $this->hooks->doAction('content.restoring', $type, $id);
 
         $paths = DB::transaction(function () use ($type, $handle, $id, $reads, $overrideAccess) {
             $now = $this->stamp(CarbonImmutable::now());
@@ -830,6 +855,7 @@ class ContentStore
         }, self::ATTEMPTS);
 
         Event::dispatch(new Restored($type, $id));
+        $this->announce('content.restored', $type, $id);
 
         return $paths;
     }
@@ -850,6 +876,7 @@ class ContentStore
 
         $this->attach($type, [$row]);
         $this->writes($type, 'forceDelete', fn () => $this->hydrate($type, $row, null, true), $overrideAccess);
+        $this->hooks->doAction('content.deleting', $type, $id);
 
         DB::transaction(function () use ($type, $handle, $id) {
             /* Held from here, so a restore arriving now waits and then finds
@@ -875,6 +902,15 @@ class ContentStore
             DB::table("{$handle}_locales")->where('parent_id', $id)->delete();
             DB::table($handle)->where('id', $id)->delete();
         }, self::ATTEMPTS);
+
+        $this->announce('content.deleted', $type, $id);
+    }
+
+    /* Heard once the write has committed and never when it rolls back, as
+       the events are. */
+    private function announce(string $hook, string $type, int $id): void
+    {
+        DB::afterCommit(fn () => $this->hooks->doAction($hook, $type, $id));
     }
 
     /*

@@ -24,6 +24,7 @@ use Mainstay\Console\UserCommand;
 use Mainstay\Database\ContentSchema;
 use Mainstay\Database\NoPaths;
 use Mainstay\Database\Paths;
+use Mainstay\Http\AuthenticateToken;
 use Mainstay\Http\PreventRequestForgery;
 use Mainstay\Http\StartSession;
 use Mainstay\Settings\Settings;
@@ -47,6 +48,7 @@ class MainstayServiceProvider extends ServiceProvider
 
         $this->app->singleton(Mainstay::class);
         $this->app->singleton(Settings::class);
+        $this->app->singleton(Hooks::class);
 
         /* No addresses until a plugin that gives entries some binds its own
            over this when it boots. */
@@ -103,6 +105,10 @@ class MainstayServiceProvider extends ServiceProvider
                 }
             }
 
+            foreach ($plugin->hooks() as $hook) {
+                $this->app->make(Hooks::class)->add($hook);
+            }
+
             $plugin->boot($this->app);
         }
 
@@ -137,6 +143,8 @@ class MainstayServiceProvider extends ServiceProvider
             $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
         });
 
+        $this->loadPluginApiRoutes($mainstay);
+
         if ($this->app->runningInConsole()) {
             $this->commands([SyncCommand::class, SchemaCheckCommand::class, ReprocessCommand::class, UserCommand::class, TokenCommand::class, TypeScriptCommand::class]);
 
@@ -149,6 +157,23 @@ class MainstayServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/../dist' => public_path('vendor/mainstay'),
             ], 'mainstay-assets');
+        }
+    }
+
+    /* Inside the API's token check, as the core routes are, so Gate::user()
+       is the caller. */
+    private function loadPluginApiRoutes(Mainstay $mainstay): void
+    {
+        foreach ($mainstay->plugins() as $plugin) {
+            if ($plugin->apiRoutes() === null) {
+                continue;
+            }
+
+            Route::group([
+                'domain' => config('mainstay.domain'),
+                'prefix' => config('mainstay.api.prefix'),
+                'middleware' => [...config('mainstay.api.middleware'), AuthenticateToken::class],
+            ], fn () => $this->loadRoutesFrom($plugin->apiRoutes()));
         }
     }
 

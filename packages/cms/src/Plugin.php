@@ -128,6 +128,45 @@ abstract class Plugin
         return [];
     }
 
+    /*
+     | What it hangs on Mainstay's hooks -- before and after each write, and
+     | on what a read hands out -- as `Hook::action()` and `Hook::filter()`,
+     | registered when it loads. The hooks and their arguments are in the
+     | README.
+     |
+     | @return list<Hook>
+     */
+    public function hooks(): array
+    {
+        return [];
+    }
+
+    /*
+     | The MCP tools it adds to the `mainstay/mcp` server, which extend
+     | `Mainstay\Mcp\Tool` so a refusal is an error result the model reads.
+     | They are offered, and run, under the token's capabilities as the core
+     | ones are, and call what they do through `Operations` or the store,
+     | whose Gate answers.
+     |
+     | @return list<class-string>
+     */
+    public function mcpTools(): array
+    {
+        return [];
+    }
+
+    /*
+     | A routes file loaded under the API's prefix and middleware, inside
+     | its token check, so `Gate::user()` is the caller there as in the
+     | core routes. Name its routes `mainstay.api.<handle>.*`. Whatever it
+     | reads or writes it should do through the store, which refuses what the
+     | token may not.
+     */
+    public function apiRoutes(): ?string
+    {
+        return null;
+    }
+
     /* The directory its migrations are in, run with the package's own. */
     public function migrations(): ?string
     {

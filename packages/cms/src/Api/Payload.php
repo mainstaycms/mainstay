@@ -7,6 +7,7 @@ use Mainstay\Content\ContentType;
 use Mainstay\Content\Draft;
 use Mainstay\Content\Entry;
 use Mainstay\Fields\Date;
+use Mainstay\Hooks;
 use Mainstay\Mainstay;
 use ReflectionProperty;
 
@@ -19,7 +20,7 @@ use ReflectionProperty;
  */
 final class Payload
 {
-    public function __construct(private Mainstay $mainstay) {}
+    public function __construct(private Mainstay $mainstay, private Hooks $hooks) {}
 
     public function of(ContentType $item): array
     {
@@ -37,7 +38,7 @@ final class Payload
             }
         }
 
-        return [...$payload, ...$this->fields($item)];
+        return $this->hooks->applyFilters('content.payload', [...$payload, ...$this->fields($item)], $item);
     }
 
     /* A draft, and the entry it would make live, with no id where that is
