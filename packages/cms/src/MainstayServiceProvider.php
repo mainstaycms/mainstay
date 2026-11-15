@@ -15,6 +15,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Mainstay\Auth\Gate;
 use Mainstay\Auth\User;
+use Mainstay\Console\MoveMediaCommand;
 use Mainstay\Console\ReprocessCommand;
 use Mainstay\Console\SchemaCheckCommand;
 use Mainstay\Console\SyncCommand;
@@ -129,6 +130,10 @@ class MainstayServiceProvider extends ServiceProvider
             $this->loadRoutesFrom(__DIR__.'/../routes/admin.php');
         });
 
+        /* On every host, outside the admin's prefix: the site's pages print
+           these addresses, whichever locale's host they are served from. */
+        $this->loadRoutesFrom(__DIR__.'/../routes/media.php');
+
         Route::group([
             'domain' => config('mainstay.domain'),
             'prefix' => config('mainstay.api.prefix'),
@@ -138,7 +143,7 @@ class MainstayServiceProvider extends ServiceProvider
         });
 
         if ($this->app->runningInConsole()) {
-            $this->commands([SyncCommand::class, SchemaCheckCommand::class, ReprocessCommand::class, UserCommand::class, TokenCommand::class, TypeScriptCommand::class]);
+            $this->commands([SyncCommand::class, SchemaCheckCommand::class, ReprocessCommand::class, MoveMediaCommand::class, UserCommand::class, TokenCommand::class, TypeScriptCommand::class]);
 
             Event::listen(fn (CommandStarting $event) => $this->warnAboutSync($event));
 

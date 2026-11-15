@@ -41,6 +41,7 @@ use Mainstay\Fields\Field;
 use Mainstay\Fields\Relation;
 use Mainstay\Fields\Terms;
 use Mainstay\Mainstay;
+use Mainstay\Media\Documents;
 use ReflectionClass;
 use ReflectionProperty;
 use RuntimeException;
@@ -2236,6 +2237,7 @@ class ContentStore
             }
 
             $given = [];
+            $types = [];
 
             foreach ($fields as $name => $field) {
                 if (! array_key_exists($name, $data)) {
@@ -2244,22 +2246,27 @@ class ContentStore
 
                 $held = array_map(fn (array $reference) => implode(':', $reference), $field->references($stored[$name] ?? null, $name));
 
-                foreach ($field->references($values[$name] ?? null, $name) as $at => [$class, $id]) {
-                    if (! in_array("{$class}:{$id}", $held, true)) {
+                foreach ($field->references($values[$name] ?? null, $name) as $at => $reference) {
+                    [$class, $id] = $reference;
+
+                    if (! in_array(implode(':', $reference), $held, true)) {
                         $given[$class][$at] = $id;
+                        $types[$at] = $reference[2] ?? '';
                     }
                 }
             }
 
             foreach ($given as $class => $ids) {
-                $present = $class === Media::class
-                    ? $this->mainstay->media()->present(array_values($ids))
-                    : $this->present($this->entry($class), array_values(array_unique($ids)), $overrideAccess);
+                if ($class === Media::class) {
+                    $this->checkMedia($validator, $ids, $types);
+
+                    continue;
+                }
+
+                $present = $this->present($this->entry($class), array_values(array_unique($ids)), $overrideAccess);
 
                 foreach (array_diff($ids, $present) as $at => $id) {
-                    $validator->errors()->add($at, $class === Media::class
-                        ? "The {$validator->getDisplayableAttribute($at)} field names image {$id}, which is not in the media library or is in its trash."
-                        : "The {$validator->getDisplayableAttribute($at)} field names {$class::handle()} {$id}, which is not there to point at.");
+                    $validator->errors()->add($at, "The {$validator->getDisplayableAttribute($at)} field names {$class::handle()} {$id}, which is not there to point at.");
                 }
             }
         });
@@ -2267,6 +2274,54 @@ class ContentStore
         $validator->validate();
 
         return $values;
+    }
+
+    /*
+     | Each image or file a save names, which is in the library out of its
+     | trash and of a type its field takes: an image field takes no document.
+     |
+     | @param  array<string, int>  $ids  by where they are written
+     | @param  array<string, string>  $types  the types each takes, comma separated
+     */
+    private function checkMedia(\Illuminate\Validation\Validator $validator, array $ids, array $types): void
+    {
+        $byTypes = [];
+
+        foreach ($ids as $at => $id) {
+            $byTypes[$types[$at]][$at] = $id;
+        }
+
+        foreach ($byTypes as $accepted => $group) {
+            $allowed = explode(',', $accepted);
+            $present = $this->mainstay->media()->present(array_values($group), $allowed);
+            $missing = array_diff($group, $present);
+            $held = $this->mainstay->media()->typesOf(array_values($missing));
+
+            foreach ($missing as $at => $id) {
+                $field = $validator->getDisplayableAttribute($at);
+                $isThere = isset($held[$id]);
+                $noun = $isThere || ! str_starts_with($accepted, 'image/') ? 'file' : 'image';
+                $reason = $isThere ? $this->refusedType($held[$id], $allowed) : 'which is not in the media library or is in its trash';
+                $validator->errors()->add($at, "The {$field} field names {$noun} {$id}, {$reason}.");
+            }
+        }
+    }
+
+    /*
+     | Why a media row that is in the library is not one its field takes.
+     |
+     | @param  list<string>  $allowed  the types the field takes
+     */
+    private function refusedType(string $type, array $allowed): string
+    {
+        if (str_starts_with($allowed[0], 'image/')) {
+            return 'which is a document, not an image';
+        }
+
+        $held = str_starts_with($type, 'image/') ? 'an image' : 'a .'.(Documents::extension($type) ?? 'document');
+        $takes = implode(', ', array_map(fn (string $allowedType) => Documents::extension($allowedType) ?? $allowedType, $allowed));
+
+        return "which is {$held}; this field takes only {$takes}";
     }
 
     /*

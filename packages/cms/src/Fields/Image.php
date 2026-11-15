@@ -6,6 +6,7 @@ use Attribute;
 use Closure;
 use InvalidArgumentException;
 use Mainstay\Content\Media;
+use Mainstay\Media\Library;
 use Mainstay\Media\Size;
 use ReflectionProperty;
 
@@ -66,6 +67,11 @@ class Image extends Field
         return parent::bind($property);
     }
 
+    public function mediaTypes(): array
+    {
+        return Library::imageTypes();
+    }
+
     public function column(): array
     {
         return ['unsignedBigInteger'];
@@ -89,7 +95,8 @@ class Image extends Field
     {
         $id = filter_var($value instanceof Media ? $value->id : $value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
 
-        return $id === false ? [] : [$at => [Media::class, $id]];
+        /* The types the field takes ride along, for a save to check the id against. */
+        return $id === false ? [] : [$at => [Media::class, $id, implode(',', $this->mediaTypes())]];
     }
 
     /* The image the read loaded, or one marked missing that keeps the id.

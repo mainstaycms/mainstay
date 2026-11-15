@@ -918,7 +918,6 @@ class DraftTest extends DatabaseTestCase
     #[Test]
     public function an_image_comes_back_from_the_trash_or_goes_for_good(): void
     {
-        Storage::fake('public');
         Storage::fake('local');
 
         $image = imagecreatetruecolor(8, 8);

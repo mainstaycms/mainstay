@@ -146,3 +146,45 @@ test('opens for an image on the page, handing what is picked to what asked', asy
   expect(picked).toEqual(['7'])
   expect(dialog.open).toBe(false)
 })
+
+test('a file field shows the name of the document picked, and Remove clears it', async () => {
+  document.body.innerHTML = `
+    <form>
+      <div data-image-field data-file-field data-picker="/admin/media?pick=1&kind=document&accept=pdf">
+        <input type="hidden" name="brochure" value="">
+        <span data-file-name class="text-muted">No file</span>
+        <button type="button" data-image-choose>Choose</button>
+        <button type="button" data-image-remove hidden>Remove</button>
+      </div>
+    </form>
+    <dialog id="mainstay-picker"><div data-picker-body></div></dialog>`
+
+  const dialog = document.querySelector('dialog')!
+
+  dialog.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  dialog.close = function () {
+    this.removeAttribute('open')
+  }
+
+  const fetched = vi.fn(async () => new Response('<button type="button" data-pick="9" data-src="" data-name="Annual report">Nine</button>'))
+
+  vi.stubGlobal('fetch', fetched)
+  imageFields()
+
+  document.querySelector<HTMLElement>('[data-image-choose]')!.click()
+  await vi.waitFor(() => expect(document.querySelector('[data-pick]')).not.toBeNull())
+  expect(fetched.mock.calls[0]?.[0]).toBe('/admin/media?pick=1&kind=document&accept=pdf')
+
+  document.querySelector<HTMLElement>('[data-pick]')!.click()
+
+  expect(new FormData(document.querySelector('form')!).get('brochure')).toBe('9')
+  expect(document.querySelector('[data-file-name]')!.textContent).toBe('Annual report')
+  expect(document.querySelector<HTMLElement>('[data-image-remove]')!.hidden).toBe(false)
+
+  document.querySelector<HTMLElement>('[data-image-remove]')!.click()
+
+  expect(new FormData(document.querySelector('form')!).get('brochure')).toBe('')
+  expect(document.querySelector('[data-file-name]')!.textContent).toBe('No file')
+})

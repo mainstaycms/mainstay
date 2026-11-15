@@ -649,7 +649,6 @@ class AdminTest extends DatabaseTestCase
     #[Test]
     public function an_image_is_uploaded_described_picked_as_a_cover_and_trashed(): void
     {
-        Storage::fake('public');
         Storage::fake('local');
         $alt = fn (int $id) => [Mainstay::media()->find($id, 'en')->alt, Mainstay::media()->find($id, 'nl')->alt];
 
@@ -662,7 +661,7 @@ class AdminTest extends DatabaseTestCase
         $this->post(route('mainstay.media.store'), ['file' => UploadedFile::fake()->image('rule.png', 90, 10), 'alt' => ['en' => '', 'nl' => '']])->assertSessionHasNoErrors();
         $rule = Mainstay::media()->paginate()->first();
         $this->assertSame(['', ''], $alt($rule->id));
-        $this->post(route('mainstay.media.store'), ['alt' => ['en' => 'Nothing']])->assertSessionHasErrors(['file' => 'Choose an image to upload.']);
+        $this->post(route('mainstay.media.store'), ['alt' => ['en' => 'Nothing']])->assertSessionHasErrors(['file' => 'Choose a file to upload.']);
         $this->post(route('mainstay.media.store'), ['file' => UploadedFile::fake()->image('half.png', 30, 30), 'alt' => ['en' => 'Described in English only']])->assertSessionHasErrors('alt.nl');
 
         /* From the picker, the grid answers again, the new image first and
@@ -848,7 +847,6 @@ class AdminTest extends DatabaseTestCase
     #[Test]
     public function a_form_draws_what_its_fields_point_at_as_missing_where_its_reader_may_not_read_it(): void
     {
-        Storage::fake('public');
         Storage::fake('local');
         $crime = Mainstay::create(Genre::class, ['title' => 'Crime', 'slug' => 'crime'], locale: 'en', overrideAccess: true);
         $ada = Mainstay::create(Person::class, ['title' => 'Ada', 'slug' => 'ada'], locale: 'en', overrideAccess: true);
