@@ -21,6 +21,11 @@ class AiConnectors extends Plugin
         return 'ai';
     }
 
+    public static function label(): string
+    {
+        return 'Connectors';
+    }
+
     public function views(): ?string
     {
         return __DIR__.'/../resources/views';

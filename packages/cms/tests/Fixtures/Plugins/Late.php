@@ -13,6 +13,11 @@ class Late extends Plugin
         return 'late';
     }
 
+    public static function label(): string
+    {
+        return 'Late';
+    }
+
     public function routes(): ?string
     {
         return __DIR__.'/late-routes.php';

@@ -312,6 +312,11 @@ class Seo extends Plugin
         return 'seo';
     }
 
+    public static function label(): string
+    {
+        return 'SEO';
+    }
+
     public function types(): array
     {
         return [SeoRedirect::class, SeoSettings::class];
@@ -334,7 +339,8 @@ class Seo extends Plugin
 }
 ```
 
-The handle names everything the plugin takes: its views are `seo::`, its screens are under
+The label is its name in the sidebar and in the roles grid. It has no default, since a class's name is
+not a label, and a blank one is refused as Mainstay boots. The handle names everything the plugin takes: its views are `seo::`, its screens are under
 `/admin/seo` and its capability is `use_seo`. A handle one of the admin's screens, a view namespace, a
 type or another plugin has already is refused as Mainstay boots.
 
@@ -360,6 +366,39 @@ from `entryTabs()`: the view of its panel, which types it applies to, and option
 end of the tab bar and an aside in the publishing rail's place while the tab is open. `assets()` lists
 the scripts and stylesheets, relative to `public/vendor/<handle>`, that every admin screen loads after
 Mainstay's own; the plugin publishes them under the `mainstay-assets` tag.
+
+`tools()` returns the name of a view drawn on every admin screen, for someone holding `use_<handle>` and
+for no one else: in the top bar beside the user menu, where it draws its button, and it
+`@push('dialogs')` the dialog the button opens. The dialog's id is `<handle>-dialog`, which is how the
+command center lists the tool under Open and opens it. The view is given `$label`, the plugin's
+`label()`. A plugin with `tools()` is one with screens even without `routes()`, and needs no route
+named `index`, so no sidebar item.
+
+`settings()` returns the `Mainstay\Settings\Setting`s the site's owner may set: a key, a label, a type
+(`text`, `textarea`, `boolean`, `number` or `select`, which takes `options`), and optionally a
+`description`, a `default`, validation `rules`, a `placeholder` and a `capability`. They are drawn as a
+section under the plugin's `label()` on **Settings** in the admin, for someone holding `manage_settings`
+(and the setting's own `capability`, if it names one, which the roles grid lists), and are read in code
+as `Mainstay::setting('<handle>.<key>')`, which falls back to the default. The handle scopes the key, so
+two plugins can each have a `title`, and the screen writes only the settings it drew for the person
+saving. `Mainstay::setSetting('<handle>.<key>', $value)` writes as code does, with no check of who is
+asking, and refuses a key no plugin declared; null forgets the value. Values are kept as JSON in
+`mainstay_settings`, so run `php artisan migrate` after updating.
+
+```php
+public function settings(): array
+{
+    return [new Setting('instructions', 'Instructions for the chat', 'textarea', rules: ['max:2000'])];
+}
+```
+
+Where the generic form is not enough, `settingsRoutes()` returns a routes file loaded under
+`/admin/settings/<handle>`, named `mainstay.settings.<handle>.*` and answered to someone holding
+`manage_settings`. Its route named `index` is a screen inside Settings, listed under the plugin's
+`label()` in Settings' own navigation beside General. The sidebar has one item, Settings, and gains
+nothing from a plugin. Draw the screen in `<x-mainstay::settings-screen title="...">`, which brings the
+navigation. It is separate from `routes()`, which answers to `use_<handle>` and is the plugin's own item
+in the sidebar.
 
 An entry's form, a template part's included, draws its tabs -- Details, the Content tab, and any a plugin
 adds -- alphabetically by label, and opens on the first, so Content comes before Details. `#[Tabs]` on
