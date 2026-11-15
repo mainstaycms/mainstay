@@ -414,6 +414,61 @@ class Page extends Entry {}
 content written, heard once the write commits and never when it rolls back. Your app listens to them
 with `Event::listen` as a plugin does.
 
+### Hooks
+
+`Plugin::hooks()` returns `Hook::action()`s and `Hook::filter()`s, as WordPress has them; a host adds the
+same with `Mainstay::addAction()` and `Mainstay::addFilter()`. Each takes a name, a callable and a
+priority (10 by default, lower first, registration order breaking a tie). An action's return is
+ignored; a filter is handed a value and returns it. The hooks sit in the store, so the admin, the REST
+API, MCP and any plugin's own writes reach them alike.
+
+A *before* hook runs after the caller has been authorized and before anything is written. It refuses
+the operation by throwing a `ValidationException` (a 422 over the API, an error result over MCP) or an
+`AuthorizationException` (a 403), and a refused write leaves no row, revision, draft or event. The
+before filters of a write are handed the fields it was given and return what is written, which is then
+validated as the caller's own would be. An *after* hook runs once the write has committed, as the
+events do, and never when it rolls back; it is handed the type and the id.
+
+| Hook | Kind | Arguments |
+|---|---|---|
+| `content.creating` | filter | `array $data, string $type, ?string $locale`, returns the data |
+| `content.updating` | filter, an entry's update and a global's save | `array $data, string $type, ?int $id, string $locale`, returns the data |
+| `content.draft-saving` | filter | `array $data, string $type, ?int $entry, string $locale`, returns the data |
+| `content.publishing` | action | `string $type, ?int $entry, int $draft` |
+| `content.trashing`, `content.restoring`, `content.deleting` | action | `string $type, int $id` |
+| `content.created`, `content.updated`, `content.published`, `content.trashed`, `content.restored`, `content.deleted` | action | `string $type, int $id` |
+| `content.draft-saved` | action, not when the save left no draft | `string $type, int $draft` |
+| `content.query` | filter, on every `find()`, `paginate()` and so `findById()` | `array $where, string $type`, returns the `where` to run |
+| `content.payload` | filter, on every entry or global the API and MCP hand out, a nested one too | `array $payload, ContentType $item`, returns the payload |
+
+`trashing` and `trashed` are an entry going to the trash; `deleting` and `deleted` are its going for
+good. Do not read through the store inside `content.query`, which would call itself.
+
+```php
+public function hooks(): array
+{
+    return [
+        Hook::filter('content.creating', function (array $data, string $type) {
+            if ($type === Article::class && mb_strlen($data['title'] ?? '') > 80) {
+                throw ValidationException::withMessages(['title' => 'A title is at most 80 characters.']);
+            }
+
+            return $data;
+        }),
+        Hook::filter('content.payload', fn (array $payload, ContentType $item) => $item instanceof Article
+            ? [...$payload, 'readingMinutes' => ceil(str_word_count(strip_tags($payload['body'] ?? '')) / 200)]
+            : $payload),
+    ];
+}
+```
+
+`mcpTools()` returns tool classes, which extend `Mainstay\Mcp\Tool` and are listed after the core ones.
+A tool answers as its caller: it reads and writes through `Mainstay::` (or `Operations`) without
+`overrideAccess`, so the token's capabilities decide, and a refusal is an error result.
+`apiRoutes()` returns a routes file loaded under the API's prefix and middleware, behind its token
+check, so `Gate::user()` is the caller; it should write through the store as well. A refusal thrown
+there is rendered by Laravel.
+
 A plugin runs as your application does, with its access: Mainstay keeps what it declares from taking
 another's name, not what its code does, so install one as you would any dependency. A listener running
 in the request throws after the content has committed; make one that can fail a queued listener.
