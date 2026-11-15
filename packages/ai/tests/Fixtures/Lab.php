@@ -19,6 +19,11 @@ class Lab extends Plugin implements DeclaresProviders
         return 'lab';
     }
 
+    public static function label(): string
+    {
+        return 'Lab';
+    }
+
     public function providers(): array
     {
         return [

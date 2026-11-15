@@ -21,6 +21,11 @@ class SitePlugin extends Plugin
         return 'site';
     }
 
+    public static function label(): string
+    {
+        return 'Site';
+    }
+
     public function views(): ?string
     {
         return __DIR__.'/../resources/views';

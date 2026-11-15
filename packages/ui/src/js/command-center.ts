@@ -10,7 +10,8 @@ import { rankCommands, type Command } from './rankCommands'
  | server-rendered admin navigates, so it is an href.
  */
 
-type Entry = Command & { href: string }
+/* Where it goes, or the dialog it opens: a plugin's tool is a dialog on every screen. */
+type Entry = Command & ({ href: string; dialog?: never } | { dialog: string; href?: never })
 
 /* The list opens on focus with everything showing, so it reads as a menu before
    it is used as a search. */
@@ -96,6 +97,12 @@ function attach(root: HTMLElement): void {
     state.active = 0
     field.value = ''
     render()
+
+    if (command.dialog !== undefined) {
+      (document.getElementById(command.dialog) as HTMLDialogElement | null)?.showModal()
+
+      return
+    }
 
     location.assign(command.href)
   }

@@ -26,6 +26,7 @@ use Mainstay\Database\NoPaths;
 use Mainstay\Database\Paths;
 use Mainstay\Http\PreventRequestForgery;
 use Mainstay\Http\StartSession;
+use Mainstay\Settings\Settings;
 use Mainstay\Ui\UiServiceProvider;
 use Throwable;
 
@@ -45,6 +46,7 @@ class MainstayServiceProvider extends ServiceProvider
         $this->app->register(UiServiceProvider::class);
 
         $this->app->singleton(Mainstay::class);
+        $this->app->singleton(Settings::class);
 
         /* No addresses until a plugin that gives entries some binds its own
            over this when it boots. */

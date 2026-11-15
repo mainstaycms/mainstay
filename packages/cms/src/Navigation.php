@@ -19,6 +19,8 @@ use Mainstay\Content\Media;
 use Mainstay\Content\Taxonomy;
 use Mainstay\Policies\MediaPolicy;
 use Mainstay\Policies\PluginPolicy;
+use Mainstay\Policies\SettingsPolicy;
+use Mainstay\Settings\Setting;
 use ReflectionClass;
 
 class Navigation
@@ -28,8 +30,8 @@ class Navigation
      | registered types rather than written by hand: each entry type and
      | each taxonomy under Content, the media library, each global under
      | Globals, each global edited as a page under a heading of its own, each
-     | plugin's screens under Plugins, the accounts and
-     | roles. A type is offered only to someone who may write
+     | plugin's screens under Plugins, the settings,
+     | the accounts and roles. A type is offered only to someone who may write
      | to it -- its list is no use to anyone else -- the library to someone who
      | may read it, a plugin to someone who may use it, the accounts to
      | someone who may manage them, and a section with nothing
@@ -66,6 +68,11 @@ class Navigation
             [
                 'label' => 'Plugins',
                 'items' => array_map(self::plugin(...), array_values(array_filter(array_keys(Capabilities::plugins()), fn (string $plugin) => self::uses($plugin) && self::routed($plugin)))),
+            ],
+            [
+                'items' => [
+                    ...(self::manages() ? [['href' => route('mainstay.settings', absolute: false), 'label' => 'Settings', 'icon' => self::icon('<path d="M2.25 4.75h5.5M10.75 4.75h3M2.25 11.25h3M8.25 11.25h5.5" /><circle cx="9.25" cy="4.75" r="1.5" /><circle cx="6.75" cy="11.25" r="1.5" />')]] : []),
+                ],
             ],
             [
                 'items' => self::accounts() ? [
@@ -136,6 +143,10 @@ class Navigation
             }
         }
 
+        foreach (self::tools() as ['handle' => $handle, 'label' => $label]) {
+            $commands[] = ['id' => "open-{$handle}", 'label' => $label, 'group' => 'Open', 'dialog' => "{$handle}-dialog"];
+        }
+
         return $commands;
     }
 
@@ -182,11 +193,91 @@ class Navigation
         return Gate::accounts()->allows('viewAny', User::class);
     }
 
+    /* Whether the signed-in user may change a setting, or, with none given,
+       open the Settings screen: the question its every write asks. */
+    public static function manages(?Setting $setting = null): bool
+    {
+        return Gate::for(Setting::class, SettingsPolicy::class)->allows('manage', [Setting::class, $setting?->capability]);
+    }
+
+    /*
+     | The plugins' settings the signed-in user may change, a plugin's with
+     | any of them, by label -- what the Settings screen draws and writes,
+     | and nothing else, so no setting is written that is not drawn.
+     |
+     | @return list<array{handle: string, label: string, settings: list<Setting>}>
+     */
+    public static function settings(): array
+    {
+        if (! self::manages()) {
+            return [];
+        }
+
+        $sections = [];
+
+        foreach (app(Mainstay::class)->plugins() as $plugin) {
+            $allowed = array_values(array_filter($plugin->settings(), self::manages(...)));
+
+            if ($allowed !== []) {
+                $sections[] = ['handle' => $plugin::handle(), 'label' => $plugin::label(), 'settings' => $allowed];
+            }
+        }
+
+        usort($sections, fn (array $a, array $b) => Str::lower(Str::ascii($a['label'])) <=> Str::lower(Str::ascii($b['label'])));
+
+        return $sections;
+    }
+
+    /*
+     | The screens inside Settings, for its own navigation: General, which
+     | draws every plugin's settings, then the screen each plugin has made
+     | of its own, by label. Only for someone who may manage settings.
+     |
+     | @return list<array{href: string, label: string}>
+     */
+    public static function settingsScreens(): array
+    {
+        if (! self::manages()) {
+            return [];
+        }
+
+        $own = [];
+
+        foreach (app(Mainstay::class)->plugins() as $handle => $plugin) {
+            if ($plugin->settingsRoutes() !== null) {
+                $own[] = ['href' => route("mainstay.settings.{$handle}.index", absolute: false), 'label' => $plugin::label()];
+            }
+        }
+
+        usort($own, fn (array $a, array $b) => Str::lower(Str::ascii($a['label'])) <=> Str::lower(Str::ascii($b['label'])));
+
+        return [['href' => route('mainstay.settings', absolute: false), 'label' => 'General'], ...$own];
+    }
+
     /* Whether the signed-in user may open a plugin's screens: the question
        its every route asks. */
     public static function uses(string $plugin): bool
     {
         return Gate::for($plugin, PluginPolicy::class)->allows('use', [$plugin, $plugin]);
+    }
+
+    /*
+     | The views of the plugins' tools the signed-in user may use, each with
+     | what it is given, for the admin's layout to draw in its top bar.
+     |
+     | @return list<array{handle: string, view: string, label: string}>
+     */
+    public static function tools(): array
+    {
+        $tools = [];
+
+        foreach (app(Mainstay::class)->plugins() as $plugin) {
+            if ($plugin->tools() !== null && self::uses($plugin::class)) {
+                $tools[] = ['handle' => $plugin::handle(), 'view' => $plugin->tools(), 'label' => $plugin::label()];
+            }
+        }
+
+        return $tools;
     }
 
     /* Whether the signed-in user may upload to the media library. */
@@ -205,9 +296,10 @@ class Navigation
     /*
      | Whether a plugin's screen named `index`, its item, is routed. Not yet
      | where the routes were cached before the config named it: it waits for
-     | route:cache, and every screen of the admin with it. Otherwise one with
-     | none is its author's mistake, refused naming the class rather than as
-     | a route nobody defined.
+     | route:cache, and every screen of the admin with it. One with tools has
+     | no item by choice, its button is its way in. Otherwise one with none is
+     | its author's mistake, refused naming the class rather than as a route
+     | nobody defined.
      */
     private static function routed(string $plugin): bool
     {
@@ -215,20 +307,20 @@ class Navigation
             return true;
         }
 
-        if (app()->routesAreCached()) {
+        if (app()->routesAreCached() || app(Mainstay::class)->plugins()[$plugin::handle()]->tools() !== null) {
             return false;
         }
 
         throw new LogicException("{$plugin} has screens and no route named index, which is its item in the admin's sidebar. Name its first screen's route index.");
     }
 
-    /* A plugin's item: its screen named `index`, under its class's name and
-       its #[Icon]. */
+    /* A plugin's item: its screen named `index`, under its label() and its
+       #[Icon]. */
     private static function plugin(string $plugin): array
     {
         $icon = (new ReflectionClass($plugin))->getAttributes(Icon::class)[0] ?? null;
 
-        return ['href' => route('mainstay.plugins.'.$plugin::handle().'.index', absolute: false), 'label' => self::label($plugin, plural: false), 'icon' => ($icon?->newInstance() ?? new Icon('block'))->toHtml()];
+        return ['href' => route('mainstay.plugins.'.$plugin::handle().'.index', absolute: false), 'label' => $plugin::label(), 'icon' => ($icon?->newInstance() ?? new Icon('block'))->toHtml()];
     }
 
     /* A type's own #[Icon], which wins over the one its kind is drawn with. */
