@@ -39,4 +39,10 @@ class Server extends McpServer
         Tools\TrashEntry::class,
         Tools\SaveGlobal::class,
     ];
+
+    /* Plugins' tools follow the core's, run and refused as they are. */
+    protected function boot(): void
+    {
+        $this->tools = [...$this->tools, ...app(Mainstay::class)->mcpTools()];
+    }
 }
