@@ -29,13 +29,14 @@ class Navigation
      | The admin's sections, as data for <x-mainstay::sidebar>, built from the
      | registered types rather than written by hand: each entry type and
      | each taxonomy under Content, the media library, each global under
-     | Globals, each global edited as a page under a heading of its own, each
-     | plugin's screens under Plugins, the settings,
-     | the accounts and roles. A type is offered only to someone who may write
+     | Globals, each global edited as a page under a heading of its own, the
+     | plugins' screens together under one Plugins item, the settings, the
+     | accounts and roles. A type is offered only to someone who may write
      | to it -- its list is no use to anyone else -- the library to someone who
      | may read it, a plugin to someone who may use it, the accounts to
      | someone who may manage them, and a section with nothing
-     | in it is left out. Inside a group the items are alphabetical.
+     | in it is left out. Inside a group, and inside Plugins, the items are
+     | alphabetical.
      |
      | Links come from route(), so an admin mounted at another path or on a
      | subdirectory's app gets its own.
@@ -66,8 +67,7 @@ class Navigation
             ],
             ...self::pages($types, $item),
             [
-                'label' => 'Plugins',
-                'items' => array_map(self::plugin(...), array_values(array_filter(array_keys(Capabilities::plugins()), fn (string $plugin) => self::uses($plugin) && self::routed($plugin)))),
+                'items' => self::plugins(),
             ],
             [
                 'items' => [
@@ -133,7 +133,10 @@ class Navigation
 
         foreach (self::sections() as $section) {
             foreach ($section['items'] as $item) {
-                $commands[] = ['id' => $item['href'], 'label' => $item['label'], 'group' => 'Go to', 'href' => $item['href']];
+                /* A parent with no page of its own, Plugins, offers its children instead. */
+                foreach ($item['items'] ?? [$item] as $page) {
+                    $commands[] = ['id' => $page['href'], 'label' => $page['label'], 'group' => 'Go to', 'href' => $page['href']];
+                }
             }
         }
 
@@ -312,6 +315,25 @@ class Navigation
         }
 
         throw new LogicException("{$plugin} has screens and no route named index, which is its item in the admin's sidebar. Name its first screen's route index.");
+    }
+
+    /*
+     | One item for all the plugins' screens, so the sidebar stays as short with
+     | ten plugins as with one. It has no page of its own, so it is a toggle
+     | that opens when one of its children is the current page, and there is no
+     | item at all for someone who may open none of them.
+     |
+     | @return list<array<string, mixed>>
+     */
+    private static function plugins(): array
+    {
+        $pages = array_map(self::plugin(...), array_values(array_filter(array_keys(Capabilities::plugins()), fn (string $plugin) => self::uses($plugin) && self::routed($plugin))));
+
+        if ($pages === []) {
+            return [];
+        }
+
+        return [['label' => 'Plugins', 'icon' => self::icon('<path d="M6 1.75v2.5M10 1.75v2.5M4 4.25h8v3a4 4 0 0 1-8 0zM8 11.25v3" />'), 'items' => self::alphabetical($pages)]];
     }
 
     /* A plugin's item: its screen named `index`, under its label() and its

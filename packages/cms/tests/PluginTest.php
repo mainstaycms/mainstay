@@ -199,10 +199,49 @@ class PluginTest extends DatabaseTestCase
     {
         request()->attributes->set(Gate::USER, $this->user(['use_seo']));
 
-        $items = collect(Navigation::sections())->firstWhere('label', 'Plugins')['items'];
+        $items = $this->pluginsItem()['items'];
 
         $this->assertSame(['Search engines'], array_column($items, 'label'));
         $this->assertNotSame(Str::headline(class_basename(Seo::class)), $items[0]['label']);
+    }
+
+    #[Test]
+    public function the_plugins_screens_sit_under_one_plugins_item_and_not_beside_it(): void
+    {
+        request()->attributes->set(Gate::USER, $this->user(['use_seo']));
+
+        $sections = Navigation::sections();
+
+        $this->assertNull(collect($sections)->firstWhere('label', 'Plugins'));
+        $this->assertNotContains('/admin/seo', collect($sections)->flatMap(fn (array $section) => $section['items'])->pluck('href')->all());
+        $this->assertSame('/admin/seo', $this->pluginsItem()['items'][0]['href']);
+        $this->assertContains('/admin/seo', array_column(Navigation::commands(), 'href'));
+    }
+
+    #[Test]
+    public function there_is_no_plugins_item_for_whoever_may_open_none_of_its_screens(): void
+    {
+        request()->attributes->set(Gate::USER, $this->user(['edit_entries']));
+
+        $this->assertNull($this->pluginsItem());
+        $this->signIn($this->user(['edit_entries']));
+        $this->get(route('mainstay.admin'))->assertOk()->assertDontSee('Plugins')->assertDontSee('Search engines');
+    }
+
+    #[Test]
+    public function the_plugins_item_is_a_toggle_that_is_open_only_on_one_of_its_screens(): void
+    {
+        $this->signIn($this->user(['use_seo']));
+
+        $this->get(route('mainstay.admin'))->assertOk()
+            ->assertSeeInOrder(['aria-expanded="false"', 'Plugins', 'data-open="false"', 'href="/admin/seo"'], false);
+        $this->get('/admin/seo')->assertOk()
+            ->assertSeeInOrder(['aria-expanded="true"', 'Plugins', 'data-open="true"', 'href="/admin/seo"'], false);
+    }
+
+    private function pluginsItem(): ?array
+    {
+        return collect(Navigation::sections())->flatMap(fn (array $section) => $section['items'])->firstWhere('label', 'Plugins');
     }
 
     #[Test]

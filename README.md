@@ -232,7 +232,7 @@ With `MAINSTAY_SCHEMA_SYNC=true` in development's `.env`, `php artisan mainstay:
 
 A content type or a part carries `#[Icon]` too, which is its item in the admin's sidebar in place of its
 kind's icon: `#[Icon('newspaper')]` on an `Article`. Inside a sidebar group -- Content, Globals, a part's
-heading, Plugins -- the items are alphabetical by label.
+heading -- the items are alphabetical by label. The plugins' screens sit together under one Plugins item that opens to list them.
 
 ### Write a block
 
