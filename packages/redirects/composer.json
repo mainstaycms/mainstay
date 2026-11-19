@@ -1,0 +1,16 @@
+{
+    "name": "mainstay/redirects",
+    "description": "Redirects for Mainstay: moved and trashed addresses registered as they change, custom and regex redirects, and the 404s visitors hit.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "mainstay/cms": "self.version",
+        "mainstay/site": "self.version"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mainstay\\Redirects\\": "src/"
+        }
+    }
+}
