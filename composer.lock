@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "bc263c90fdfbde382fede3e30d9477a5",
+    "content-hash": "48bcf2cab4334a7c471b8087319d76ae",
     "packages": [],
     "packages-dev": [
         {
@@ -4246,6 +4246,34 @@
                 "MIT"
             ],
             "description": "Template parts for Mainstay: a navigation, a footer, built from blocks once per site.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
+            "name": "mainstay/redirects",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/redirects",
+                "reference": "bbb1a7881f5eaba20c603afdda44db5f518fc613"
+            },
+            "require": {
+                "mainstay/cms": "self.version",
+                "mainstay/site": "self.version",
+                "php": "^8.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mainstay\\Redirects\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Redirects for Mainstay: moved and trashed addresses registered as they change, custom and regex redirects, and the 404s visitors hit.",
             "transport-options": {
                 "symlink": true,
                 "relative": true
@@ -12276,6 +12304,7 @@
         "mainstay/mcp": 20,
         "mainstay/page-builder": 20,
         "mainstay/parts": 20,
+        "mainstay/redirects": 20,
         "mainstay/site": 20,
         "mainstay/ui": 20
     },

@@ -190,6 +190,18 @@ visitor still sees success. Submissions are read and deleted in the admin and th
 errors; `?locale=` picks the language. The plugin adds a *Submissions* dashboard widget, the total and the
 newest, for whoever holds `edit_submissions`. No spam protection beyond the limiter, file uploads or export yet.
 
+Redirects are the `mainstay/redirects` plugin. Require it (it needs `mainstay/site`, whose addresses it watches),
+name `Mainstay\Redirects\RedirectsPlugin` in `config('mainstay.plugins')` and run `php artisan migrate`. It
+registers redirects as the site changes: an entry whose address changes is redirected from the old one (a chain
+collapses to one hop, never to itself), a trashed entry answers 410 Gone, or 301s to the path set under Settings,
+until it is restored, and an address visitors found nothing at is counted on the Misses tab, to make a redirect
+from or ignore. Add your own under Plugins > Redirects, for whoever holds `use_redirects`: an exact address, or a
+regular expression over the whole path (`/old-blog/(.*)` to `/articles/$1`, `${name}` for a named group) for bulk
+moves, each a 301, 302, 307, 308 or 410, with or without the query string, tried in priority order. A box tests an
+address without visiting it. A middleware before routing answers GET and HEAD requests; a circle or a pattern that
+backtracks without end is let through and written on its rule. `php artisan mainstay:redirects:prune` drops old
+404s daily.
+
 Nothing on the web makes the first account. Make it on the server, and invite the rest from the
 admin's Users:
 
@@ -680,8 +692,8 @@ Mainstay is built in phases, each ending at something that works. Phases 1 to 13
 types and schema sync, reading and writing from PHP, public rendering, rich text and blocks, media,
 relations and taxonomies, drafts and revisions, identity, the admin, accounts, the page builder, and
 the API with its tokens and MCP server. AI connectors came after them, and then the split of core
-from its plugins: `ai`, `mcp`, `site`, `page-builder`, `parts` for template parts and `forms` for a
-form builder. Next:
+from its plugins: `ai`, `mcp`, `site`, `page-builder`, `parts` for template parts, `forms` for a
+form builder and `redirects`. Next:
 
 - **The second locale and the second site.**
 - **Onboarding.**

@@ -17,6 +17,7 @@
         <directory name="packages/mcp/src"/>
         <directory name="packages/page-builder/src"/>
         <directory name="packages/parts/src"/>
+        <directory name="packages/redirects/src"/>
         <directory name="packages/site/src"/>
         <directory name="packages/ui/src"/>
         <ignoreFiles>
